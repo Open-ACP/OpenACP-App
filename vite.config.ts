@@ -6,21 +6,21 @@ import fs from "node:fs"
 
 const host = process.env.TAURI_DEV_HOST
 
-// Custom resolver that maps @opencode-ai/* workspace imports to local copies
-function opencodeResolver() {
+// Custom resolver that maps @openacp/* package imports to local copies
+function openacpResolver() {
   const uiComponents = path.resolve(__dirname, "src/ui/src/components")
   const uiSrc = path.resolve(__dirname, "src/ui/src")
-  const appSrc = path.resolve(__dirname, "src/app-src")
+  const appSrc = path.resolve(__dirname, "src/app")
   const utilSrc = path.resolve(__dirname, "src/util/src")
   const sdkSrc = path.resolve(__dirname, "src/openacp-sdk")
 
   return {
-    name: "opencode-resolver",
+    name: "openacp-resolver",
     enforce: "pre" as const,
     resolveId(source: string, importer: string | undefined) {
-      // @opencode-ai/ui/* → src/ui/src/components/*.tsx or src/ui/src/*
-      if (source.startsWith("@opencode-ai/ui/")) {
-        const rest = source.slice("@opencode-ai/ui/".length)
+      // @openacp/ui/* → src/ui/src/components/*.tsx or src/ui/src/*
+      if (source.startsWith("@openacp/ui/")) {
+        const rest = source.slice("@openacp/ui/".length)
 
         // Special paths
         if (rest === "styles") return path.join(uiSrc, "styles/index.css")
@@ -48,19 +48,19 @@ function opencodeResolver() {
         return null
       }
 
-      // @opencode-ai/app → src/app-src/index.ts
-      if (source === "@opencode-ai/app") return path.join(appSrc, "index.ts")
-      if (source === "@opencode-ai/app/index.css") return path.join(appSrc, "index.css")
+      // @openacp/app → src/app-src/index.ts
+      if (source === "@openacp/app") return path.join(appSrc, "index.ts")
+      if (source === "@openacp/app/index.css") return path.join(appSrc, "index.css")
 
-      // @opencode-ai/util/* → src/util/src/*.ts
-      if (source.startsWith("@opencode-ai/util/")) {
-        const rest = source.slice("@opencode-ai/util/".length)
+      // @openacp/util/* → src/util/src/*.ts
+      if (source.startsWith("@openacp/util/")) {
+        const rest = source.slice("@openacp/util/".length)
         return path.join(utilSrc, rest + ".ts")
       }
 
-      // @opencode-ai/sdk/* → src/sdk/src/*
-      if (source.startsWith("@opencode-ai/sdk/")) {
-        const rest = source.slice("@opencode-ai/sdk/".length)
+      // @openacp/sdk/* → src/sdk/src/*
+      if (source.startsWith("@openacp/sdk/")) {
+        const rest = source.slice("@openacp/sdk/".length)
         const tsPath = path.join(sdkSrc, rest + ".ts")
         if (fs.existsSync(tsPath)) return tsPath
         const tsxPath = path.join(sdkSrc, rest + ".tsx")
@@ -70,7 +70,7 @@ function opencodeResolver() {
         return null
       }
 
-      // Stub out @pierre/diffs (OpenCode internal package we don't have)
+      // Stub out @pierre/diffs (OpenACP internal package we don't have)
       if (source.startsWith("@pierre/")) {
         return "\0virtual:pierre-stub"
       }
@@ -92,10 +92,10 @@ function opencodeResolver() {
 }
 
 export default defineConfig({
-  plugins: [opencodeResolver(), solid(), tailwindcss()],
+  plugins: [openacpResolver(), solid(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src/app-src"),
+      "@": path.resolve(__dirname, "src/app"),
     },
   },
   build: {
