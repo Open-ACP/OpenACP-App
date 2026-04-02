@@ -324,14 +324,6 @@ export function OpenACPApp() {
   return (
     <div class="flex h-screen w-screen bg-background-base text-text-base select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
       <Toast.Region />
-      <Show when={showAddWorkspace()}>
-        <AddWorkspaceModal
-          onAdd={handleAddWorkspace}
-          onClose={() => setShowAddWorkspace(false)}
-          existingIds={store.workspaces.map((w) => w.id)}
-          defaultTab={addWorkspaceDefaultTab()}
-        />
-      </Show>
       <SidebarRail
         workspaces={store.workspaces.map((w) => w.directory || w.id)}
         activeWorkspace={activeWorkspace()?.directory ?? activeWorkspace()?.id ?? ""}
@@ -413,6 +405,14 @@ export function OpenACPApp() {
             </SessionsProvider>
           </WorkspaceProvider>
         </Show>
+      </Show>
+      <Show when={showAddWorkspace()}>
+        <AddWorkspaceModal
+          onAdd={handleAddWorkspace}
+          onClose={() => setShowAddWorkspace(false)}
+          existingIds={store.workspaces.map((w) => w.id)}
+          defaultTab={addWorkspaceDefaultTab()}
+        />
       </Show>
     </div>
   )

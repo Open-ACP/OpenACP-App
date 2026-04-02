@@ -1,5 +1,4 @@
 import { createSignal, Show } from 'solid-js'
-import { Portal } from 'solid-js/web'
 import { LocalTab } from './local-tab.js'
 import { RemoteTab } from './remote-tab.js'
 import type { WorkspaceEntry } from '../../api/workspace-store.js'
@@ -15,7 +14,6 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
   const [tab, setTab] = createSignal<'local' | 'remote'>(props.defaultTab ?? 'local')
 
   return (
-    <Portal>
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div class="bg-background-raised w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
@@ -67,6 +65,5 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
         </div>
       </div>
     </div>
-    </Portal>
   )
 }
