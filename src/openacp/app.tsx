@@ -8,6 +8,7 @@ import { SidebarRail } from "./components/sidebar-rail"
 import { ChatView } from "./components/chat-view"
 import { Composer } from "./components/composer"
 import { WelcomeScreen } from "./components/welcome"
+import { AddWorkspaceModal } from "./components/add-workspace/index.js"
 import { loadWorkspaces, saveWorkspaces, discoverLocalInstances, type WorkspaceEntry } from "./api/workspace-store"
 import { useChat } from "./context/chat"
 import { Toast } from "../ui/src/components/toast"
@@ -111,6 +112,15 @@ export function OpenACPApp() {
       setStore("active", store.workspaces[0]?.id ?? null)
     }
     persistWorkspaces()
+  }
+
+  // ── Add workspace modal ─────────────────────────────────────────────────
+
+  const [showAddWorkspace, setShowAddWorkspace] = createSignal(false)
+
+  function handleAddWorkspace(entry: WorkspaceEntry) {
+    addWorkspace(entry)
+    setShowAddWorkspace(false)
   }
 
   // Open folder picker — find matching workspace by directory
@@ -256,6 +266,13 @@ export function OpenACPApp() {
   return (
     <div class="flex h-screen w-screen bg-background-base text-text-base select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
       <Toast.Region />
+      <Show when={showAddWorkspace()}>
+        <AddWorkspaceModal
+          onAdd={handleAddWorkspace}
+          onClose={() => setShowAddWorkspace(false)}
+          existingIds={store.workspaces.map((w) => w.id)}
+        />
+      </Show>
       <SidebarRail
         workspaces={store.workspaces.map((w) => w.directory || w.id)}
         activeWorkspace={activeWorkspace()?.directory ?? activeWorkspace()?.id ?? ""}
@@ -263,7 +280,7 @@ export function OpenACPApp() {
           const match = store.workspaces.find((w) => w.directory === dir || w.id === dir)
           if (match) switchInstance(match.id)
         }}
-        onOpenFolder={openFolderPicker}
+        onOpenFolder={() => setShowAddWorkspace(true)}
       />
 
       <Show
