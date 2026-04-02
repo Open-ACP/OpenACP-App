@@ -4,7 +4,7 @@ import { useSessions } from "../context/sessions"
 import { createAutoScroll } from "../../ui/src/hooks/create-auto-scroll"
 import { MessageBubble } from "./message"
 
-function ChatHeader() {
+function ChatHeader(props: { onOpenReview?: () => void }) {
   const chat = useChat()
   const sessions = useSessions()
 
@@ -23,6 +23,15 @@ function ChatHeader() {
           <span class="text-14-medium text-text-strong truncate block">{title()}</span>
         </div>
         <div class="flex items-center gap-1.5">
+          <button
+            class="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors"
+            title="Review changes"
+            onClick={props.onOpenReview}
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <path d="M3.33 4.17h13.34M3.33 8.33h8.34M3.33 12.5h13.34M3.33 16.67h8.34" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            </svg>
+          </button>
           <button
             class="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors"
             title="Context"
@@ -133,7 +142,7 @@ function ScrollToBottomButton(props: { visible: boolean; onClick: () => void }) 
   )
 }
 
-export function ChatView() {
+export function ChatView(props: { onOpenReview?: () => void }) {
   const chat = useChat()
 
   const autoScroll = createAutoScroll({
@@ -150,7 +159,7 @@ export function ChatView() {
 
   return (
     <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
-      <ChatHeader />
+      <ChatHeader onOpenReview={props.onOpenReview} />
       <div class="flex-1 min-h-0 overflow-hidden relative">
         <Show
           when={hasMessages()}

@@ -11,15 +11,24 @@ import { WelcomeScreen } from "./components/welcome"
 import { loadWorkspaceData, saveWorkspaceData, discoverWorkspaces, type InstanceInfo } from "./api/workspace-store"
 import { useChat } from "./context/chat"
 import { Toast } from "../ui/src/components/toast"
+import { ReviewPanel } from "./components/review-panel"
 import type { ServerInfo } from "./types"
 
 function ChatArea() {
   const chat = useChat()
+  const [reviewOpen, setReviewOpen] = createSignal(false)
   return (
-    <div class="@container relative flex-1 flex flex-col min-h-0 h-full bg-background-stronger min-w-0">
-      <ChatView />
-      <Show when={chat.activeSession()}>
-        <Composer />
+    <div class="flex flex-1 min-h-0 h-full min-w-0">
+      <div class="@container relative flex-1 flex flex-col min-h-0 h-full bg-background-stronger min-w-0">
+        <ChatView onOpenReview={() => setReviewOpen(true)} />
+        <Show when={chat.activeSession()}>
+          <Composer />
+        </Show>
+      </div>
+      <Show when={reviewOpen()}>
+        <div class="shrink-0 h-full" style={{ width: "480px" }}>
+          <ReviewPanel onClose={() => setReviewOpen(false)} />
+        </div>
       </Show>
     </div>
   )

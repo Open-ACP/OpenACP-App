@@ -5,7 +5,7 @@ import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
 import { cacheMessages, loadCachedMessages } from "../api/history-cache"
 import type {
-  AgentEvent, Message, MessagePart, TextPart, ThinkingPart, ToolCallPart,
+  AgentEvent, Message, MessagePart, TextPart, ThinkingPart, ToolCallPart, FileDiff,
   SessionHistory, HistoryTurn, HistoryStep,
 } from "../types"
 
@@ -81,7 +81,9 @@ function stepToPart(step: HistoryStep): MessagePart | null {
       return { id: uid("p"), type: "text", content: step.content as string }
     case "thinking":
       return { id: uid("p"), type: "thinking", content: step.content as string }
-    case "tool_call":
+    case "tool_call": {
+      const s = step as any
+      const diff: FileDiff | null = s.diff ? { path: s.diff.path || "", before: s.diff.oldText, after: s.diff.newText } : null
       return {
         id: uid("p"),
         type: "tool_call",
@@ -90,7 +92,9 @@ function stepToPart(step: HistoryStep): MessagePart | null {
         status: (step.status as ToolCallPart["status"]) || "completed",
         input: step.input as Record<string, unknown> | undefined,
         output: typeof step.output === "string" ? step.output : step.output ? JSON.stringify(step.output) : undefined,
+        diff,
       }
+    }
     default:
       return null
   }
@@ -203,6 +207,35 @@ export function ChatProvider(props: ParentProps) {
     }
   }
 
+  // ── Diff extraction from tool events ──────────────────────────────────
+
+  function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; name?: string }): FileDiff | null {
+    // Try meta.filediff first (server-provided)
+    const meta = evt.meta as Record<string, any> | undefined
+    if (meta?.filediff) {
+      const fd = meta.filediff
+      return { path: fd.path || "", before: fd.before, after: fd.after }
+    }
+
+    const input = evt.rawInput as Record<string, any> | undefined
+    if (!input) return null
+
+    const name = (evt.name || "").toLowerCase()
+    const path = (input.file_path || input.filePath || input.path || "") as string
+
+    // Edit tool: old_string + new_string
+    if (name === "edit" && input.old_string != null && input.new_string != null) {
+      return { path, before: String(input.old_string), after: String(input.new_string) }
+    }
+
+    // Write tool: content only (new file or full rewrite)
+    if (name === "write" && input.content != null) {
+      return { path, after: String(input.content) }
+    }
+
+    return null
+  }
+
   // ── Text batching — accumulate chunks, flush once per frame ────────────
 
   const textBuffer = new Map<string, string>() // sessionID → pending text
@@ -271,6 +304,7 @@ export function ChatProvider(props: ParentProps) {
 
       case "tool_call": {
         ensureAssistantMessage(sessionID)
+        const diff = extractDiff(evt)
         updateAssistantParts(sessionID, (parts) => {
           const existing = findToolPart(parts, evt.id)
           if (existing) {
@@ -278,6 +312,7 @@ export function ChatProvider(props: ParentProps) {
             existing.status = evt.status as ToolCallPart["status"]
             if (evt.rawInput) existing.input = evt.rawInput
             if (evt.rawOutput) existing.output = evt.rawOutput
+            if (diff) existing.diff = diff
           } else {
             parts.push({
               id: nextPartId(),
@@ -287,6 +322,7 @@ export function ChatProvider(props: ParentProps) {
               status: evt.status as ToolCallPart["status"],
               input: evt.rawInput,
               output: evt.rawOutput,
+              diff,
             })
           }
         })
@@ -295,6 +331,7 @@ export function ChatProvider(props: ParentProps) {
 
       case "tool_update": {
         ensureAssistantMessage(sessionID)
+        const diff = extractDiff(evt)
         updateAssistantParts(sessionID, (parts) => {
           const existing = findToolPart(parts, evt.id)
           if (existing) {
@@ -302,6 +339,7 @@ export function ChatProvider(props: ParentProps) {
             if (evt.rawInput) existing.input = evt.rawInput
             if (evt.rawOutput != null) existing.output = evt.rawOutput
             if (evt.name) existing.name = evt.name
+            if (diff) existing.diff = diff
           }
         })
         break

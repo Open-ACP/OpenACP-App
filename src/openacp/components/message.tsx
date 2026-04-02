@@ -141,6 +141,27 @@ function ToolCallPartView(props: { part: ToolCallPart }) {
     return "success"
   })
 
+  const isFileOp = createMemo(() => {
+    const n = props.part.name.toLowerCase()
+    return n === "edit" || n === "write" || n === "apply_patch"
+  })
+
+  const lineCount = createMemo(() => {
+    const diff = props.part.diff
+    if (diff?.after) return diff.after.split("\n").length
+    const content = props.part.input?.content ?? props.part.input?.new_string
+    if (typeof content === "string") return content.split("\n").length
+    return undefined
+  })
+
+  const contentPreview = createMemo(() => {
+    const diff = props.part.diff
+    if (diff?.after) return diff.after.slice(0, 300)
+    const content = props.part.input?.content ?? props.part.input?.new_string
+    if (typeof content === "string") return (content as string).slice(0, 300)
+    return undefined
+  })
+
   return (
     <div class="flex gap-2.5 items-start">
       <div class="mt-[12px] flex-shrink-0">
@@ -148,7 +169,7 @@ function ToolCallPartView(props: { part: ToolCallPart }) {
       </div>
       <div class="min-w-0 flex-1">
         <BasicTool
-          icon="mcp"
+          icon={isFileOp() ? "code-lines" : "mcp"}
           status={props.part.status}
           trigger={{
             title: props.part.name,
@@ -156,10 +177,25 @@ function ToolCallPartView(props: { part: ToolCallPart }) {
             args: args(),
           }}
           animated
-          hideDetails={!props.part.output}
+          hideDetails={!props.part.output && !contentPreview()}
           defer
         >
-          <Show when={props.part.output}>
+          {/* File operation: show content preview with gradient mask */}
+          <Show when={isFileOp() && contentPreview()}>
+            <div>
+              <Show when={lineCount()}>
+                <div class="text-12-regular text-text-weak mb-1" style={{ "font-size": "12px" }}>
+                  {lineCount()} line{lineCount()! > 1 ? "s" : ""}
+                </div>
+              </Show>
+              <div class="oac-file-preview">
+                <pre class="oac-file-preview-pre">{contentPreview()}</pre>
+              </div>
+            </div>
+          </Show>
+
+          {/* Non-file tool: show raw output */}
+          <Show when={!isFileOp() && props.part.output}>
             <div class="oac-tool-output">
               <pre class="oac-tool-output-pre">{props.part.output}</pre>
             </div>

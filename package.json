@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@kobalte/core": "^0.13.11",
+    "@pierre/diffs": "^1.1.10",
     "@shikijs/transformers": "^4.0.2",
     "@solid-primitives/active-element": "^2.1.5",
     "@solid-primitives/audio": "^1.4.4",
