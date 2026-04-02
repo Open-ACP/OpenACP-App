@@ -15,7 +15,7 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
 
   return (
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div class="bg-background-raised w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
+      <div class="bg-background-weak w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div class="flex items-center justify-between px-6 py-4 border-b border-border-base">
           <h2 class="text-16-semibold text-text-strong">Add Workspace</h2>

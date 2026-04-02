@@ -99,8 +99,11 @@ export async function discoverLocalInstances(): Promise<InstanceListEntry[]> {
     const parsed = JSON.parse(stdout)
     // parsed is { success: true, data: [...] } from jsonSuccess
     const data = parsed?.data ?? parsed
-    return Array.isArray(data) ? data : []
-  } catch {
+    const result = Array.isArray(data) ? data : []
+    console.log('[discoverLocalInstances] found', result.length, 'instances', result)
+    return result
+  } catch (err) {
+    console.error('[discoverLocalInstances] failed:', err)
     return []
   }
 }
