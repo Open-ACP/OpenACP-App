@@ -12,8 +12,15 @@ interface AgentEntry {
   description: string;
 }
 
+interface WorkspaceEntry {
+  id: string
+  name: string
+  directory: string
+  type: 'local' | 'remote'
+}
+
 interface Props {
-  onSuccess: (workspace: string) => void;
+  onSuccess: (entry: WorkspaceEntry) => void;
 }
 
 export function SetupWizard(props: Props) {
@@ -99,9 +106,20 @@ export function SetupWizard(props: Props) {
     try {
       await invoke('run_openacp_setup', { workspace: workspace(), agent: selectedAgent() });
       setSetupStatus('starting');
-      await invoke('start_server');
+      const serverInfo = await invoke<{ url: string; token: string }>('start_server');
+      // Fetch workspace identity from the newly started server
+      const res = await fetch(`${serverInfo.url}/api/v1/workspace`, {
+        headers: { Authorization: `Bearer ${serverInfo.token}` },
+      });
+      const wsData = res.ok ? (await res.json() as { id: string; name: string; directory: string }) : null;
+      const entry: WorkspaceEntry = {
+        id: wsData?.id ?? 'main',
+        name: wsData?.name ?? 'Main',
+        directory: wsData?.directory ?? workspace(),
+        type: 'local',
+      };
       setSetupStatus('success');
-      setTimeout(() => props.onSuccess(workspace()), 800);
+      setTimeout(() => props.onSuccess(entry), 800);
     } catch (err) {
       setSetupStatus('error');
       setSetupError(String(err));
