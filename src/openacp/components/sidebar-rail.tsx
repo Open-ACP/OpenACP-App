@@ -1,7 +1,8 @@
-import { For } from "solid-js"
+import { For, Show } from "solid-js"
 import { IconButton } from "@openacp/ui/icon-button"
 import { Tooltip } from "@openacp/ui/tooltip"
 import { Avatar } from "@openacp/ui/avatar"
+import { invoke } from "@tauri-apps/api/core"
 
 const AVATAR_COLORS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 
@@ -67,7 +68,19 @@ export function SidebarRail(props: {
         </div>
       </div>
 
-      <div class="shrink-0 w-full pb-5 pt-3 flex flex-col items-center">
+      <div class="shrink-0 w-full pb-5 pt-3 flex flex-col items-center gap-2">
+        <Show when={import.meta.env.DEV}>
+          <Tooltip placement="right" value="[Dev] Reset OpenACP">
+            <IconButton
+              icon="trash"
+              variant="ghost"
+              onClick={async () => {
+                await invoke('dev_reset_openacp')
+                location.reload()
+              }}
+            />
+          </Tooltip>
+        </Show>
         <Tooltip placement="right" value="Settings">
           <IconButton icon="settings-gear" variant="ghost" />
         </Tooltip>

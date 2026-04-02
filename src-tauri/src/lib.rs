@@ -156,6 +156,7 @@ pub fn run() {
             onboarding::run_openacp_setup,
             onboarding::run_openacp_agents_list,
             onboarding::run_openacp_agent_install,
+            onboarding::dev_reset_openacp,
         ])
         .setup(move |app| {
             app.manage(AppState {

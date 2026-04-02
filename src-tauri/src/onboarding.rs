@@ -255,3 +255,34 @@ pub async fn run_openacp_agent_install(
         Some(code) => Err(format!("Agent install exited with code {code}")),
     }
 }
+
+/// Dev-only: removes ~/.openacp config dir and the openacp binary.
+/// Used to reset onboarding state during development.
+#[tauri::command]
+pub async fn dev_reset_openacp(app: tauri::AppHandle) -> Result<(), String> {
+    // Remove ~/.openacp
+    if let Some(home) = dirs::home_dir() {
+        let openacp_dir = home.join(".openacp");
+        if openacp_dir.exists() {
+            std::fs::remove_dir_all(&openacp_dir).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Remove openacp binary via `which openacp`
+    let which = app
+        .shell()
+        .command("which")
+        .args(["openacp"])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if which.status.success() {
+        let bin_path = String::from_utf8_lossy(&which.stdout).trim().to_string();
+        if !bin_path.is_empty() {
+            std::fs::remove_file(&bin_path).ok(); // best-effort
+        }
+    }
+
+    Ok(())
+}
