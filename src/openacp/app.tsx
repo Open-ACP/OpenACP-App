@@ -10,6 +10,7 @@ import { Composer } from "./components/composer"
 import { WelcomeScreen } from "./components/welcome"
 import { AddWorkspaceModal } from "./components/add-workspace/index.js"
 import { loadWorkspaces, saveWorkspaces, discoverLocalInstances, type WorkspaceEntry } from "./api/workspace-store"
+import { getKeychainToken } from "./api/keychain.js"
 import { useChat } from "./context/chat"
 import { Toast } from "../ui/src/components/toast"
 import type { ServerInfo } from "./types"
@@ -36,11 +37,45 @@ export function OpenACPApp() {
   const [server, setServer] = createSignal<ServerInfo | null>(null)
   const [serverLoading, setServerLoading] = createSignal(false)
   const [serverError, setServerError] = createSignal(false)
+  const [errorWorkspaceIds, setErrorWorkspaceIds] = createSignal<Set<string>>(new Set())
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
   function findWorkspace(id: string): WorkspaceEntry | undefined {
     return store.workspaces.find((w) => w.id === id)
+  }
+
+  // ── Workspace info refresh ──────────────────────────────────────────────
+
+  async function refreshWorkspaceInfo(id: string) {
+    const entry = store.workspaces.find(w => w.id === id)
+    if (!entry) return
+    try {
+      if (entry.type === 'local') {
+        const list = await discoverLocalInstances()
+        const found = list.find(i => i.id === id)
+        if (found && (found.name !== entry.name || found.directory !== entry.directory)) {
+          setStore('workspaces', (prev) => prev.map(w =>
+            w.id === id ? { ...w, name: found.name ?? w.name, directory: found.directory } : w
+          ))
+          void saveWorkspaces(store.workspaces)
+        }
+      } else if (entry.type === 'remote' && entry.host) {
+        const token = await getKeychainToken(id)
+        if (!token) return
+        const res = await fetch(`${entry.host}/api/v1/workspace`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) return
+        const ws = await res.json() as { name?: string; directory?: string }
+        if (ws.name !== entry.name || ws.directory !== entry.directory) {
+          setStore('workspaces', (prev) => prev.map(w =>
+            w.id === id ? { ...w, name: ws.name ?? w.name, directory: ws.directory ?? w.directory } : w
+          ))
+          void saveWorkspaces(store.workspaces)
+        }
+      }
+    } catch { /* best-effort */ }
   }
 
   // ── Workspace persistence ───────────────────────────────────────────────
@@ -111,6 +146,7 @@ export function OpenACPApp() {
     if (store.active === instanceId) {
       setStore("active", store.workspaces[0]?.id ?? null)
     }
+    setErrorWorkspaceIds(prev => { const next = new Set(prev); next.delete(instanceId); return next })
     persistWorkspaces()
   }
 
@@ -177,7 +213,6 @@ export function OpenACPApp() {
         info = await resolveWorkspaceServer(instanceId)
       } else {
         // Remote: read JWT from keychain
-        const { getKeychainToken } = await import('./api/keychain.js')
         const jwt = await getKeychainToken(entry.id)
         if (!jwt) {
           setServerLoading(false)
@@ -193,17 +228,21 @@ export function OpenACPApp() {
           if (res.ok) {
             setServerLoading(false)
             setServerError(false)
+            setErrorWorkspaceIds(prev => { const next = new Set(prev); next.delete(instanceId); return next })
             retryCount = 0
+            void refreshWorkspaceInfo(instanceId)
             return info
           }
         } catch { /* health check failed */ }
       }
       setServerLoading(false)
       setServerError(true)
+      setErrorWorkspaceIds(prev => new Set([...prev, instanceId]))
       return null
     } catch {
       setServerLoading(false)
       setServerError(true)
+      setErrorWorkspaceIds(prev => new Set([...prev, instanceId]))
       return null
     }
   }
@@ -281,6 +320,11 @@ export function OpenACPApp() {
       <SidebarRail
         workspaces={store.workspaces.map((w) => w.directory || w.id)}
         activeWorkspace={activeWorkspace()?.directory ?? activeWorkspace()?.id ?? ""}
+        errorWorkspaces={new Set(
+          store.workspaces
+            .filter(w => errorWorkspaceIds().has(w.id))
+            .map(w => w.directory || w.id)
+        )}
         onSwitchWorkspace={(dir) => {
           const match = store.workspaces.find((w) => w.directory === dir || w.id === dir)
           if (match) switchInstance(match.id)
@@ -328,6 +372,9 @@ export function OpenACPApp() {
             onReconnectNeeded={() => {
               setServer(null)
               setServerError(true)
+              if (store.active) {
+                setErrorWorkspaceIds(prev => new Set([...prev, store.active!]))
+              }
             }}
           >
             <SessionsProvider>

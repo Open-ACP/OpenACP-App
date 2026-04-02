@@ -19,6 +19,7 @@ function avatarColor(dir: string) {
 export function SidebarRail(props: {
   workspaces: string[]
   activeWorkspace: string
+  errorWorkspaces?: Set<string>
   onSwitchWorkspace: (dir: string) => void
   onOpenFolder: () => void
 }) {
@@ -34,25 +35,31 @@ export function SidebarRail(props: {
           <For each={props.workspaces}>
             {(dir) => {
               const isActive = () => dir === props.activeWorkspace
+              const hasError = () => props.errorWorkspaces?.has(dir) ?? false
               const colors = avatarColor(dir)
               return (
-                <Tooltip placement="right" value={dirName(dir)}>
-                  <button
-                    type="button"
-                    classList={{
-                      "flex items-center justify-center size-8 rounded-md overflow-hidden transition-all cursor-default": true,
-                      "ring-2 ring-text-base ring-offset-1 ring-offset-background-base": isActive(),
-                      "opacity-60 hover:opacity-100": !isActive(),
-                    }}
-                    onClick={() => props.onSwitchWorkspace(dir)}
-                  >
-                    <Avatar
-                      fallback={dirName(dir)}
-                      background={colors.background}
-                      foreground={colors.foreground}
-                      class="size-full rounded-lg"
-                    />
-                  </button>
+                <Tooltip placement="right" value={hasError() ? `${dirName(dir)} — reconnect needed` : dirName(dir)}>
+                  <div class="relative">
+                    <button
+                      type="button"
+                      classList={{
+                        "flex items-center justify-center size-8 rounded-md overflow-hidden transition-all cursor-default": true,
+                        "ring-2 ring-text-base ring-offset-1 ring-offset-background-base": isActive(),
+                        "opacity-60 hover:opacity-100": !isActive(),
+                      }}
+                      onClick={() => props.onSwitchWorkspace(dir)}
+                    >
+                      <Avatar
+                        fallback={dirName(dir)}
+                        background={colors.background}
+                        foreground={colors.foreground}
+                        class="size-full rounded-lg"
+                      />
+                    </button>
+                    <Show when={hasError()}>
+                      <div class="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-status-error border-2 border-background-base pointer-events-none" />
+                    </Show>
+                  </div>
                 </Tooltip>
               )
             }}
