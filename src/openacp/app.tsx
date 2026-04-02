@@ -180,7 +180,7 @@ export function OpenACPApp() {
       }
     }
 
-    const { showToast } = await import("../../ui/src/components/toast")
+    const { showToast } = await import("../ui/src/components/toast")
     if (isNew) {
       showToast({ description: `Workspace "${entry.name}" added.`, variant: "success" })
     } else {
