@@ -1,7 +1,38 @@
-import { For, Show, createSignal, createMemo } from "solid-js"
+import { For, Show, createSignal, createMemo, createEffect, onCleanup } from "solid-js"
 import { FileDiff } from "@pierre/diffs"
 import { useChat } from "../context/chat"
 import type { Message, ToolCallPart, FileDiff as FileDiffData } from "../types"
+
+/** Imperative wrapper for @pierre/diffs FileDiff class */
+function DiffViewer(props: { before: string; after: string; path: string }) {
+  let containerRef: HTMLDivElement | undefined
+  let instance: FileDiff | undefined
+
+  createEffect(() => {
+    if (!containerRef) return
+    const before = props.before
+    const after = props.after
+    const path = props.path
+
+    if (!instance) {
+      instance = new FileDiff({ themeType: "dark" })
+    }
+
+    containerRef.innerHTML = ""
+    instance.render({
+      oldFile: { name: path, contents: before },
+      newFile: { name: path, contents: after },
+      fileContainer: containerRef,
+    })
+  })
+
+  onCleanup(() => {
+    instance?.cleanUp()
+    instance = undefined
+  })
+
+  return <div ref={containerRef} class="oac-diff-viewer" />
+}
 
 export function ReviewPanel(props: { onClose: () => void }) {
   const chat = useChat()
@@ -99,9 +130,10 @@ export function ReviewPanel(props: { onClose: () => void }) {
             {(item) => (
               <div class="p-2">
                 <div class="text-12-regular text-text-weak mb-2 font-mono truncate px-1">{item().path}</div>
-                <FileDiff
-                  before={{ name: item().path, contents: item().diff.before ?? "" }}
-                  after={{ name: item().path, contents: item().diff.after }}
+                <DiffViewer
+                  path={item().path}
+                  before={item().diff.before ?? ""}
+                  after={item().diff.after}
                 />
               </div>
             )}
