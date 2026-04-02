@@ -22,13 +22,14 @@ export function CreateInstance(props: CreateInstanceProps) {
     setLoading(true)
     setError(null)
     try {
-      const args = ['instances', 'create', '--dir', props.path, '--json']
+      const args = ['instances', 'create', '--dir', props.path]
       if (name()) args.push('--name', name())
       if (mode() === 'clone' && cloneFrom()) {
         args.push('--from', cloneFrom()!)
       } else {
         args.push('--no-interactive')
       }
+      args.push('--json')
       const stdout = await invoke<string>('invoke_cli', { args })
       const result = JSON.parse(stdout)
       const data = result?.data ?? result
