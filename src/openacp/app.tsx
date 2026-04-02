@@ -8,7 +8,7 @@ import { SidebarRail } from "./components/sidebar-rail"
 import { ChatView } from "./components/chat-view"
 import { Composer } from "./components/composer"
 import { WelcomeScreen } from "./components/welcome"
-import { loadWorkspaceData, saveWorkspaceData, discoverWorkspaces, type InstanceInfo } from "./api/workspace-store"
+import { loadWorkspaces, saveWorkspaces, discoverLocalInstances, type WorkspaceEntry } from "./api/workspace-store"
 import { useChat } from "./context/chat"
 import { Toast } from "../ui/src/components/toast"
 import type { ServerInfo } from "./types"
@@ -27,83 +27,117 @@ function ChatArea() {
 
 export function OpenACPApp() {
   const [store, setStore] = createStore({
-    instances: [] as string[],       // known instance IDs
-    active: null as string | null,   // active instance ID
+    workspaces: [] as WorkspaceEntry[], // known workspaces
+    active: null as string | null,      // active workspace ID
     ready: false,
   })
-
-  // Map of instanceId → InstanceInfo (for workspace dir, root, etc.)
-  const [instanceMap, setInstanceMap] = createSignal<Map<string, InstanceInfo>>(new Map())
 
   const [server, setServer] = createSignal<ServerInfo | null>(null)
   const [serverLoading, setServerLoading] = createSignal(false)
   const [serverError, setServerError] = createSignal(false)
 
-  // ── Instance info loading ──────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────
 
-  async function refreshInstanceMap() {
-    const discovered = await discoverWorkspaces()
-    const map = new Map<string, InstanceInfo>()
-    for (const info of discovered) map.set(info.id, info)
-    setInstanceMap(map)
-    return map
+  function findWorkspace(id: string): WorkspaceEntry | undefined {
+    return store.workspaces.find((w) => w.id === id)
   }
 
   // ── Workspace persistence ───────────────────────────────────────────────
 
-  void loadWorkspaceData().then(async (data) => {
-    const map = await refreshInstanceMap()
-    const validInstances = data.instances.filter((id) => map.has(id))
-    if (validInstances.length > 0) {
-      setStore("instances", validInstances)
+  void loadWorkspaces().then(async (entries) => {
+    // Discover local instances to validate local entries are still present
+    const discovered = await discoverLocalInstances()
+    const discoveredIds = new Set(discovered.map((d) => d.id))
+
+    // Keep entries that are remote (can't validate) or still locally discoverable
+    const valid = entries.filter(
+      (e) => e.type === "remote" || discoveredIds.has(e.id),
+    )
+
+    if (valid.length > 0) {
+      setStore("workspaces", valid)
     }
-    if (data.lastActive && map.has(data.lastActive)) {
-      setStore("active", data.lastActive)
+
+    // Restore last active (last entry in list, matching existing)
+    const lastId = valid.length > 0 ? valid[valid.length - 1].id : null
+    if (lastId) {
+      setStore("active", lastId)
     }
+
     setStore("ready", true)
   })
 
-  function persistInstances() {
-    void saveWorkspaceData({
-      instances: store.instances,
-      lastActive: store.active,
-    })
+  function persistWorkspaces() {
+    void saveWorkspaces(store.workspaces)
+  }
+
+  function addWorkspace(entry: WorkspaceEntry) {
+    const exists = store.workspaces.some((w) => w.id === entry.id)
+    if (exists) {
+      setStore("active", entry.id)
+    } else {
+      setStore("workspaces", (prev) => [...prev, entry])
+      setStore("active", entry.id)
+    }
+    persistWorkspaces()
   }
 
   function addInstance(instanceId: string) {
-    if (store.instances.includes(instanceId)) {
+    // Legacy helper: add a local workspace by ID only (for WelcomeScreen callback)
+    const existing = findWorkspace(instanceId)
+    if (existing) {
       setStore("active", instanceId)
-    } else {
-      setStore("instances", (prev) => [...prev, instanceId])
-      setStore("active", instanceId)
+      persistWorkspaces()
+      return
     }
-    persistInstances()
+    // Build a minimal WorkspaceEntry for local instances
+    const entry: WorkspaceEntry = {
+      id: instanceId,
+      name: instanceId,
+      directory: "",
+      type: "local",
+    }
+    addWorkspace(entry)
   }
 
   function switchInstance(instanceId: string) {
     setStore("active", instanceId)
-    persistInstances()
+    persistWorkspaces()
   }
 
   function removeInstance(instanceId: string) {
-    setStore("instances", (prev) => prev.filter((id) => id !== instanceId))
+    setStore("workspaces", (prev) => prev.filter((w) => w.id !== instanceId))
     if (store.active === instanceId) {
-      setStore("active", store.instances[0] ?? null)
+      setStore("active", store.workspaces[0]?.id ?? null)
     }
-    persistInstances()
+    persistWorkspaces()
   }
 
-  // Open folder picker — find matching instance by workspace dir
+  // Open folder picker — find matching workspace by directory
   async function openFolderPicker() {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog")
       const selected = await open({ directory: true, multiple: false })
       if (!selected || typeof selected !== "string") return
 
-      const map = await refreshInstanceMap()
-      const match = Array.from(map.values()).find((info) => info.workspace === selected)
+      // Check existing workspaces first
+      const existingMatch = store.workspaces.find((w) => w.directory === selected)
+      if (existingMatch) {
+        switchInstance(existingMatch.id)
+        return
+      }
+
+      // Discover fresh list and find match
+      const discovered = await discoverLocalInstances()
+      const match = discovered.find((info) => info.directory === selected)
       if (match) {
-        addInstance(match.id)
+        const entry: WorkspaceEntry = {
+          id: match.id,
+          name: match.name ?? match.id,
+          directory: match.directory,
+          type: "local",
+        }
+        addWorkspace(entry)
       } else {
         console.warn("[openFolder] No registered instance found for", selected)
         window.alert(`No OpenACP instance found in ${selected}.\nRun "openacp start" in that directory first.`)
@@ -124,7 +158,20 @@ export function OpenACPApp() {
     setServerLoading(true)
     setServerError(false)
     try {
-      const info = await resolveWorkspaceServer(instanceId)
+      const entry = findWorkspace(instanceId)
+
+      let info: ServerInfo | null = null
+
+      if (!entry || entry.type === "local") {
+        // Local: use Tauri command to get server info from instance root
+        info = await resolveWorkspaceServer(instanceId)
+      } else {
+        // Remote: keychain not yet implemented (Task 8) — force reconnect
+        setServerLoading(false)
+        setServerError(true)
+        return null
+      }
+
       if (info) {
         try {
           const res = await fetch(`${info.url}/api/v1/system/health`)
@@ -202,7 +249,7 @@ export function OpenACPApp() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  const activeInstanceInfo = () => store.active ? instanceMap().get(store.active) ?? null : null
+  const activeWorkspace = () => store.active ? findWorkspace(store.active) ?? null : null
   const hasInstance = () => store.active !== null
   const isConnected = () => server() !== null
 
@@ -210,10 +257,10 @@ export function OpenACPApp() {
     <div class="flex h-screen w-screen bg-background-base text-text-base select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
       <Toast.Region />
       <SidebarRail
-        workspaces={store.instances.map((id) => instanceMap().get(id)?.workspace ?? id)}
-        activeWorkspace={activeInstanceInfo()?.workspace ?? ""}
+        workspaces={store.workspaces.map((w) => w.directory || w.id)}
+        activeWorkspace={activeWorkspace()?.directory ?? activeWorkspace()?.id ?? ""}
         onSwitchWorkspace={(dir) => {
-          const match = Array.from(instanceMap().values()).find((i) => i.workspace === dir)
+          const match = store.workspaces.find((w) => w.directory === dir || w.id === dir)
           if (match) switchInstance(match.id)
         }}
         onOpenFolder={openFolderPicker}
@@ -242,7 +289,7 @@ export function OpenACPApp() {
                     <div class="text-14-regular text-text-weak">
                       Run <code class="px-1.5 py-0.5 rounded bg-surface-raised-base text-13-regular font-mono">openacp start</code> in your workspace
                     </div>
-                    <div class="text-12-regular text-text-weak font-mono mt-1">{activeInstanceInfo()?.workspace}</div>
+                    <div class="text-12-regular text-text-weak font-mono mt-1">{activeWorkspace()?.directory}</div>
                   </div>
                   <div class="flex items-center gap-2 text-12-regular text-text-weaker">
                     <div class="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />
@@ -254,8 +301,7 @@ export function OpenACPApp() {
           }
         >
           <WorkspaceProvider
-            instanceId={store.active!}
-            directory={activeInstanceInfo()?.workspace ?? ""}
+            workspace={activeWorkspace()!}
             server={server()!}
           >
             <SessionsProvider>
