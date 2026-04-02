@@ -35,8 +35,12 @@ export async function resolveWorkspaceServer(instanceId: string): Promise<Server
 export function WorkspaceProvider(props: ParentProps<{
   workspace: WorkspaceEntry
   server: ServerInfo
+  onReconnectNeeded?: () => void
 }>) {
-  const client = createApiClient(props.server)
+  const client = createApiClient(props.server, props.workspace.id)
+  if (props.onReconnectNeeded) {
+    client.setOnReconnectNeeded(props.onReconnectNeeded)
+  }
 
   const value: WorkspaceContext = {
     get instanceId() { return props.workspace.id },

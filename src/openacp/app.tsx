@@ -176,10 +176,15 @@ export function OpenACPApp() {
         // Local: use Tauri command to get server info from instance root
         info = await resolveWorkspaceServer(instanceId)
       } else {
-        // Remote: keychain not yet implemented (Task 8) — force reconnect
-        setServerLoading(false)
-        setServerError(true)
-        return null
+        // Remote: read JWT from keychain
+        const { getKeychainToken } = await import('./api/keychain.js')
+        const jwt = await getKeychainToken(entry.id)
+        if (!jwt) {
+          setServerLoading(false)
+          setServerError(true)
+          return null
+        }
+        info = { url: entry.host ?? '', token: jwt }
       }
 
       if (info) {
@@ -320,6 +325,10 @@ export function OpenACPApp() {
           <WorkspaceProvider
             workspace={activeWorkspace()!}
             server={server()!}
+            onReconnectNeeded={() => {
+              setServer(null)
+              setServerError(true)
+            }}
           >
             <SessionsProvider>
               <ChatProvider>

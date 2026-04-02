@@ -2,9 +2,12 @@ mod onboarding;
 mod sidecar;
 
 use sidecar::SidecarManager;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
+
+static KEYCHAIN: std::sync::Mutex<Option<HashMap<String, String>>> = std::sync::Mutex::new(None);
 
 struct AppState {
     sidecar: Arc<Mutex<SidecarManager>>,
@@ -153,6 +156,49 @@ pub struct ServerInfo {
     pub token: String,
 }
 
+#[tauri::command]
+fn keychain_set(key: String, value: String, app: tauri::AppHandle) -> Result<(), String> {
+    let mut lock = KEYCHAIN.lock().map_err(|e| e.to_string())?;
+    let map = lock.get_or_insert_with(HashMap::new);
+    map.insert(key, value);
+    // Persist to app data dir
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let keychain_path = data_dir.join("keychain.json");
+    let json = serde_json::to_string(map).map_err(|e| e.to_string())?;
+    std::fs::write(&keychain_path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn keychain_get(key: String, app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let mut lock = KEYCHAIN.lock().map_err(|e| e.to_string())?;
+    if lock.is_none() {
+        // Load from disk on first access
+        let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let keychain_path = data_dir.join("keychain.json");
+        if keychain_path.exists() {
+            let raw = std::fs::read_to_string(&keychain_path).map_err(|e| e.to_string())?;
+            let map: HashMap<String, String> = serde_json::from_str(&raw).unwrap_or_default();
+            *lock = Some(map);
+        } else {
+            *lock = Some(HashMap::new());
+        }
+    }
+    Ok(lock.as_ref().and_then(|m| m.get(&key).cloned()))
+}
+
+#[tauri::command]
+fn keychain_delete(key: String, app: tauri::AppHandle) -> Result<(), String> {
+    let mut lock = KEYCHAIN.lock().map_err(|e| e.to_string())?;
+    if let Some(map) = lock.as_mut() {
+        map.remove(&key);
+        let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let keychain_path = data_dir.join("keychain.json");
+        let json = serde_json::to_string(map).map_err(|e| e.to_string())?;
+        std::fs::write(&keychain_path, json).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -194,6 +240,9 @@ pub fn run() {
             onboarding::run_openacp_agents_list,
             onboarding::run_openacp_agent_install,
             onboarding::dev_reset_openacp,
+            keychain_set,
+            keychain_get,
+            keychain_delete,
         ])
         .setup(move |app| {
             app.manage(AppState {
