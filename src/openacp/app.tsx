@@ -107,23 +107,24 @@ export function OpenACPApp() {
     void saveWorkspaces(store.workspaces)
   }
 
-  function addWorkspace(entry: WorkspaceEntry) {
+  function addWorkspace(entry: WorkspaceEntry): boolean {
     const existing = store.workspaces.find((w) => w.id === entry.id)
     if (existing) {
-      // Reconnect: merge mutable fields into the existing entry
+      // Update all mutable fields (name, directory, host, token info)
       setStore("workspaces", (prev) =>
         prev.map((w) =>
-          w.id === entry.id
-            ? { ...w, host: entry.host, tokenId: entry.tokenId, expiresAt: entry.expiresAt, refreshDeadline: entry.refreshDeadline }
-            : w
+          w.id === entry.id ? { ...w, ...entry } : w
         )
       )
       setStore("active", entry.id)
+      persistWorkspaces()
+      return false // already existed → updated
     } else {
       setStore("workspaces", (prev) => [...prev, entry])
       setStore("active", entry.id)
+      persistWorkspaces()
+      return true // newly added
     }
-    persistWorkspaces()
   }
 
   function addInstance(instanceId: string) {
@@ -163,9 +164,15 @@ export function OpenACPApp() {
   const [showAddWorkspace, setShowAddWorkspace] = createSignal(false)
   const [addWorkspaceDefaultTab, setAddWorkspaceDefaultTab] = createSignal<'local' | 'remote'>('local')
 
-  function handleAddWorkspace(entry: WorkspaceEntry) {
-    addWorkspace(entry)
+  async function handleAddWorkspace(entry: WorkspaceEntry) {
+    const isNew = addWorkspace(entry)
     setShowAddWorkspace(false)
+    const { showToast } = await import("../../ui/src/components/toast")
+    if (isNew) {
+      showToast({ description: `Workspace "${entry.name}" added.`, variant: "success" })
+    } else {
+      showToast({ description: `Workspace "${entry.name}" already exists — info updated.`, variant: "success" })
+    }
   }
 
   function openAddWorkspaceModal(defaultTab: 'local' | 'remote' = 'local') {
