@@ -209,28 +209,58 @@ export function ChatProvider(props: ParentProps) {
 
   // ── Diff extraction from tool events ──────────────────────────────────
 
-  function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; name?: string }): FileDiff | null {
+  function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; rawOutput?: unknown; content?: unknown; name?: string }): FileDiff | null {
     // Try meta.filediff first (server-provided)
     const meta = evt.meta as Record<string, any> | undefined
     if (meta?.filediff) {
       const fd = meta.filediff
-      return { path: fd.path || "", before: fd.before, after: fd.after }
+      return { path: fd.path || "", before: fd.before ?? fd.oldText, after: fd.after ?? fd.newText }
     }
 
-    const input = evt.rawInput as Record<string, any> | undefined
+    // Check content array for diff objects (from tool_call_update after edit)
+    if (Array.isArray(evt.content)) {
+      for (const item of evt.content) {
+        if (item && typeof item === "object" && (item as any).type === "diff") {
+          const d = item as any
+          return { path: d.path || "", before: d.oldText ?? undefined, after: d.newText ?? "" }
+        }
+      }
+    }
+
+    // Parse input — try rawInput then content object
+    let input: Record<string, any> | undefined
+    for (const src of [evt.rawInput, evt.content]) {
+      if (!src || Array.isArray(src)) continue
+      if (typeof src === "string") {
+        try { input = JSON.parse(src) } catch { /* ignore */ }
+      } else if (typeof src === "object") {
+        const obj = src as Record<string, any>
+        if (obj.input && typeof obj.input === "object") {
+          input = obj.input as Record<string, any>
+        } else if (obj.file_path || obj.filePath || obj.old_string || obj.content) {
+          input = obj
+        }
+      }
+      if (input && Object.keys(input).length > 0) break
+    }
     if (!input) return null
 
     const name = (evt.name || "").toLowerCase()
     const path = (input.file_path || input.filePath || input.path || "") as string
 
     // Edit tool: old_string + new_string
-    if (name === "edit" && input.old_string != null && input.new_string != null) {
-      return { path, before: String(input.old_string), after: String(input.new_string) }
+    if (name === "edit" && (input.old_string != null || input.new_string != null)) {
+      return { path, before: input.old_string != null ? String(input.old_string) : undefined, after: String(input.new_string ?? input.content ?? "") }
     }
 
-    // Write tool: content only (new file or full rewrite)
+    // Write tool: content only
     if (name === "write" && input.content != null) {
       return { path, after: String(input.content) }
+    }
+
+    // apply_patch
+    if (name === "apply_patch" && input.patch != null) {
+      return { path: input.file_path || input.path || "patch", after: String(input.patch) }
     }
 
     return null
