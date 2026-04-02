@@ -67,15 +67,20 @@ export function LocalTab(props: LocalTabProps) {
               return (
                 <button
                   type="button"
+                  disabled={alreadyAdded()}
                   onClick={() => handleSelectInstance(inst)}
-                  class="w-full text-left rounded-xl border transition-colors p-4 border-border-base hover:border-border-hover hover:bg-surface-raised-base-hover"
+                  class="w-full text-left rounded-xl border transition-colors p-4"
+                  classList={{
+                    'border-border-base opacity-60 cursor-not-allowed': alreadyAdded(),
+                    'border-border-base hover:border-border-hover hover:bg-surface-raised-base-hover': !alreadyAdded(),
+                  }}
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-1">
                         <span class="text-15-semibold text-text-strong">{inst.name ?? inst.id}</span>
                         <Show when={alreadyAdded()}>
-                          <span class="text-11-medium text-accent-base bg-accent-base/10 px-2 py-0.5 rounded-full">Added</span>
+                          <span class="text-11-medium text-text-weaker bg-surface-raised-base px-2 py-0.5 rounded-full">Added</span>
                         </Show>
                       </div>
                       <div class="space-y-0.5">
