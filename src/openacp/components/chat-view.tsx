@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js"
+import { For, Show, createMemo, createSignal, createEffect, on } from "solid-js"
 import { useChat } from "../context/chat"
 import { useSessions } from "../context/sessions"
 import { createAutoScroll } from "../../ui/src/hooks/create-auto-scroll"
@@ -140,6 +140,11 @@ export function ChatView() {
     working: () => chat.streaming(),
     bottomThreshold: 20,
   })
+
+  // Force scroll to bottom when switching sessions
+  createEffect(on(() => chat.activeSession(), () => {
+    autoScroll.forceScrollToBottom()
+  }))
 
   const hasMessages = () => chat.activeSession() && chat.messages().length > 0
 

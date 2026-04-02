@@ -17,6 +17,7 @@ export function Composer() {
   const [isBypass, setIsBypass] = createSignal(false)
   const [paletteOpen, setPaletteOpen] = createSignal(false)
   const [paletteFilter, setPaletteFilter] = createSignal<string | undefined>()
+  const [configVersion, setConfigVersion] = createSignal(0)
 
   let editorRef: HTMLDivElement | undefined
   const space = "52px"
@@ -105,6 +106,7 @@ export function Composer() {
             <CommandPalette
               sessionID={chat.activeSession()}
               onClose={closePalette}
+              onConfigChanged={() => setConfigVersion((v) => v + 1)}
               initialFilter={paletteFilter()?.replace("/", "")}
             />
           </div>
@@ -201,11 +203,12 @@ export function Composer() {
         <DockTray attach="top">
           <div class="px-1.75 pt-5.5 pb-2 flex items-center gap-1.5 min-w-0">
             <AgentSelector current={agent()} onSelect={setAgent} />
-            <ConfigSelector category="model" sessionID={chat.activeSession()} />
+            <ConfigSelector category="model" sessionID={chat.activeSession()} refreshKey={configVersion()} />
             <div class="flex-1" />
             <ConfigSelector
               category="mode"
               sessionID={chat.activeSession()}
+              refreshKey={configVersion()}
               onValueChange={(v) => {
                 const val = v.toLowerCase()
                 setIsBypass(val.includes("bypass") || val.includes("dangerous"))

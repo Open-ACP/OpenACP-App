@@ -14,13 +14,15 @@ export function ConfigSelector(props: {
   category: "mode" | "model"
   sessionID: string | undefined
   onValueChange?: (value: string) => void
+  refreshKey?: number
 }) {
   const workspace = useWorkspace()
   const [open, setOpen] = createSignal(false)
 
   const [config, { refetch }] = createResource(
-    () => props.sessionID,
-    async (sid) => {
+    () => `${props.sessionID ?? ""}:${props.refreshKey ?? 0}`,
+    async (key) => {
+      const sid = key.split(":")[0]
       if (!sid) return null
       try {
         const res = await workspace.client.getSessionConfig(sid)

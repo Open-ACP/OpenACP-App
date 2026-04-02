@@ -43,6 +43,7 @@ interface SubPickerState {
 export function CommandPalette(props: {
   sessionID: string | undefined
   onClose: () => void
+  onConfigChanged?: () => void
   initialFilter?: string
 }) {
   const chat = useChat()
@@ -53,8 +54,21 @@ export function CommandPalette(props: {
   const [subPicker, setSubPicker] = createSignal<SubPickerState | null>(null)
   const [highlighted, setHighlighted] = createSignal(0)
   let inputRef: HTMLInputElement | undefined
+  let rootRef: HTMLDivElement | undefined
 
-  onMount(() => inputRef?.focus())
+  onMount(() => {
+    inputRef?.focus()
+
+    // Click outside → close
+    const handleClickOutside = (e: MouseEvent) => {
+      if (rootRef && !rootRef.contains(e.target as Node)) {
+        props.onClose()
+      }
+    }
+    // Delay to avoid catching the click that opened the palette
+    setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 0)
+    onCleanup(() => document.removeEventListener("mousedown", handleClickOutside))
+  })
 
   // ── Fetch server commands ───────────────────────────────────────────────
 
@@ -85,12 +99,21 @@ export function CommandPalette(props: {
   const hasSession = () => !!props.sessionID
 
   async function execCmd(name: string) {
-    const res = await workspace.client.executeCommand(`/${name}`, props.sessionID)
-    if (res.error) {
-      const { showToast } = await import("../../ui/src/components/toast")
-      showToast({ description: res.error, variant: "error" })
-    }
+    const sid = props.sessionID
     props.onClose()
+    if (!sid) return
+    // Add user message showing the command
+    chat.addCommandResponse(sid, `/${name}`, "user")
+    try {
+      const res = await workspace.client.executeCommand(`/${name}`, sid)
+      if (res.error) {
+        chat.addCommandResponse(sid, `**Error:** ${res.error}`, "assistant")
+      } else if (res.result?.text) {
+        chat.addCommandResponse(sid, res.result.text, "assistant")
+      }
+    } catch (e: any) {
+      chat.addCommandResponse(sid, `**Error:** ${e?.message || "Command failed"}`, "assistant")
+    }
   }
 
   async function openConfigPicker(category: string, title: string) {
@@ -132,6 +155,7 @@ export function CommandPalette(props: {
     if (!props.sessionID) return
     try {
       await workspace.client.setSessionConfig(props.sessionID, configId, value)
+      props.onConfigChanged?.()
     } catch (e) {
       const { showToast } = await import("../../ui/src/components/toast")
       showToast({ description: "Failed to set config", variant: "error" })
@@ -145,6 +169,7 @@ export function CommandPalette(props: {
     const current = sessionConfig()?.clientOverrides?.bypassPermissions ?? false
     try {
       await workspace.client.setClientOverrides(props.sessionID, { bypassPermissions: !current })
+      props.onConfigChanged?.()
     } catch { /* ignore */ }
     props.onClose()
   }
@@ -242,16 +267,6 @@ export function CommandPalette(props: {
       enabled: hasSession(),
       action: () => openConfigPicker("model", "Model"),
     })
-    list.push({
-      id: "cfg-bypass",
-      label: "Bypass Permissions",
-      group: "Configuration",
-      type: "toggle",
-      active: sessionConfig()?.clientOverrides?.bypassPermissions ?? false,
-      enabled: hasSession(),
-      action: toggleBypass,
-    })
-
     // Server commands (dynamic)
     for (const cmd of serverCommands() ?? []) {
       if (HIDDEN_COMMANDS.has(cmd.name)) continue
@@ -297,6 +312,12 @@ export function CommandPalette(props: {
 
   // ── Keyboard navigation ───────────────────────────────────────────────
 
+  function scrollHighlightedIntoView() {
+    requestAnimationFrame(() => {
+      rootRef?.querySelector("[data-highlighted]")?.scrollIntoView({ block: "nearest" })
+    })
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === "Escape") {
       e.preventDefault()
@@ -314,9 +335,11 @@ export function CommandPalette(props: {
     if (e.key === "ArrowDown") {
       e.preventDefault()
       setHighlighted((h) => (h + 1) % len)
+      scrollHighlightedIntoView()
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
       setHighlighted((h) => (h - 1 + len) % len)
+      scrollHighlightedIntoView()
     } else if (e.key === "Enter") {
       e.preventDefault()
       const idx = highlighted()
@@ -355,6 +378,7 @@ export function CommandPalette(props: {
                 classList={{
                   "bg-surface-raised-base-hover": highlighted() === index(),
                 }}
+                data-highlighted={highlighted() === index() ? "" : undefined}
                 onMouseEnter={() => setHighlighted(index())}
                 onClick={() => selectConfigValue(sp.configId, choice.value)}
               >
@@ -381,6 +405,7 @@ export function CommandPalette(props: {
 
   return (
     <div
+      ref={rootRef}
       class="w-full rounded-lg border border-border-base bg-surface-raised-stronger-non-alpha shadow-lg overflow-hidden"
       onKeyDown={handleKeyDown}
     >
@@ -421,6 +446,7 @@ export function CommandPalette(props: {
                             "bg-surface-raised-base-hover": highlighted() === globalIdx(),
                             "opacity-40 pointer-events-none": disabled(),
                           }}
+                          data-highlighted={highlighted() === globalIdx() ? "" : undefined}
                           onMouseEnter={() => !disabled() && setHighlighted(globalIdx())}
                           onClick={() => !disabled() && item.action()}
                           disabled={disabled()}

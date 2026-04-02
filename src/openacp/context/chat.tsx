@@ -26,6 +26,8 @@ interface ChatContext {
   abort: () => void
   /** Connect SSE for workspace */
   connect: () => void
+  /** Add a command message to chat */
+  addCommandResponse: (sessionID: string, text: string, role?: "user" | "assistant") => void
 }
 
 const Ctx = createContext<ChatContext>()
@@ -359,6 +361,16 @@ export function ChatProvider(props: ParentProps) {
     }
   }
 
+  function addCommandResponse(sessionID: string, text: string, role: "user" | "assistant" = "assistant") {
+    addMessage(sessionID, {
+      id: nextId(role === "user" ? "cmd-usr" : "cmd-ast"),
+      role,
+      sessionID,
+      parts: [{ id: nextPartId(), type: "text", content: text }],
+      createdAt: Date.now(),
+    })
+  }
+
   function setActiveSession(id: string) {
     setStore("activeSession", id)
     void loadHistory(id)
@@ -385,6 +397,7 @@ export function ChatProvider(props: ParentProps) {
     sendPrompt,
     abort,
     connect,
+    addCommandResponse,
   }
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>
