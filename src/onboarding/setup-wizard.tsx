@@ -36,17 +36,19 @@ export function SetupWizard(props: Props) {
   const [agents, { refetch }] = createResource<AgentEntry[]>(async () => {
     try {
       const result = await invoke<string>('run_openacp_agents_list');
-      const envelope = JSON.parse(result) as {
-        success: boolean;
-        data: { agents: AgentEntry[] };
-        error?: { code: string; message: string };
-      };
-      if (!envelope.success) throw new Error(envelope.error?.message ?? 'Failed to load agents');
-      const parsed = envelope.data.agents;
-      console.log('[agents] loaded:', parsed);
-      const claude = parsed.find((a) => a.key === 'claude' && a.installed);
+      const raw = typeof result === 'string' ? JSON.parse(result) : result;
+      let list: AgentEntry[];
+      if (Array.isArray(raw)) {
+        list = raw;
+      } else if (raw?.data?.agents) {
+        if (!raw.success) throw new Error(raw.error?.message ?? 'Failed to load agents');
+        list = raw.data.agents;
+      } else {
+        list = [];
+      }
+      const claude = list.find((a) => a.key === 'claude' && a.installed);
       if (claude) setSelectedAgent('claude');
-      return parsed;
+      return list;
     } catch (err) {
       console.error('[agents] failed to load:', err);
       throw err;
@@ -98,7 +100,6 @@ export function SetupWizard(props: Props) {
     setSetupStatus('running');
     setSetupLog([]);
 
-    // Manual unlisten — onCleanup does NOT work inside async event handlers
     const unlisten = await listen<string>('setup-output', (event) => {
       setSetupLog((prev) => [...prev, event.payload]);
     });
@@ -129,160 +130,203 @@ export function SetupWizard(props: Props) {
   const canProceedStep1 = () => workspace().trim() !== '' && selectedAgent() !== '';
 
   return (
-    <div class="flex h-screen w-screen flex-col items-center justify-center bg-neutral-950 p-8">
-      <div class="w-full max-w-xl">
+    <div class="flex h-screen w-screen flex-col items-center justify-start bg-background-base p-8 pt-12">
+      <div class="w-full max-w-[520px]">
         {/* Step indicator */}
-        <div class="mb-8 flex items-center gap-3">
+        <div class="mb-8 flex items-center justify-center">
           <StepDot active={step() === 1} done={step() > 1} label="1" />
-          <div class="h-px flex-1 bg-neutral-700" />
+          <div
+            class="mx-0 h-0.5 w-[120px]"
+            classList={{
+              'bg-text-strong': step() > 1,
+              'bg-border-base': step() <= 1,
+            }}
+          />
           <StepDot active={step() === 2} done={false} label="2" />
         </div>
 
         {/* Step 1 */}
         <Show when={step() === 1}>
-          <h1 class="mb-6 text-xl font-semibold text-white">Set up your workspace</h1>
+          <div class="flex flex-col gap-8">
+            <h1 class="text-20-medium text-text-strong">Set up your workspace</h1>
 
-          {/* Workspace picker */}
-          <div class="mb-6">
-            <label class="mb-1 block text-sm text-neutral-400">Workspace directory</label>
-            <div class="flex gap-2">
-              <input
-                type="text"
-                value={workspace()}
-                onInput={(e) => setWorkspace(e.currentTarget.value)}
-                placeholder="/Users/you/projects"
-                class="flex-1 rounded-md bg-neutral-800 px-3 py-2 text-sm text-white placeholder-neutral-500 outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <button
-                onClick={browseWorkspace}
-                class="rounded-md bg-neutral-700 px-3 py-2 text-sm text-white hover:bg-neutral-600"
-              >
-                Browse
-              </button>
-            </div>
-          </div>
-
-          {/* Agent list */}
-          <div class="mb-8">
-            <label class="mb-2 block text-sm text-neutral-400">Select an AI agent</label>
-            <Show when={agentInstallError()}>
-              <p class="mb-2 text-xs text-red-400">{agentInstallError()}</p>
-            </Show>
-            <Show when={agents.loading}>
-              <p class="text-sm text-neutral-500">Loading agents...</p>
-            </Show>
-            <Show when={agents.error}>
-              <p class="mb-2 text-sm text-red-400">Failed to load agents</p>
-              <button onClick={refetch} class="text-sm text-blue-400 underline">Retry</button>
-            </Show>
-            <Show when={!agents.loading && !agents.error}>
-              <input
-                type="text"
-                value={agentSearch()}
-                onInput={(e) => setAgentSearch(e.currentTarget.value)}
-                placeholder="Search agents..."
-                class="mb-2 w-full rounded-md bg-neutral-800 px-3 py-2 text-sm text-white placeholder-neutral-500 outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
-                <For each={filteredAgents()}>
-                  {(agent) => (
-                    <div
-                      class={`flex cursor-pointer items-center justify-between rounded-lg border px-4 py-3 transition ${
-                        selectedAgent() === agent.key
-                          ? 'border-blue-500 bg-blue-950'
-                          : 'border-neutral-700 bg-neutral-900 hover:border-neutral-600'
-                      }`}
-                      onClick={() => agent.installed && setSelectedAgent(agent.key)}
-                    >
-                      <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-white">{agent.name}</p>
-                        <p class="text-xs text-neutral-500">{agent.description}</p>
-                      </div>
-                      <Show when={agent.installed}>
-                        <input
-                          type="radio"
-                          checked={selectedAgent() === agent.key}
-                          onChange={() => setSelectedAgent(agent.key)}
-                          class="ml-3 accent-blue-500"
-                        />
-                      </Show>
-                      <Show when={!agent.installed && agent.available}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); installAgent(agent.key); }}
-                          disabled={installingAgent() === agent.key}
-                          class="ml-3 shrink-0 rounded bg-neutral-700 px-3 py-1 text-xs text-white hover:bg-neutral-600 disabled:opacity-50"
-                        >
-                          {installingAgent() === agent.key ? 'Installing...' : 'Install'}
-                        </button>
-                      </Show>
-                    </div>
-                  )}
-                </For>
-                <Show when={filteredAgents().length === 0}>
-                  <p class="py-4 text-center text-sm text-neutral-500">No agents match "{agentSearch()}"</p>
-                </Show>
+            {/* Workspace picker */}
+            <div class="flex flex-col gap-2">
+              <label class="text-14-medium text-text-strong">Workspace directory</label>
+              <div class="flex h-10 items-center gap-2 rounded-md border border-border-base px-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-weak)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                <input
+                  type="text"
+                  value={workspace()}
+                  onInput={(e) => setWorkspace(e.currentTarget.value)}
+                  placeholder="/Users/you/projects"
+                  class="text-14-regular min-w-0 flex-1 bg-transparent text-text-strong outline-none placeholder:text-text-weak"
+                />
+                <button
+                  onClick={browseWorkspace}
+                  class="text-14-medium shrink-0 text-text-interactive-base hover:underline"
+                >
+                  Browse
+                </button>
               </div>
-              <Show when={installingAgent() !== '' && agentInstallLog().length > 0}>
-                <div class="mt-2 h-20 overflow-y-auto rounded bg-neutral-800 p-2 font-mono text-xs text-neutral-400">
-                  <For each={agentInstallLog()}>{(line) => <div>{line}</div>}</For>
-                </div>
-              </Show>
-            </Show>
-          </div>
+            </div>
 
-          <button
-            onClick={() => setStep(2)}
-            disabled={!canProceedStep1()}
-            class="w-full rounded-md bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40"
-          >
-            Continue
-          </button>
+            {/* Agent list */}
+            <div class="flex flex-col gap-2">
+              <label class="text-14-medium text-text-strong">Select an AI agent</label>
+              <Show when={agentInstallError()}>
+                <p class="text-12-regular text-surface-critical-strong">{agentInstallError()}</p>
+              </Show>
+              <Show when={agents.loading}>
+                <p class="text-14-regular py-4 text-text-weak">Loading agents...</p>
+              </Show>
+              <Show when={agents.error}>
+                <p class="text-14-regular mb-2 text-surface-critical-strong">Failed to load agents</p>
+                <button onClick={refetch} class="text-14-regular text-text-interactive-base underline">Retry</button>
+              </Show>
+              <Show when={!agents.loading && !agents.error}>
+                <Show when={(agents() ?? []).length > 4}>
+                  <input
+                    type="text"
+                    value={agentSearch()}
+                    onInput={(e) => setAgentSearch(e.currentTarget.value)}
+                    placeholder="Search agents..."
+                    class="text-14-regular mb-1 h-10 w-full rounded-md border border-border-base bg-transparent px-3 text-text-strong outline-none placeholder:text-text-weak focus:ring-1 focus:ring-border-selected"
+                  />
+                </Show>
+                <div class="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
+                  <For each={filteredAgents()}>
+                    {(agent) => (
+                      <div
+                        class="flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors"
+                        classList={{
+                          'border-text-strong border-2 bg-surface-raised-base': selectedAgent() === agent.key,
+                          'border-border-base hover:bg-surface-raised-base-hover': selectedAgent() !== agent.key,
+                        }}
+                        onClick={() => agent.installed && setSelectedAgent(agent.key)}
+                      >
+                        {/* Checkbox */}
+                        <div
+                          class="flex h-5 w-5 shrink-0 items-center justify-center rounded"
+                          classList={{
+                            'bg-text-strong': selectedAgent() === agent.key,
+                            'border-[1.5px] border-border-base': selectedAgent() !== agent.key,
+                          }}
+                        >
+                          <Show when={selectedAgent() === agent.key}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--background-stronger)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                          </Show>
+                        </div>
+
+                        {/* Info */}
+                        <div class="min-w-0 flex-1">
+                          <p class="text-14-medium text-text-strong">{agent.name}</p>
+                          <p class="text-12-regular text-text-weak">{agent.description}</p>
+                        </div>
+
+                        {/* Badge / Install button */}
+                        <Show when={agent.installed}>
+                          <span class="shrink-0 rounded-full bg-[#16a34a22] px-2 py-0.5 text-[11px] text-[#16a34a]">
+                            Installed
+                          </span>
+                        </Show>
+                        <Show when={!agent.installed && agent.available}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); installAgent(agent.key); }}
+                            disabled={installingAgent() === agent.key}
+                            class="text-12-medium shrink-0 rounded-md border border-border-base px-3 py-1 text-text-strong transition-colors hover:bg-surface-raised-base-hover disabled:opacity-50"
+                          >
+                            {installingAgent() === agent.key ? 'Installing...' : 'Install'}
+                          </button>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                  <Show when={filteredAgents().length === 0}>
+                    <p class="text-14-regular py-4 text-center text-text-weak">No agents match "{agentSearch()}"</p>
+                  </Show>
+                </div>
+                <Show when={installingAgent() !== '' && agentInstallLog().length > 0}>
+                  <div class="mt-2 h-20 overflow-y-auto rounded-lg bg-[#1a1a1a] p-3 text-12-mono text-[#a3a3a3]">
+                    <For each={agentInstallLog()}>{(line) => <div>{line}</div>}</For>
+                  </div>
+                </Show>
+              </Show>
+            </div>
+
+            <button
+              onClick={() => setStep(2)}
+              disabled={!canProceedStep1()}
+              class="text-14-medium h-11 w-full rounded-lg bg-text-strong text-background-stronger transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              Continue
+            </button>
+          </div>
         </Show>
 
         {/* Step 2 */}
         <Show when={step() === 2}>
-          <h1 class="mb-6 text-xl font-semibold text-white">Confirm setup</h1>
-
-          <div class="mb-6 space-y-3 rounded-lg bg-neutral-900 p-4 text-sm">
-            <div class="flex justify-between">
-              <span class="text-neutral-400">Workspace</span>
-              <span class="text-white">{workspace()}</span>
+          <div class="flex flex-col gap-8">
+            <div class="flex flex-col gap-2">
+              <h1 class="text-20-medium text-text-strong">Confirm your setup</h1>
+              <p class="text-14-regular text-text-weak">Review your configuration before completing setup.</p>
             </div>
-            <div class="flex justify-between">
-              <span class="text-neutral-400">Agent</span>
-              <span class="text-white">{selectedAgent()}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-neutral-400">Run mode</span>
-              <span class="text-white">Daemon (background)</span>
-            </div>
-          </div>
 
-          <Show when={setupLog().length > 0}>
-            <div class="mb-4 h-32 overflow-y-auto rounded-lg bg-neutral-900 p-3 font-mono text-xs text-neutral-400">
-              <For each={setupLog()}>{(line) => <div>{line}</div>}</For>
+            {/* Summary card */}
+            <div class="flex flex-col rounded-lg border border-border-base bg-surface-raised-base">
+              <div class="flex items-center justify-between px-5 py-4">
+                <span class="text-14-regular text-text-weak">Workspace</span>
+                <span class="text-14-medium text-text-strong">{workspace()}</span>
+              </div>
+              <div class="mx-5 h-px bg-border-base" />
+              <div class="flex items-center justify-between px-5 py-4">
+                <span class="text-14-regular text-text-weak">Agent</span>
+                <span class="text-14-medium text-text-strong">{selectedAgent()}</span>
+              </div>
+              <div class="mx-5 h-px bg-border-base" />
+              <div class="flex items-center justify-between px-5 py-4">
+                <span class="text-14-regular text-text-weak">Run mode</span>
+                <span class="text-14-medium text-text-strong">Daemon (background)</span>
+              </div>
             </div>
-          </Show>
 
-          <Show when={setupStatus() === 'error'}>
-            <p class="mb-4 text-sm text-red-400">{setupError()}</p>
-          </Show>
+            <Show when={setupLog().length > 0}>
+              <div class="h-32 overflow-y-auto rounded-lg bg-[#1a1a1a] p-3 text-12-mono text-[#a3a3a3]">
+                <For each={setupLog()}>{(line) => <div>{line}</div>}</For>
+              </div>
+            </Show>
 
-          <div class="flex gap-3">
-            <button
-              onClick={() => setStep(1)}
-              disabled={setupStatus() === 'running' || setupStatus() === 'starting'}
-              class="rounded-md bg-neutral-800 px-4 py-2.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
-            >
-              Back
-            </button>
-            <button
-              onClick={runSetup}
-              disabled={setupStatus() === 'running' || setupStatus() === 'starting' || setupStatus() === 'success'}
-              class="flex-1 rounded-md bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40"
-            >
-              {setupStatus() === 'running' ? 'Setting up...' : setupStatus() === 'starting' ? 'Starting server...' : setupStatus() === 'success' ? '✓ Done' : 'Complete Setup'}
-            </button>
+            <Show when={setupStatus() === 'error'}>
+              <div class="rounded-lg border border-surface-critical-strong p-4">
+                <p class="text-14-regular text-surface-critical-strong">{setupError()}</p>
+              </div>
+            </Show>
+
+            <div class="flex justify-end gap-3">
+              <button
+                onClick={() => setStep(1)}
+                disabled={setupStatus() === 'running' || setupStatus() === 'starting'}
+                class="text-14-medium rounded-md border border-border-base bg-background-stronger px-4 py-2.5 text-text-strong shadow-xs transition-colors hover:bg-surface-raised-base-hover disabled:opacity-40"
+              >
+                Back
+              </button>
+              <button
+                onClick={runSetup}
+                disabled={setupStatus() === 'running' || setupStatus() === 'starting' || setupStatus() === 'success'}
+                class="text-14-medium flex items-center gap-2 rounded-md bg-text-strong px-6 py-2.5 text-background-stronger transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                <Show when={setupStatus() === 'idle' || setupStatus() === 'error'}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2Z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+                </Show>
+                {setupStatus() === 'running'
+                  ? 'Setting up...'
+                  : setupStatus() === 'starting'
+                  ? 'Starting server...'
+                  : setupStatus() === 'success'
+                  ? '✓ Done'
+                  : 'Complete Setup'}
+              </button>
+            </div>
           </div>
         </Show>
       </div>
@@ -293,15 +337,16 @@ export function SetupWizard(props: Props) {
 function StepDot(props: { active: boolean; done: boolean; label: string }) {
   return (
     <div
-      class={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-        props.done
-          ? 'bg-green-600 text-white'
-          : props.active
-          ? 'bg-blue-600 text-white'
-          : 'bg-neutral-700 text-neutral-400'
-      }`}
+      class="text-14-medium flex h-8 w-8 items-center justify-center rounded-full"
+      classList={{
+        'bg-surface-success-strong text-white': props.done,
+        'bg-text-strong text-background-stronger': props.active && !props.done,
+        'bg-surface-raised-base border border-border-base text-text-weak': !props.active && !props.done,
+      }}
     >
-      {props.done ? '✓' : props.label}
+      {props.done ? (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      ) : props.label}
     </div>
   );
 }

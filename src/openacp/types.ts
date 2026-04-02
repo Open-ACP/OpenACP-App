@@ -30,6 +30,15 @@ export interface ToolCallPart {
   status: "pending" | "running" | "completed" | "error"
   input?: Record<string, unknown>
   output?: string
+  diff?: FileDiff | null
+}
+
+export interface FileDiff {
+  path: string
+  before?: string
+  after: string
+  additions?: number
+  deletions?: number
 }
 
 export type MessagePart = TextPart | ThinkingPart | ToolCallPart

@@ -38,6 +38,7 @@ import { initI18n, t } from "./platform/i18n"
 import { UPDATER_ENABLED } from "./platform/updater"
 import { webviewZoom } from "./platform/webview-zoom"
 import "./platform/styles.css"
+import "./ui/src/styles/tailwind/index.css"
 // Stub commands that would come from tauri-specta bindings
 const commands = {
   wslPath: async (p: string, _t: string) => p,

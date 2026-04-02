@@ -7,3 +7,7 @@ target/
 .env.*
 src-tauri/gen/
 .worktrees/
+.claude/conversations/
+/.superpowers
+docs/design/DECISIONS-LOG.md
+docs/design/WORKFLOW-LOG.md
