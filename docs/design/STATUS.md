@@ -11,9 +11,11 @@
 ## Completed
 - Setup moi truong dev (Node.js, pnpm, Rust, Tauri)
 - Build va chay full Tauri app tren nhanh `develop`
-- Tao 3 design screens trong Pencil MCP
-- Update toan bo skills cho khop convention repo
+- Tao 3 design screens trong Pencil MCP (`openacp.pen`)
+- Update 8 skills git cho khop convention repo
 - Tao `docs/design/DESIGN.md` — design system overview
+- Merge develop vao hiru-uiux, push len remote
+- Setup memory system (git confirm, user profile, conventions)
 
 ## Blockers
 - Chua co test framework (Vitest + @solidjs/testing-library)
