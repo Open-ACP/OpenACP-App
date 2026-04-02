@@ -104,18 +104,16 @@ export function SetupWizard(props: Props) {
     });
 
     try {
-      await invoke('run_openacp_setup', { workspace: workspace(), agent: selectedAgent() });
+      const jsonStr = await invoke<string>('run_openacp_setup', { workspace: workspace(), agent: selectedAgent() });
       setSetupStatus('starting');
-      const serverInfo = await invoke<{ url: string; token: string }>('start_server');
-      // Fetch workspace identity from the newly started server
-      const res = await fetch(`${serverInfo.url}/api/v1/workspace`, {
-        headers: { Authorization: `Bearer ${serverInfo.token}` },
-      });
-      const wsData = res.ok ? (await res.json() as { id: string; name: string; directory: string }) : null;
+      await invoke('start_server');
+      // Parse --json output from `openacp setup --json` to get instance identity
+      const parsed = JSON.parse(jsonStr) as { success: boolean; data?: { instanceId?: string; name?: string; directory?: string } };
+      const data = parsed?.data ?? {};
       const entry: WorkspaceEntry = {
-        id: wsData?.id ?? 'main',
-        name: wsData?.name ?? 'Main',
-        directory: wsData?.directory ?? workspace(),
+        id: data.instanceId ?? 'main',
+        name: data.name ?? 'Main',
+        directory: data.directory ?? workspace(),
         type: 'local',
       };
       setSetupStatus('success');
