@@ -166,7 +166,7 @@ export function OpenACPApp() {
 
   async function handleAddWorkspace(entry: WorkspaceEntry) {
     const isNew = addWorkspace(entry)
-    setShowAddWorkspace(false)
+    setShowAddWorkspace(false) // don't call closeAddWorkspaceModal — we handle reconnect below
 
     // If the updated workspace is already active, force re-resolve so the new host/token takes effect
     if (!isNew && store.active === entry.id) {
@@ -189,8 +189,17 @@ export function OpenACPApp() {
   }
 
   function openAddWorkspaceModal(defaultTab: 'local' | 'remote' = 'local') {
+    stopRetry() // pause background retry while modal is open
     setAddWorkspaceDefaultTab(defaultTab)
     setShowAddWorkspace(true)
+  }
+
+  function closeAddWorkspaceModal() {
+    setShowAddWorkspace(false)
+    // resume retry if still disconnected
+    if (store.active && !server()) {
+      startRetry(store.active)
+    }
   }
 
   // Open folder picker — find matching workspace by directory
@@ -429,7 +438,7 @@ export function OpenACPApp() {
       <Show when={showAddWorkspace()}>
         <AddWorkspaceModal
           onAdd={handleAddWorkspace}
-          onClose={() => setShowAddWorkspace(false)}
+          onClose={closeAddWorkspaceModal}
           existingIds={store.workspaces.map((w) => w.id)}
           defaultTab={addWorkspaceDefaultTab()}
         />
