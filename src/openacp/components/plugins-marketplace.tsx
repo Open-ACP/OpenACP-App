@@ -3,6 +3,7 @@ import { Spinner } from "@openacp/ui/spinner"
 import { showToast } from "@openacp/ui/toast"
 import { useWorkspace } from "../context/workspace"
 import type { MarketplacePlugin } from "../types"
+import { CommandBlock } from "./plugin-command-block"
 
 type WorkspaceCtx = ReturnType<typeof useWorkspace>
 
@@ -38,6 +39,7 @@ export function MarketplaceTab(props: Props) {
   }
 
   function startPolling(pluginName: string) {
+    stopPolling()
     setPollTimedOut(false)
 
     pollInterval = setInterval(async () => {
@@ -118,12 +120,10 @@ export function MarketplaceTab(props: Props) {
 
             <div class="flex items-center gap-2 text-12-regular text-text-weak">
               <Show when={!pollTimedOut()} fallback={
-                <Show when={pollTimedOut()}>
-                  <span>
-                    Install not detected. Did the command complete successfully?{' '}
-                    <button class="underline text-text-base" onClick={handleManualRefresh}>Refresh</button>
-                  </span>
-                </Show>
+                <span>
+                  Install not detected. Did the command complete successfully?{' '}
+                  <button class="underline text-text-base" onClick={handleManualRefresh}>Refresh</button>
+                </span>
               }>
                 <Spinner />
                 <span>Waiting for install to complete…</span>
@@ -200,27 +200,3 @@ export function MarketplaceTab(props: Props) {
   )
 }
 
-function CommandBlock(props: { label: string; command: string }) {
-  const [copied, setCopied] = createSignal(false)
-
-  async function copy() {
-    await navigator.clipboard.writeText(props.command)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <div class="flex flex-col gap-1">
-      <span class="text-12-regular text-text-weak">{props.label}</span>
-      <div class="flex items-center gap-2 bg-background-stronger rounded px-3 py-2">
-        <code class="text-12-regular text-text-strong flex-1 font-mono">{props.command}</code>
-        <button
-          class="text-12-regular text-text-weak hover:text-text-base transition-colors shrink-0"
-          onClick={copy}
-        >
-          {copied() ? "Copied!" : "Copy"}
-        </button>
-      </div>
-    </div>
-  )
-}
