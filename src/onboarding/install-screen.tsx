@@ -30,6 +30,7 @@ export function InstallScreen(props: Props) {
   const [lines, setLines] = createSignal<string[]>([]);
   const [status, setStatus] = createSignal<'running' | 'success' | 'error'>('running');
   const [error, setError] = createSignal('');
+  const [configExists, setConfigExists] = createSignal(false);
 
   let logEl: HTMLDivElement | undefined;
 
@@ -45,10 +46,10 @@ export function InstallScreen(props: Props) {
 
     try {
       await invoke('run_install_script');
-      setStatus('success');
       // Re-check config after install — user may have had a previous install
-      const configExists = await invoke<boolean>('check_openacp_config').catch(() => false);
-      setTimeout(() => props.onSuccess(configExists), 800);
+      const exists = await invoke<boolean>('check_openacp_config').catch(() => false);
+      setConfigExists(exists);
+      setStatus('success');
     } catch (err) {
       setStatus('error');
       setError(String(err));
@@ -89,7 +90,15 @@ export function InstallScreen(props: Props) {
         </div>
 
         <Show when={status() === 'success'}>
-          <p class="text-sm text-green-400">✓ Installation complete. Starting setup...</p>
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-green-400">✓ OpenACP installed successfully.</p>
+            <button
+              onClick={() => props.onSuccess(configExists())}
+              class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+            >
+              Get Started →
+            </button>
+          </div>
         </Show>
 
         <Show when={status() === 'error'}>
