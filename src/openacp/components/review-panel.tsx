@@ -1,19 +1,100 @@
 import { For, Show, createSignal, createMemo } from "solid-js"
-import { File as DiffFileViewer } from "../../ui/src/components/file"
+import { structuredPatch } from "diff"
 import { ResizeHandle } from "@openacp/ui/resize-handle"
 import { useChat } from "../context/chat"
-import type { Message, ToolCallPart, FileDiff as FileDiffData } from "../types"
+import type { ToolCallPart, FileDiff as FileDiffData } from "../types"
 
 const DEFAULT_WIDTH = 480
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
+
+interface DiffLine {
+  type: "add" | "del" | "normal" | "hunk"
+  content: string
+  oldNum?: number
+  newNum?: number
+}
+
+function computeDiffLines(before: string, after: string, path: string): DiffLine[] {
+  const patch = structuredPatch(path, path, before, after, "", "", { context: 3 })
+  const lines: DiffLine[] = []
+
+  for (const hunk of patch.hunks) {
+    lines.push({ type: "hunk", content: `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@` })
+
+    let oldNum = hunk.oldStart
+    let newNum = hunk.newStart
+    for (const line of hunk.lines) {
+      if (line.startsWith("+")) {
+        lines.push({ type: "add", content: line.slice(1), newNum: newNum++ })
+      } else if (line.startsWith("-")) {
+        lines.push({ type: "del", content: line.slice(1), oldNum: oldNum++ })
+      } else {
+        lines.push({ type: "normal", content: line.slice(1), oldNum: oldNum++, newNum: newNum++ })
+      }
+    }
+  }
+  return lines
+}
+
+function DiffStats(props: { before: string; after: string }) {
+  const stats = createMemo(() => {
+    const patch = structuredPatch("", "", props.before, props.after)
+    let add = 0, del = 0
+    for (const hunk of patch.hunks) {
+      for (const line of hunk.lines) {
+        if (line.startsWith("+")) add++
+        else if (line.startsWith("-")) del++
+      }
+    }
+    return { add, del }
+  })
+
+  return (
+    <span class="flex items-center gap-1.5 text-12-regular font-mono">
+      <Show when={stats().add > 0}>
+        <span style={{ color: "var(--syntax-diff-add, #2da44e)" }}>+{stats().add}</span>
+      </Show>
+      <Show when={stats().del > 0}>
+        <span style={{ color: "var(--syntax-diff-delete, #cf222e)" }}>-{stats().del}</span>
+      </Show>
+    </span>
+  )
+}
+
+function DiffView(props: { before: string; after: string; path: string }) {
+  const lines = createMemo(() => computeDiffLines(props.before, props.after, props.path))
+
+  return (
+    <div class="oac-diff-view font-mono" style={{ "font-size": "12px" }}>
+      <For each={lines()}>
+        {(line) => (
+          <div
+            class="oac-diff-line"
+            classList={{
+              "oac-diff-add": line.type === "add",
+              "oac-diff-del": line.type === "del",
+              "oac-diff-hunk": line.type === "hunk",
+            }}
+          >
+            <span class="oac-diff-gutter oac-diff-gutter-old">{line.oldNum ?? ""}</span>
+            <span class="oac-diff-gutter oac-diff-gutter-new">{line.newNum ?? ""}</span>
+            <span class="oac-diff-sign">
+              {line.type === "add" ? "+" : line.type === "del" ? "-" : line.type === "hunk" ? "" : " "}
+            </span>
+            <span class="oac-diff-content">{line.content}</span>
+          </div>
+        )}
+      </For>
+    </div>
+  )
+}
 
 export function ReviewPanel(props: { onClose: () => void }) {
   const chat = useChat()
   const [selectedFile, setSelectedFile] = createSignal<string | null>(null)
   const [panelWidth, setPanelWidth] = createSignal(DEFAULT_WIDTH)
 
-  // Collect all file diffs from current session messages
   const fileDiffs = createMemo(() => {
     const diffs = new Map<string, FileDiffData>()
     for (const msg of chat.messages()) {
@@ -22,7 +103,6 @@ export function ReviewPanel(props: { onClose: () => void }) {
         if (part.type !== "tool_call") continue
         const tool = part as ToolCallPart
         if (!tool.diff?.path) continue
-        // Latest diff for each file wins
         diffs.set(tool.diff.path, tool.diff)
       }
     }
@@ -31,18 +111,17 @@ export function ReviewPanel(props: { onClose: () => void }) {
 
   const selectedDiff = createMemo(() => {
     const path = selectedFile()
-    if (!path) {
-      // Auto-select first file
-      const first = fileDiffs()[0]
-      return first ?? null
-    }
+    if (!path) return fileDiffs()[0] ?? null
     return fileDiffs().find((d) => d.path === path) ?? null
   })
 
   const fileName = (path: string) => path.split("/").pop() || path
 
   return (
-    <div class="relative flex flex-col h-full bg-background-base border-l border-border-weaker-base" style={{ width: `${panelWidth()}px` }}>
+    <div
+      class="relative flex flex-col h-full bg-background-base border-l border-border-weaker-base"
+      style={{ width: `${panelWidth()}px` }}
+    >
       <ResizeHandle
         direction="horizontal"
         edge="start"
@@ -51,6 +130,7 @@ export function ReviewPanel(props: { onClose: () => void }) {
         max={MAX_WIDTH}
         onResize={setPanelWidth}
       />
+
       {/* Header */}
       <div class="flex items-center justify-between px-3 h-11 border-b border-border-weaker-base flex-shrink-0">
         <div class="flex items-center gap-2">
@@ -81,13 +161,13 @@ export function ReviewPanel(props: { onClose: () => void }) {
 
       <Show when={fileDiffs().length > 0}>
         {/* File tabs */}
-        <div class="flex items-center gap-0 px-2 py-1 border-b border-border-weaker-base overflow-x-auto no-scrollbar flex-shrink-0">
+        <div class="flex items-center gap-0 px-2 py-1.5 border-b border-border-weaker-base overflow-x-auto no-scrollbar flex-shrink-0">
           <For each={fileDiffs()}>
             {(item) => {
               const isSelected = () => (selectedFile() ?? fileDiffs()[0]?.path) === item.path
               return (
                 <button
-                  class="px-2.5 py-1 rounded text-12-medium whitespace-nowrap transition-colors"
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded text-12-medium whitespace-nowrap transition-colors"
                   classList={{
                     "bg-surface-raised-base text-text-strong": isSelected(),
                     "text-text-base hover:text-text-strong hover:bg-surface-raised-base-hover": !isSelected(),
@@ -95,12 +175,7 @@ export function ReviewPanel(props: { onClose: () => void }) {
                   onClick={() => setSelectedFile(item.path)}
                 >
                   {fileName(item.path)}
-                  <Show when={item.diff.before != null}>
-                    <span class="ml-1 text-text-weaker">M</span>
-                  </Show>
-                  <Show when={item.diff.before == null}>
-                    <span class="ml-1 text-text-weaker">A</span>
-                  </Show>
+                  <DiffStats before={item.diff.before ?? ""} after={item.diff.after} />
                 </button>
               )
             }}
@@ -111,13 +186,11 @@ export function ReviewPanel(props: { onClose: () => void }) {
         <div class="flex-1 min-h-0 overflow-auto">
           <Show when={selectedDiff()}>
             {(item) => (
-              <div class="p-2">
-                <DiffFileViewer
-                  mode="diff"
-                  before={{ name: item().path, contents: item().diff.before ?? "" }}
-                  after={{ name: item().path, contents: item().diff.after }}
-                />
-              </div>
+              <DiffView
+                path={item().path}
+                before={item().diff.before ?? ""}
+                after={item().diff.after}
+              />
             )}
           </Show>
         </div>

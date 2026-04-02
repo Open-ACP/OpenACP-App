@@ -26,7 +26,7 @@ function ChatHeader(props: { onOpenReview?: () => void }) {
           <button
             class="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors"
             title="Review changes"
-            onClick={() => { console.log("[review] button clicked"); props.onOpenReview?.() }}
+            onClick={() => props.onOpenReview?.()}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
               <path d="M3.33 4.17h13.34M3.33 8.33h8.34M3.33 12.5h13.34M3.33 16.67h8.34" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
