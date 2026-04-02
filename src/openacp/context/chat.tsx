@@ -78,15 +78,15 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
 function stepToPart(step: HistoryStep): MessagePart | null {
   switch (step.type) {
     case "text":
-      return { id: uid("p"), type: "text", content: step.content }
+      return { id: uid("p"), type: "text", content: step.content as string }
     case "thinking":
-      return { id: uid("p"), type: "thinking", content: step.content }
+      return { id: uid("p"), type: "thinking", content: step.content as string }
     case "tool_call":
       return {
         id: uid("p"),
         type: "tool_call",
-        toolCallId: step.id,
-        name: step.name,
+        toolCallId: step.id as string,
+        name: step.name as string,
         status: (step.status as ToolCallPart["status"]) || "completed",
         input: step.input as Record<string, unknown> | undefined,
         output: typeof step.output === "string" ? step.output : step.output ? JSON.stringify(step.output) : undefined,
@@ -203,6 +203,48 @@ export function ChatProvider(props: ParentProps) {
     }
   }
 
+  // ── Text batching — accumulate chunks, flush once per frame ────────────
+
+  const textBuffer = new Map<string, string>() // sessionID → pending text
+  const thoughtBuffer = new Map<string, string>()
+  let flushScheduled = false
+
+  function scheduleFlush() {
+    if (flushScheduled) return
+    flushScheduled = true
+    requestAnimationFrame(flushBuffers)
+  }
+
+  function flushBuffers() {
+    flushScheduled = false
+
+    for (const [sessionID, text] of textBuffer) {
+      ensureAssistantMessage(sessionID)
+      updateAssistantParts(sessionID, (parts) => {
+        const last = parts[parts.length - 1]
+        if (last?.type === "text") {
+          last.content += text
+        } else {
+          parts.push({ id: nextPartId(), type: "text", content: text })
+        }
+      })
+    }
+    textBuffer.clear()
+
+    for (const [sessionID, text] of thoughtBuffer) {
+      ensureAssistantMessage(sessionID)
+      updateAssistantParts(sessionID, (parts) => {
+        const existing = [...parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
+        if (existing) {
+          existing.content += text
+        } else {
+          parts.push({ id: nextPartId(), type: "thinking", content: text })
+        }
+      })
+    }
+    thoughtBuffer.clear()
+  }
+
   // ── SSE event handling ──────────────────────────────────────────────────
 
   function handleAgentEvent(event: AgentEvent) {
@@ -215,27 +257,15 @@ export function ChatProvider(props: ParentProps) {
     switch (evt.type) {
       case "text": {
         ensureAssistantMessage(sessionID)
-        updateAssistantParts(sessionID, (parts) => {
-          const last = parts[parts.length - 1]
-          if (last?.type === "text") {
-            last.content += evt.content
-          } else {
-            parts.push({ id: nextPartId(), type: "text", content: evt.content })
-          }
-        })
+        textBuffer.set(sessionID, (textBuffer.get(sessionID) ?? "") + evt.content)
+        scheduleFlush()
         break
       }
 
       case "thought": {
         ensureAssistantMessage(sessionID)
-        updateAssistantParts(sessionID, (parts) => {
-          const existing = parts.findLast((p) => p.type === "thinking") as ThinkingPart | undefined
-          if (existing) {
-            existing.content += evt.content
-          } else {
-            parts.push({ id: nextPartId(), type: "thinking", content: evt.content })
-          }
-        })
+        thoughtBuffer.set(sessionID, (thoughtBuffer.get(sessionID) ?? "") + evt.content)
+        scheduleFlush()
         break
       }
 
@@ -278,6 +308,7 @@ export function ChatProvider(props: ParentProps) {
       }
 
       case "error": {
+        flushBuffers() // flush pending text before error
         ensureAssistantMessage(sessionID)
         updateAssistantParts(sessionID, (parts) => {
           parts.push({ id: nextPartId(), type: "text", content: `\n\n**Error:** ${evt.content}` })
@@ -288,6 +319,7 @@ export function ChatProvider(props: ParentProps) {
       }
 
       case "usage": {
+        flushBuffers() // flush any remaining text
         assistantMsgId.delete(sessionID)
         setStore("streaming", false)
         void sessions.refresh()

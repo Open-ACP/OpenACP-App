@@ -1,4 +1,5 @@
 import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js"
+import { createPacedValue } from "../hooks/create-paced-value"
 import { Markdown } from "../../ui/src/components/markdown"
 import { BasicTool } from "../../ui/src/components/basic-tool"
 import { TextShimmer } from "../../ui/src/components/text-shimmer"
@@ -94,6 +95,11 @@ function formatTime(timestamp: number): string {
 // ── Part Renderers ──────────────────────────────────────────────────────────
 
 function TextPartView(props: { part: TextPart; streaming?: boolean }) {
+  const pacedText = createPacedValue(
+    () => props.part.content,
+    () => props.streaming ?? false,
+  )
+
   return (
     <div class="flex gap-2.5 items-start">
       <div class="mt-[9px] flex-shrink-0">
@@ -101,7 +107,7 @@ function TextPartView(props: { part: TextPart; streaming?: boolean }) {
       </div>
       <div class="min-w-0 flex-1">
         <Markdown
-          text={props.part.content}
+          text={pacedText()}
           cacheKey={props.part.id}
           streaming={props.streaming}
         />
