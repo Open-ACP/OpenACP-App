@@ -19,8 +19,15 @@ export function createSSEManager() {
 
   function connect(directory: string, eventsUrl: string, callbacks: SSECallbacks) {
     // Already connected
-    if (connections.has(directory)) return
+    if (connections.has(directory)) {
+      const existing = connections.get(directory)!
+      console.log('[sse] already have connection for', directory, 'readyState:', existing.readyState)
+      return
+    }
 
+    // Mask token in log
+    const logUrl = eventsUrl.replace(/token=[^&]+/, 'token=***')
+    console.log('[sse] connecting to:', logUrl)
     const es = new EventSource(eventsUrl)
 
     es.addEventListener("agent:event", (e) => {
@@ -56,16 +63,23 @@ export function createSSEManager() {
       console.log('[sse] connected:', eventsUrl)
       callbacks.onConnected()
     }
-    es.onerror = () => {
+    es.onerror = (e) => {
+      console.warn('[sse] error event, readyState:', es.readyState, e)
       if (es.readyState === EventSource.CLOSED) {
-        console.warn('[sse] disconnected (closed):', eventsUrl)
+        console.warn('[sse] permanently closed — removing from map so reconnect is possible')
+        connections.delete(directory)
         callbacks.onDisconnected()
       } else {
         // readyState === CONNECTING — browser is auto-retrying
-        console.warn('[sse] reconnecting:', eventsUrl)
+        console.warn('[sse] reconnecting (auto-retry):', logUrl)
         callbacks.onReconnecting?.()
       }
     }
+
+    // Listen to health heartbeat to confirm data is flowing
+    es.addEventListener('health', (e) => {
+      console.log('[sse] health heartbeat received')
+    })
 
     connections.set(directory, es)
   }
