@@ -103,6 +103,11 @@ async fn get_workspace_server_info(instance_id: String) -> Result<ServerInfo, St
 }
 
 #[tauri::command]
+fn path_exists(path: String) -> bool {
+    std::path::Path::new(&path).exists()
+}
+
+#[tauri::command]
 async fn invoke_cli(args: Vec<String>, _app: tauri::AppHandle) -> Result<String, String> {
     use sidecar::find_openacp_binary_pub;
     let bin = find_openacp_binary_pub().ok_or_else(|| "Could not find openacp binary".to_string())?;
@@ -177,6 +182,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_server_info,
             get_workspace_server_info,
+            path_exists,
             invoke_cli,
             start_server,
             stop_server,
