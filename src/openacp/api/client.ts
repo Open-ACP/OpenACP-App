@@ -217,6 +217,34 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       }
     },
 
+    /** List all installed plugins with runtime state */
+    async listPlugins(): Promise<{ plugins: import('../types').InstalledPlugin[] }> {
+      return api('/plugins')
+    },
+
+    /** Fetch marketplace plugins (proxied from registry, with installed flag) */
+    async getMarketplace(): Promise<{
+      plugins: import('../types').MarketplacePlugin[]
+      categories: import('../types').MarketplaceCategory[]
+    }> {
+      return api('/plugins/marketplace')
+    },
+
+    /** Enable a plugin via hot-load */
+    async enablePlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}/enable`, { method: 'POST' })
+    },
+
+    /** Disable a plugin via hot-unload */
+    async disablePlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}/disable`, { method: 'POST' })
+    },
+
+    /** Uninstall a plugin (remove from registry + unload) */
+    async uninstallPlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}`, { method: 'DELETE' })
+    },
+
     /** SSE events URL for EventSource */
     get eventsUrl(): string {
       return `${url}/api/v1/events?token=${encodeURIComponent(token)}`
