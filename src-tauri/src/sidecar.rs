@@ -160,6 +160,10 @@ async fn check_health(url: &str, token: &str) -> bool {
     }
 }
 
+pub fn find_openacp_binary_pub() -> Option<PathBuf> {
+    find_openacp_binary()
+}
+
 fn find_openacp_binary() -> Option<PathBuf> {
     // Check PATH via `which`
     if let Ok(output) = std::process::Command::new("which")
