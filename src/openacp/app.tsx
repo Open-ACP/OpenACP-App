@@ -167,6 +167,19 @@ export function OpenACPApp() {
   async function handleAddWorkspace(entry: WorkspaceEntry) {
     const isNew = addWorkspace(entry)
     setShowAddWorkspace(false)
+
+    // If the updated workspace is already active, force re-resolve so the new host/token takes effect
+    if (!isNew && store.active === entry.id) {
+      stopRetry()
+      setServer(null)
+      const info = await resolveServer(entry.id)
+      if (info) {
+        setServer(info)
+      } else {
+        startRetry(entry.id)
+      }
+    }
+
     const { showToast } = await import("../../ui/src/components/toast")
     if (isNew) {
       showToast({ description: `Workspace "${entry.name}" added.`, variant: "success" })
