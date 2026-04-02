@@ -137,12 +137,8 @@ export async function saveWorkspaceData(data: { instances: string[]; lastActive:
   await saveWorkspaces(merged)
 }
 
-/** @deprecated Use discoverLocalInstances instead */
+/** @deprecated Use discoverLocalInstances() instead */
 export async function discoverWorkspaces(): Promise<InstanceInfo[]> {
-  try {
-    const { invoke: inv } = await import('@tauri-apps/api/core')
-    return await inv<InstanceInfo[]>('discover_workspaces')
-  } catch {
-    return []
-  }
+  console.warn('discoverWorkspaces() is deprecated and no longer functional. Use discoverLocalInstances().')
+  return []
 }

@@ -23,10 +23,14 @@ function parseLink(input: string): { host: string; code: string } | null {
     if (input.startsWith('openacp://connect')) {
       // Custom scheme: openacp://connect?host=...&code=...
       const params = new URLSearchParams(input.replace('openacp://connect?', ''))
-      const host = params.get('host')
+      const rawHost = params.get('host')
       const code = params.get('code')
-      if (!host || !code) return null
-      return { host: `https://${host}`, code }
+      if (!rawHost || !code) return null
+      // Normalize host: prepend https:// only if no protocol prefix present
+      const normalizedHost = rawHost.startsWith('http://') || rawHost.startsWith('https://')
+        ? rawHost
+        : `https://${rawHost}`
+      return { host: normalizedHost, code }
     }
     const url = new URL(input)
     const code = url.searchParams.get('code')
