@@ -1,3 +1,8 @@
+/* ── Design tokens ────────────────────────────────────────────────────────── */
+/* Theme switching: set data-theme="light|dark" on <html>.                    */
+/* Falls back to system preference when no data-theme is set.                 */
+/* To add a new theme, add [data-theme="<name>"] and override semantic vars.  */
+
 :root {
   --font-family-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-family-sans--font-feature-settings: normal;
@@ -86,11 +91,15 @@
     0 0 0 1px var(--border-weak-base, rgba(0, 0, 0, 0.07)), 0 36px 80px 0 rgba(0, 0, 0, 0.03),
     0 13.141px 29.201px 0 rgba(0, 0, 0, 0.04), 0 6.38px 14.177px 0 rgba(0, 0, 0, 0.05),
     0 3.127px 6.95px 0 rgba(0, 0, 0, 0.06), 0 1.237px 2.748px 0 rgba(0, 0, 0, 0.09);
+}
 
+/* ── Light theme (default) ─────────────────────────────────────────────────── */
+
+:root,
+[data-theme="light"] {
   color-scheme: light;
   --text-mix-blend-mode: multiply;
 
-  /* OC-2 fallback variables (light) */
   --background-base: #f8f8f8;
   --background-weak: #f3f3f3;
   --background-strong: #fcfcfc;
@@ -367,12 +376,15 @@
   --input: var(--border-base);
   --ring: var(--border-selected);
   --radius: 0.5rem;
+}
 
-  @media (prefers-color-scheme: dark) {
+/* ── Dark theme ────────────────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --text-mix-blend-mode: plus-lighter;
 
-    /* OC-2 fallback variables (dark) */
     --background-base: #101010;
     --background-weak: #1e1e1e;
     --background-strong: #121212;
@@ -650,4 +662,287 @@
     --ring: var(--border-selected);
     --radius: 0.5rem;
   }
+}
+
+/* Explicit dark override — always wins regardless of system preference */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --text-mix-blend-mode: plus-lighter;
+
+  --background-base: #101010;
+  --background-weak: #1e1e1e;
+  --background-strong: #121212;
+  --background-stronger: #151515;
+  --surface-base: rgba(255, 255, 255, 0.031);
+  --base: rgba(255, 255, 255, 0.034);
+  --surface-base-hover: rgba(255, 255, 255, 0.039);
+  --surface-base-active: rgba(255, 255, 255, 0.059);
+  --surface-base-interactive-active: rgba(3, 76, 255, 0.125);
+  --base2: rgba(255, 255, 255, 0.034);
+  --base3: rgba(255, 255, 255, 0.034);
+  --surface-inset-base: rgba(0, 0, 0, 0.5);
+  --surface-inset-base-hover: rgba(0, 0, 0, 0.5);
+  --surface-inset-strong: rgba(0, 0, 0, 0.8);
+  --surface-inset-strong-hover: rgba(0, 0, 0, 0.8);
+  --surface-raised-base: rgba(255, 255, 255, 0.059);
+  --surface-float-base: #161616;
+  --surface-float-base-hover: #1c1c1c;
+  --surface-raised-base-hover: rgba(255, 255, 255, 0.078);
+  --surface-raised-base-active: rgba(255, 255, 255, 0.102);
+  --surface-raised-strong: rgba(255, 255, 255, 0.078);
+  --surface-raised-strong-hover: rgba(255, 255, 255, 0.129);
+  --surface-raised-stronger: rgba(255, 255, 255, 0.129);
+  --surface-raised-stronger-hover: rgba(255, 255, 255, 0.169);
+  --surface-weak: rgba(255, 255, 255, 0.078);
+  --surface-weaker: rgba(255, 255, 255, 0.102);
+  --surface-strong: rgba(255, 255, 255, 0.169);
+  --surface-stronger-non-alpha: var(--surface-raised-stronger-non-alpha);
+  --surface-raised-stronger-non-alpha: #1c1c1c;
+  --surface-brand-base: #fab283;
+  --surface-brand-hover: #eda779;
+  --surface-interactive-base: #091f52;
+  --surface-interactive-hover: #091f52;
+  --surface-interactive-weak: #0b1730;
+  --surface-interactive-weak-hover: #ecf3ff;
+  --surface-success-base: #062d04;
+  --surface-success-weak: #0a1e08;
+  --surface-success-strong: #12c905;
+  --surface-warning-base: #fdf3cf;
+  --surface-warning-weak: #fdfaed;
+  --surface-warning-strong: #fcd53a;
+  --surface-critical-base: #1f0603;
+  --surface-critical-weak: #28110c;
+  --surface-critical-strong: #fc533a;
+  --surface-info-base: #feecfe;
+  --surface-info-weak: #fdf7fe;
+  --surface-info-strong: #edb2f1;
+  --surface-diff-unchanged-base: #161616;
+  --surface-diff-skip-base: #00000000;
+  --surface-diff-hidden-base: #0c1928;
+  --surface-diff-hidden-weak: #09131d;
+  --surface-diff-hidden-weaker: #082542;
+  --surface-diff-hidden-strong: #073966;
+  --surface-diff-hidden-stronger: #8ec2fc;
+  --surface-diff-add-base: #1a2919;
+  --surface-diff-add-weak: #1f351e;
+  --surface-diff-add-weaker: #1a2919;
+  --surface-diff-add-strong: #264024;
+  --surface-diff-add-stronger: #9bcd97;
+  --surface-diff-delete-base: #42120b;
+  --surface-diff-delete-weak: #580f06;
+  --surface-diff-delete-weaker: #42120b;
+  --surface-diff-delete-strong: #6a1206;
+  --surface-diff-delete-stronger: #faa494;
+  --input-base: #1c1c1c;
+  --input-hover: #1c1c1c;
+  --input-active: #091123;
+  --input-selected: #0b1730;
+  --input-focus: #091123;
+  --input-disabled: #282828;
+  --text-base: rgba(255, 255, 255, 0.618);
+  --text-weak: rgba(255, 255, 255, 0.422);
+  --text-weaker: rgba(255, 255, 255, 0.284);
+  --text-strong: rgba(255, 255, 255, 0.936);
+  --text-invert-base: #a0a0a0;
+  --text-invert-weak: #707070;
+  --text-invert-weaker: #505050;
+  --text-invert-strong: #ededed;
+  --text-interactive-base: #9dbefe;
+  --text-on-brand-base: rgba(255, 255, 255, 0.603);
+  --text-on-interactive-base: #ededed;
+  --text-on-interactive-weak: rgba(255, 255, 255, 0.603);
+  --text-on-success-base: #12c905;
+  --text-on-critical-base: #fc533a;
+  --text-on-critical-weak: #b72d1a;
+  --text-on-critical-strong: #ffe0da;
+  --text-on-warning-base: rgba(255, 255, 255, 0.603);
+  --text-on-info-base: rgba(255, 255, 255, 0.603);
+  --text-diff-add-base: #9bcd97;
+  --text-diff-delete-base: #fc533a;
+  --text-diff-delete-strong: #ffe0da;
+  --text-diff-add-strong: #4a7348;
+  --text-on-info-weak: rgba(255, 255, 255, 0.404);
+  --text-on-info-strong: rgba(255, 255, 255, 0.928);
+  --text-on-warning-weak: rgba(255, 255, 255, 0.404);
+  --text-on-warning-strong: rgba(255, 255, 255, 0.928);
+  --text-on-success-weak: #127d0d;
+  --text-on-success-strong: #bafdb3;
+  --text-on-brand-weak: rgba(255, 255, 255, 0.404);
+  --text-on-brand-weaker: rgba(255, 255, 255, 0.266);
+  --text-on-brand-strong: rgba(255, 255, 255, 0.928);
+  --button-primary-base: #ededed;
+  --button-secondary-base: #1c1c1c;
+  --button-secondary-hover: rgba(255, 255, 255, 0.039);
+  --button-ghost-hover: rgba(255, 255, 255, 0.031);
+  --button-ghost-hover2: rgba(255, 255, 255, 0.059);
+  --border-base: rgba(255, 255, 255, 0.195);
+  --border-hover: rgba(255, 255, 255, 0.284);
+  --border-active: rgba(255, 255, 255, 0.418);
+  --border-selected: #9dbefe;
+  --border-disabled: rgba(255, 255, 255, 0.284);
+  --border-focus: rgba(255, 255, 255, 0.418);
+  --border-weak-base: #282828;
+  --border-strong-base: rgba(255, 255, 255, 0.266);
+  --border-strong-hover: rgba(255, 255, 255, 0.266);
+  --border-strong-active: rgba(255, 255, 255, 0.266);
+  --border-strong-selected: rgba(3, 76, 255, 0.62);
+  --border-strong-disabled: rgba(255, 255, 255, 0.138);
+  --border-strong-focus: rgba(255, 255, 255, 0.266);
+  --border-weak-hover: rgba(255, 255, 255, 0.181);
+  --border-weak-active: rgba(255, 255, 255, 0.266);
+  --border-weak-selected: rgba(3, 76, 255, 0.62);
+  --border-weak-disabled: rgba(255, 255, 255, 0.138);
+  --border-weak-focus: rgba(255, 255, 255, 0.266);
+  --border-weaker-base: #202020;
+  --border-weaker-hover: rgba(255, 255, 255, 0.084);
+  --border-weaker-active: rgba(255, 255, 255, 0.138);
+  --border-weaker-selected: rgba(3, 76, 255, 0.32);
+  --border-weaker-disabled: rgba(255, 255, 255, 0.034);
+  --border-weaker-focus: rgba(255, 255, 255, 0.138);
+  --border-interactive-base: #a3c1fd;
+  --border-interactive-hover: #7ea9ff;
+  --border-interactive-active: #034cff;
+  --border-interactive-selected: #034cff;
+  --border-interactive-disabled: #505050;
+  --border-interactive-focus: #034cff;
+  --border-success-base: #96ec8e;
+  --border-success-hover: #7add71;
+  --border-success-selected: #12c905;
+  --border-warning-base: #e9d282;
+  --border-warning-hover: #dac063;
+  --border-warning-selected: #fcd53a;
+  --border-critical-base: #6a1206;
+  --border-critical-hover: #952414;
+  --border-critical-selected: #fc533a;
+  --border-info-base: #eac5ec;
+  --border-info-hover: #dab1dd;
+  --border-info-selected: #edb2f1;
+  --border-color: #ffffff;
+  --icon-base: #7e7e7e;
+  --icon-hover: #a0a0a0;
+  --icon-active: #ededed;
+  --icon-selected: #ededed;
+  --icon-disabled: #3e3e3e;
+  --icon-focus: #ededed;
+  --icon-invert-base: #161616;
+  --icon-weak-base: #343434;
+  --icon-weak-hover: #d9d9d9;
+  --icon-weak-active: #c8c8c8;
+  --icon-weak-selected: #707070;
+  --icon-weak-disabled: #ededed;
+  --icon-weak-focus: #707070;
+  --icon-strong-base: #ededed;
+  --icon-strong-hover: #f6f3f3;
+  --icon-strong-active: #fcfcfc;
+  --icon-strong-selected: #fdfcfc;
+  --icon-strong-disabled: #3e3e3e;
+  --icon-strong-focus: #fdfcfc;
+  --icon-brand-base: #ffffff;
+  --icon-interactive-base: #034cff;
+  --icon-success-base: #12c905;
+  --icon-success-hover: #35c02d;
+  --icon-success-active: #4de144;
+  --icon-warning-base: #fbb73c;
+  --icon-warning-hover: #885e08;
+  --icon-warning-active: #f1b13f;
+  --icon-critical-base: #fc533a;
+  --icon-critical-hover: #faa494;
+  --icon-critical-active: #ffe0da;
+  --icon-info-base: #68446b;
+  --icon-info-hover: #815484;
+  --icon-info-active: #dfa7e3;
+  --icon-on-brand-base: rgba(255, 255, 255, 0.603);
+  --icon-on-brand-hover: rgba(255, 255, 255, 0.928);
+  --icon-on-brand-selected: rgba(255, 255, 255, 0.928);
+  --icon-on-interactive-base: #ededed;
+  --icon-agent-plan-base: #edb2f1;
+  --icon-agent-docs-base: #fbb73c;
+  --icon-agent-ask-base: #2090f5;
+  --icon-agent-build-base: #9dbefe;
+  --icon-on-success-base: rgba(18, 201, 5, 0.9);
+  --icon-on-success-hover: rgba(53, 192, 45, 0.9);
+  --icon-on-success-selected: rgba(77, 225, 68, 0.9);
+  --icon-on-warning-base: rgba(251, 183, 60, 0.9);
+  --icon-on-warning-hover: rgba(245, 178, 56, 0.9);
+  --icon-on-warning-selected: rgba(241, 177, 63, 0.9);
+  --icon-on-critical-base: rgba(252, 83, 58, 0.9);
+  --icon-on-critical-hover: rgba(245, 79, 54, 0.9);
+  --icon-on-critical-selected: rgba(250, 164, 148, 0.9);
+  --icon-on-info-base: #edb2f1;
+  --icon-on-info-hover: rgba(231, 173, 235, 0.9);
+  --icon-on-info-selected: rgba(223, 167, 227, 0.9);
+  --icon-diff-add-base: #9bcd97;
+  --icon-diff-add-hover: #c3f9bf;
+  --icon-diff-add-active: #9bcd97;
+  --icon-diff-delete-base: #fc533a;
+  --icon-diff-delete-hover: #f54f36;
+  --icon-diff-modified-base: #ffba92;
+  --syntax-comment: var(--text-weak);
+  --syntax-regexp: var(--text-base);
+  --syntax-string: #00ceb9;
+  --syntax-keyword: var(--text-weak);
+  --syntax-primitive: #ffba92;
+  --syntax-operator: var(--text-weak);
+  --syntax-variable: var(--text-strong);
+  --syntax-property: #ff9ae2;
+  --syntax-type: #ecf58c;
+  --syntax-constant: #93e9f6;
+  --syntax-punctuation: var(--text-weak);
+  --syntax-object: var(--text-strong);
+  --syntax-success: #35c02d;
+  --syntax-warning: #f5b238;
+  --syntax-critical: #f54f36;
+  --syntax-info: #93e9f6;
+  --syntax-diff-add: #9bcd97;
+  --syntax-diff-delete: #faa494;
+  --syntax-diff-unknown: #ff0000;
+  --markdown-heading: #9d7cd8;
+  --markdown-text: #eeeeee;
+  --markdown-link: #fab283;
+  --markdown-link-text: #56b6c2;
+  --markdown-code: #7fd88f;
+  --markdown-block-quote: #e5c07b;
+  --markdown-emph: #e5c07b;
+  --markdown-strong: #f5a742;
+  --markdown-horizontal-rule: #808080;
+  --markdown-list-item: #fab283;
+  --markdown-list-enumeration: #56b6c2;
+  --markdown-image: #fab283;
+  --markdown-image-text: #56b6c2;
+  --markdown-code-block: #eeeeee;
+  --avatar-background-pink: #501b3f;
+  --avatar-background-mint: #033a34;
+  --avatar-background-orange: #5f2a06;
+  --avatar-background-purple: #432155;
+  --avatar-background-cyan: #0f3058;
+  --avatar-background-lime: #2b3711;
+  --avatar-text-pink: #e34ba9;
+  --avatar-text-mint: #95f3d9;
+  --avatar-text-orange: #ff802b;
+  --avatar-text-purple: #9d5bd2;
+  --avatar-text-cyan: #369eff;
+  --avatar-text-lime: #c4f042;
+  --text-stronger: rgba(255, 255, 255, 0.936);
+
+  /* ── shadcn/ui theme aliases ──────────────────────────────────────── */
+  --background: var(--background-base);
+  --foreground: var(--text-strong);
+  --card: var(--background-stronger);
+  --card-foreground: var(--text-strong);
+  --popover: var(--background-stronger);
+  --popover-foreground: var(--text-strong);
+  --primary: var(--button-primary-base);
+  --primary-foreground: var(--text-invert-strong);
+  --secondary: var(--surface-raised-base);
+  --secondary-foreground: var(--text-strong);
+  --muted: var(--surface-weak);
+  --muted-foreground: var(--text-weak);
+  --accent: var(--surface-raised-base-hover);
+  --accent-foreground: var(--text-strong);
+  --destructive: var(--surface-critical-strong);
+  --destructive-foreground: var(--text-invert-strong);
+  --border: var(--border-base);
+  --input: var(--border-base);
+  --ring: var(--border-selected);
+  --radius: 0.5rem;
 }

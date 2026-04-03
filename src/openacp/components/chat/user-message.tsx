@@ -54,8 +54,8 @@ export function UserMessage({ message }: { message: Message }) {
   return (
     <div
       data-component="oac-user-message"
-      className="sticky top-0 z-10 rounded-md border border-border-base bg-background-stronger shadow-sm"
-      style={{ padding: "8px 12px" }}
+      className="rounded-md border border-border-base shadow-sm"
+      style={{ padding: "8px 12px", backgroundColor: "var(--surface-raised-stronger-non-alpha, var(--background-stronger))" }}
     >
       <div className="text-14-regular text-text-strong whitespace-pre-wrap break-words leading-relaxed">
         {text}

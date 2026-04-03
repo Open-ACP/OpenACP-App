@@ -1,5 +1,16 @@
 /* OpenACP App — custom styles */
 
+/* ── Sticky user message with feather bottom (Claude Code style) ────────── */
+
+.oac-sticky-user {
+  background-image:
+    linear-gradient(
+      to bottom,
+      var(--background-base) calc(100% - 12px),
+      transparent 100%
+    );
+}
+
 /* ── Tool output ─────────────────────────────────────────────────────────── */
 
 .oac-tool-output {
@@ -264,7 +275,7 @@
   border-radius: 5px;
   overflow: hidden;
   font-size: 12px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .oac-tool-card-grid {
@@ -377,55 +388,4 @@
 
 .oac-spinner {
   animation: oac-spin 0.6s linear infinite;
-}
-
-/* ── Grid Spinner (pulse) ───────────────────────────────────────────────── */
-
-[data-component="spinner"] { color: inherit; flex-shrink: 0; width: 18px; aspect-ratio: 1; }
-
-@keyframes pulse-opacity {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 1; }
-}
-@keyframes pulse-opacity-dim {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 0.6; }
-}
-
-/* ── Text Shimmer ───────────────────────────────────────────────────────── */
-
-[data-component="text-shimmer"] {
-  --text-shimmer-step: 45ms;
-  --text-shimmer-duration: 1200ms;
-  --text-shimmer-swap: 220ms;
-  --text-shimmer-index: 0;
-  --text-shimmer-spread: 5.2ch;
-  --text-shimmer-size: 360%;
-  --text-shimmer-base-color: var(--text-weak);
-  --text-shimmer-peak-color: var(--text-strong);
-  --text-shimmer-sweep: linear-gradient(90deg, transparent calc(50% - var(--text-shimmer-spread)), var(--text-shimmer-peak-color) 50%, transparent calc(50% + var(--text-shimmer-spread)));
-  --text-shimmer-base: linear-gradient(var(--text-shimmer-base-color), var(--text-shimmer-base-color));
-  display: inline-flex; align-items: baseline; font: inherit;
-}
-[data-component="text-shimmer"] [data-slot="text-shimmer-char"] { display: inline-grid; white-space: pre; font: inherit; }
-[data-component="text-shimmer"] [data-slot="text-shimmer-char-base"],
-[data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] { grid-area: 1/1; white-space: pre; transition: opacity var(--text-shimmer-swap) ease-out; font: inherit; }
-[data-component="text-shimmer"] [data-slot="text-shimmer-char-base"] { color: inherit; opacity: 1; }
-[data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] { color: var(--text-weaker); opacity: 0; }
-[data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char-shimmer"] { opacity: 1; }
-[data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"][data-run="true"] {
-  animation: text-shimmer-sweep var(--text-shimmer-duration) linear infinite both;
-  animation-delay: calc(var(--text-shimmer-step) * var(--text-shimmer-index) * -1);
-  will-change: background-position;
-}
-@keyframes text-shimmer-sweep { 0% { background-position: 100% 0, 0 0; } 100% { background-position: 0% 0, 0 0; } }
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  [data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] {
-    color: transparent; -webkit-text-fill-color: transparent;
-    background-image: var(--text-shimmer-sweep), var(--text-shimmer-base);
-    background-size: var(--text-shimmer-size) 100%, 100% 100%;
-    background-position: 100% 0, 0 0; background-repeat: no-repeat;
-    -webkit-background-clip: text; background-clip: text;
-  }
-  [data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char-base"] { opacity: 0; }
 }

@@ -5,6 +5,7 @@ import { useAutoScroll } from "../../hooks/use-auto-scroll"
 import { UserMessage } from "./user-message"
 import { MessageTurn } from "./message-turn"
 import { showToast } from "../../lib/toast"
+import type { Message } from "../../types"
 
 function ChatHeader({ onOpenReview }: { onOpenReview?: () => void }) {
   const chat = useChat()
@@ -149,32 +150,56 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
             >
               <div
                 ref={autoScroll.contentRef}
-                className="px-4 md:max-w-200 md:mx-auto 2xl:max-w-[1000px] pb-32 flex flex-col"
+                className="px-6 md:max-w-200 md:mx-auto 2xl:max-w-[1000px] pb-32 flex flex-col"
                 onClick={autoScroll.handleInteraction}
               >
-                {chat.messages().map((msg, index) => {
-                  const isLast = index === chat.messages().length - 1
-                  const isUser = msg.role === "user"
-                  const prevMsg = index > 0 ? chat.messages()[index - 1] : undefined
-                  const topGap = (() => {
-                    if (index === 0) return "0px"
-                    if (isUser) return "24px"
-                    if (prevMsg?.role === "user") return "16px"
-                    return "16px"
-                  })()
-                  return (
-                    <div key={msg.id} style={{ marginTop: topGap }}>
-                      {isUser ? (
-                        <UserMessage message={msg} />
-                      ) : (
-                        <MessageTurn
-                          message={msg}
-                          streaming={chat.streaming() && isLast}
-                        />
-                      )}
-                    </div>
-                  )
-                })}
+                {(() => {
+                  const messages = chat.messages()
+                  const groups: { user: Message; assistants: Message[] }[] = []
+                  let current: { user: Message; assistants: Message[] } | null = null
+
+                  for (const msg of messages) {
+                    if (msg.role === "user") {
+                      current = { user: msg, assistants: [] }
+                      groups.push(current)
+                    } else if (current) {
+                      current.assistants.push(msg)
+                    } else {
+                      // assistant without preceding user (edge case)
+                      groups.push({ user: null as any, assistants: [msg] })
+                    }
+                  }
+
+                  return groups.map((group, gi) => {
+                    const isLastGroup = gi === groups.length - 1
+                    if (!group.user) {
+                      // Orphan assistant messages
+                      return group.assistants.map((msg, ai) => (
+                        <div key={msg.id} style={{ marginTop: gi === 0 && ai === 0 ? "0px" : "20px" }}>
+                          <MessageTurn
+                            message={msg}
+                            streaming={chat.streaming() && isLastGroup && ai === group.assistants.length - 1}
+                          />
+                        </div>
+                      ))
+                    }
+                    return (
+                      <div key={group.user.id} style={{ marginTop: gi === 0 ? "0px" : "28px" }}>
+                        <div className="oac-sticky-user" style={{ position: "sticky", top: 0, zIndex: 2, paddingBottom: 12 }}>
+                          <UserMessage message={group.user} />
+                        </div>
+                        {group.assistants.map((msg, ai) => (
+                          <div key={msg.id} style={{ marginTop: "20px" }}>
+                            <MessageTurn
+                              message={msg}
+                              streaming={chat.streaming() && isLastGroup && ai === group.assistants.length - 1}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             </div>
             <ScrollToBottomButton
