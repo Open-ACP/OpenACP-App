@@ -83,25 +83,41 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync version
+        shell: bash
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
-          # Update package.json
+          # Convert date-based version (2026.0403.1) to semver (0.2026.4031)
+          # Format: 0.YYYY.MMDDN where MMDD+N are combined
+          SEMVER=$(node -e "
+            const v = '$VERSION';
+            const parts = v.split('.');
+            const year = parseInt(parts[0]);
+            const mmdd = parseInt(parts[1]);
+            const n = parseInt(parts[2] || '0');
+            const patch = mmdd * 100 + n;
+            console.log(year + '.' + mmdd + '.' + n);
+          ")
+          # Update package.json with date-based version (for display)
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$VERSION';
+            pkg.version = '$SEMVER';
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-          # Update tauri.conf.json
+          # Update tauri.conf.json with semver
           node -e "
             const fs = require('fs');
             const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
-            conf.version = '$VERSION';
+            conf.version = '$SEMVER';
             fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
           "
-          # Update Cargo.toml
-          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
-          rm -f src-tauri/Cargo.toml.bak
+          # Update Cargo.toml with semver (use bash explicitly for cross-platform sed)
+          node -e "
+            const fs = require('fs');
+            let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            cargo = cargo.replace(/^version = \".*\"/m, 'version = \"$SEMVER\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+          "
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0

@@ -3,19 +3,38 @@ use tauri_plugin_shell::ShellExt;
 
 use crate::sidecar::find_openacp_binary_pub;
 
+/// Build a tokio Command for openacp with the right PATH set.
+/// openacp is a Node.js script (`#!/usr/bin/env node`), so we must ensure
+/// `node` is in PATH — which it won't be in release builds.
+fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf), String> {
+    let (bin, extra_path) = find_openacp_binary_pub()
+        .ok_or_else(|| "openacp not found — please install it first".to_string())?;
+    let mut cmd = tokio::process::Command::new(&bin);
+    if let Some(ref extra) = extra_path {
+        let current = std::env::var("PATH").unwrap_or_default();
+        let sep = if cfg!(windows) { ";" } else { ":" };
+        cmd.env("PATH", format!("{extra}{sep}{current}"));
+    }
+    Ok((cmd, bin))
+}
+
+/// Helper: build PATH string with extra dir prepended (platform-aware separator).
+fn prepend_path(extra: &str) -> String {
+    let current = std::env::var("PATH").unwrap_or_default();
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    format!("{extra}{sep}{current}")
+}
+
 /// Runs `openacp --version` and returns the version string, or None if not installed.
 /// Uses find_openacp_binary to locate the binary (handles release builds where PATH is limited).
 #[tauri::command]
 pub async fn check_openacp_installed(_app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let bin = match find_openacp_binary_pub() {
-        Some(b) => b,
-        None => return Ok(None),
+    let (mut cmd, _bin) = match openacp_command() {
+        Ok(c) => c,
+        Err(_) => return Ok(None),
     };
 
-    let result = tokio::process::Command::new(&bin)
-        .args(["--version"])
-        .output()
-        .await;
+    let result = cmd.args(["--version"]).output().await;
 
     match result {
         Err(_) => Ok(None),
@@ -46,12 +65,8 @@ pub struct CoreUpdateInfo {
 #[tauri::command]
 pub async fn check_core_update(_app: tauri::AppHandle) -> Result<Option<CoreUpdateInfo>, String> {
     // Get current version
-    let bin = find_openacp_binary_pub().ok_or("openacp not found")?;
-    let output = tokio::process::Command::new(&bin)
-        .args(["--version"])
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
+    let (mut cmd, _bin) = openacp_command()?;
+    let output = cmd.args(["--version"]).output().await.map_err(|e| e.to_string())?;
 
     if !output.status.success() {
         return Ok(None);
@@ -160,11 +175,15 @@ pub async fn run_openacp_setup(
 ) -> Result<String, String> {
     use tauri_plugin_shell::process::CommandEvent;
 
-    let bin = find_openacp_binary_pub()
+    let (bin, extra_path) = find_openacp_binary_pub()
         .ok_or("openacp not found — please install it first")?;
-    let (mut rx, _child) = app
+    let mut shell_cmd = app
         .shell()
-        .command(bin.to_string_lossy().to_string())
+        .command(bin.to_string_lossy().to_string());
+    if let Some(ref extra) = extra_path {
+        shell_cmd = shell_cmd.env("PATH", prepend_path(extra));
+    }
+    let (mut rx, _child) = shell_cmd
         .args([
             "setup",
             "--global",
@@ -220,10 +239,8 @@ pub async fn run_openacp_setup(
 pub async fn run_openacp_agents_list(_app: tauri::AppHandle) -> Result<String, String> {
     tracing::info!("run_openacp_agents_list: running `openacp agents list --json`");
 
-    let bin = find_openacp_binary_pub()
-        .ok_or_else(|| "openacp not found".to_string())?;
-    let output = tokio::process::Command::new(&bin)
-        .args(["agents", "list", "--json"])
+    let (mut cmd, _bin) = openacp_command()?;
+    let output = cmd.args(["agents", "list", "--json"])
         .output()
         .await
         .map_err(|e| {
@@ -254,11 +271,15 @@ pub async fn run_openacp_agent_install(
 ) -> Result<(), String> {
     use tauri_plugin_shell::process::CommandEvent;
 
-    let bin = find_openacp_binary_pub()
+    let (bin, extra_path) = find_openacp_binary_pub()
         .ok_or("openacp not found — please install it first")?;
-    let (mut rx, _child) = app
+    let mut shell_cmd = app
         .shell()
-        .command(bin.to_string_lossy().to_string())
+        .command(bin.to_string_lossy().to_string());
+    if let Some(ref extra) = extra_path {
+        shell_cmd = shell_cmd.env("PATH", prepend_path(extra));
+    }
+    let (mut rx, _child) = shell_cmd
         .args(["agents", "install", &agent_key])
         .spawn()
         .map_err(|e| e.to_string())?;
