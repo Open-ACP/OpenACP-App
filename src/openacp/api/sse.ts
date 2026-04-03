@@ -1,10 +1,12 @@
-import type { AgentEvent, Session } from "../types"
+import type { AgentEvent, MessageProcessingEvent, MessageQueuedEvent, Session } from "../types"
 
 export interface SSECallbacks {
   onAgentEvent: (event: AgentEvent) => void
   onSessionCreated: (session: Session) => void
   onSessionUpdated: (session: Session) => void
   onSessionDeleted: (sessionId: string) => void
+  onMessageQueued?: (event: MessageQueuedEvent) => void
+  onMessageProcessing?: (event: MessageProcessingEvent) => void
   onConnected: () => void
   onDisconnected: () => void
   onReconnecting?: () => void
@@ -49,6 +51,20 @@ export function createSSEManager() {
       try {
         const data = JSON.parse((e as MessageEvent).data)
         callbacks.onSessionDeleted(data.sessionId || data.id)
+      } catch { /* skip */ }
+    })
+
+    es.addEventListener("message:queued", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        callbacks.onMessageQueued?.(data)
+      } catch { /* skip */ }
+    })
+
+    es.addEventListener("message:processing", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        callbacks.onMessageProcessing?.(data)
       } catch { /* skip */ }
     })
 

@@ -8,6 +8,7 @@ import type {
   AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
   TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
   SessionHistory, HistoryTurn, HistoryStep,
+  MessageQueuedEvent, MessageProcessingEvent,
 } from "../types"
 import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
@@ -152,6 +153,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const abortedSessions = useRef(new Set<string>())
   const assistantMsgId = useRef(new Map<string, string>())
   const thinkingStartTime = useRef(new Map<string, number>())
+  // Maps turnId → userMsgId for cross-adapter messages (message:queued → message:processing pairing)
+  const turnIdToUserMsgId = useRef(new Map<string, string>())
   const msgCounter = useRef(0)
   const partCounter = useRef(0)
   const sendingRef = useRef(false)
@@ -520,12 +523,44 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  function handleMessageQueued(ev: MessageQueuedEvent) {
+    const userMsgId = nextId("usr-ext")
+    turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
+    addMessage(ev.sessionId, {
+      id: userMsgId,
+      role: "user",
+      sessionID: ev.sessionId,
+      parts: [{ id: nextPartId(), type: "text", content: ev.text }],
+      blocks: [{ type: "text", id: nextPartId(), content: ev.text }],
+      createdAt: new Date(ev.timestamp).getTime(),
+      sourceAdapterId: ev.sourceAdapterId,
+    })
+  }
+
+  function handleMessageProcessing(ev: MessageProcessingEvent) {
+    const userMsgId = turnIdToUserMsgId.current.get(ev.turnId)
+    const astMsgId = nextId("ast-ext")
+    assistantMsgId.current.set(ev.sessionId, astMsgId)
+    addMessage(ev.sessionId, {
+      id: astMsgId,
+      role: "assistant",
+      sessionID: ev.sessionId,
+      parts: [],
+      blocks: [],
+      createdAt: new Date(ev.timestamp).getTime(),
+      parentID: userMsgId,
+    })
+    setStore((draft) => { draft.streaming = true })
+  }
+
   const connect = useCallback(() => {
     sseRef.current.connect(workspace.directory, workspace.client.eventsUrl, {
       onAgentEvent: handleAgentEvent,
       onSessionCreated: (s) => sessions.upsert(s),
       onSessionUpdated: (s) => sessions.upsert(s),
       onSessionDeleted: (id) => sessions.delete(id),
+      onMessageQueued: handleMessageQueued,
+      onMessageProcessing: handleMessageProcessing,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
       onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),

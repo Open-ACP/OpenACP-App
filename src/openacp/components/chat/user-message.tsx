@@ -49,6 +49,11 @@ function getUserText(msg: Message): string {
     .join("\n")
 }
 
+function adapterLabel(id: string): string {
+  const map: Record<string, string> = { telegram: "Telegram", discord: "Discord", slack: "Slack" }
+  return map[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
+}
+
 export function UserMessage({ message }: { message: Message }) {
   const timeStr = useMemo(() => formatTime(message.createdAt), [message.createdAt])
   const text = useMemo(() => getUserText(message), [message])
@@ -59,6 +64,11 @@ export function UserMessage({ message }: { message: Message }) {
       className="rounded-md border border-border-base shadow-sm"
       style={{ padding: "8px 12px", backgroundColor: "var(--surface-raised-stronger-non-alpha, var(--background-stronger))" }}
     >
+      {message.sourceAdapterId ? (
+        <div className="flex items-center gap-1 mb-1.5">
+          <span className="text-11-regular text-text-weak select-none">via {adapterLabel(message.sourceAdapterId)}</span>
+        </div>
+      ) : null}
       {message.attachments?.length ? (
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {message.attachments.map(att => (

@@ -115,6 +115,8 @@ export interface Message {
   blocks: MessageBlock[]
   attachments?: FileAttachment[]
   createdAt: number
+  /** Set when message originated from an external adapter (e.g. "telegram", "discord") */
+  sourceAdapterId?: string
 }
 
 // ── Agents ──────────────────────────────────────────────────────────────────
@@ -236,6 +238,25 @@ export type AgentEventPayload =
   | { type: "commands_update"; [key: string]: unknown }
   | { type: "plan"; entries?: unknown[] }
   | { type: "resource_link"; uri: string; name?: string; [key: string]: unknown }
+
+// ── Cross-Adapter Input Events ───────────────────────────────────────────────
+
+export interface MessageQueuedEvent {
+  sessionId: string
+  turnId: string
+  text: string
+  sourceAdapterId: string
+  attachments?: unknown[]
+  timestamp: string
+  queueDepth: number
+}
+
+export interface MessageProcessingEvent {
+  sessionId: string
+  turnId: string
+  sourceAdapterId: string
+  timestamp: string
+}
 
 // ─── Plugin types ──────────────────────────────────────────────────────────
 
