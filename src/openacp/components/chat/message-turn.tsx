@@ -23,7 +23,46 @@ function isBlockVisible(block: MessageBlock): boolean {
   return true
 }
 
+/** Merge thinking blocks that are near each other (possibly separated by short text) */
+function mergeThinkingBlocks(blocks: MessageBlock[]): MessageBlock[] {
+  const result: MessageBlock[] = []
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]
+    if (block.type === "thinking") {
+      // Look back: can we merge with previous thinking?
+      // Check if last item is thinking, or last item is short text preceded by thinking
+      let mergeTarget = -1
+      if (result.length > 0 && result[result.length - 1].type === "thinking") {
+        mergeTarget = result.length - 1
+      } else if (
+        result.length >= 2 &&
+        result[result.length - 1].type === "text" &&
+        (result[result.length - 1] as any).content.trim().length < 80 &&
+        result[result.length - 2].type === "thinking"
+      ) {
+        // Short text between two thinking blocks — absorb the text into the thinking
+        mergeTarget = result.length - 2
+        result.splice(result.length - 1, 1) // remove the short text
+      }
+
+      if (mergeTarget >= 0) {
+        const prev = result[mergeTarget] as import("../../types").ThinkingBlock
+        result[mergeTarget] = {
+          ...prev,
+          content: (prev.content + "\n\n" + block.content).trim(),
+          durationMs: (prev.durationMs ?? 0) + (block.durationMs ?? 0) || null,
+          isStreaming: block.isStreaming,
+        }
+        continue
+      }
+    }
+    result.push(block)
+  }
+  return result
+}
+
 function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
+  const merged = mergeThinkingBlocks(blocks)
   const items: RenderItem[] = []
   let noiseBuffer: ToolBlock[] = []
 
@@ -37,8 +76,8 @@ function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
     noiseBuffer = []
   }
 
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i]
+  for (let i = 0; i < merged.length; i++) {
+    const block = merged[i]
     if (!isBlockVisible(block)) continue
     if (block.type === "tool" && block.isNoise) {
       noiseBuffer.push(block)

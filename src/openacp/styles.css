@@ -177,8 +177,9 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--text-weaker);
+  background: var(--text-weak);
   z-index: 1;
+  opacity: 1;
 }
 
 .oac-step::after {
