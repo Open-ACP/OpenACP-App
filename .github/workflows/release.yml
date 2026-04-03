@@ -91,18 +91,26 @@ jobs:
           node -e "
             const fs = require('fs');
             const v = '$VERSION';
+            // WiX3 MSI requires major ≤ 255. Convert YYYY.MDD.N → YY.MDD.N for WiX.
+            const parts = v.split('.');
+            const wixVersion = (parseInt(parts[0]) % 100) + '.' + parts.slice(1).join('.');
             // package.json
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             pkg.version = v;
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            // tauri.conf.json
+            // tauri.conf.json — set WiX version override for Windows MSI
             const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
             conf.version = v;
+            if (!conf.bundle) conf.bundle = {};
+            if (!conf.bundle.windows) conf.bundle.windows = {};
+            if (!conf.bundle.windows.wix) conf.bundle.windows.wix = {};
+            conf.bundle.windows.wix.version = wixVersion;
             fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
             // Cargo.toml
             let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
             cargo = cargo.replace(/^version = \".*\"/m, 'version = \"' + v + '\"');
             fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+            console.log('Version:', v, '| WiX:', wixVersion);
           "
 
       - name: Build Tauri app
