@@ -1,23 +1,25 @@
 /**
- * OpenACP App -- Entry Point
+ * OpenACP App — Entry Point
  */
-import { useState, useEffect } from "react"
-import { createRoot } from "react-dom/client"
-import "./styles/tailwind/index.css"
+import { createSignal, onMount, Show } from "solid-js"
+import { render } from "solid-js/web"
+import "../ui/src/styles/tailwind/index.css"
 import "./styles.css"
+import { MarkedProvider } from "../ui/src/context/marked"
 import { OpenACPApp } from "./app"
 import { SplashScreen } from "../onboarding/splash-screen"
 import { InstallScreen } from "../onboarding/install-screen"
 import { SetupWizard } from "../onboarding/setup-wizard"
 import { UpdateToasts } from "../onboarding/update-toast"
 import { determineStartupScreen, type StartupScreen } from "../onboarding/startup"
-import { saveWorkspaceData, discoverWorkspaces } from "./api/workspace-store"
+import { saveWorkspaces, type WorkspaceEntry } from "./api/workspace-store"
 
-function App() {
-  const [screen, setScreen] = useState<StartupScreen>('splash')
+const root = document.getElementById("root")
+if (root) {
+  render(() => {
+    const [screen, setScreen] = createSignal<StartupScreen>('splash')
 
-  useEffect(() => {
-    (async () => {
+    onMount(async () => {
       const { invoke } = await import("@tauri-apps/api/core")
       const [, [installedResult, configResult]] = await Promise.all([
         new Promise(r => setTimeout(r, 500)),
@@ -30,43 +32,36 @@ function App() {
         installed: installedResult !== null,
         configExists: Boolean(configResult),
       }))
-    })()
-  }, [])
+    })
 
-  return (
-    <>
-      {screen === 'splash' && <SplashScreen />}
+    return (
+      <>
+        <Show when={screen() === 'splash'}>
+          <SplashScreen />
+        </Show>
 
-      {screen === 'install' && (
-        <InstallScreen
-          onSuccess={(configExists) => setScreen(configExists ? 'ready' : 'setup')}
-        />
-      )}
+        <Show when={screen() === 'install'}>
+          <InstallScreen
+            onSuccess={(configExists) => setScreen(configExists ? 'ready' : 'setup')}
+          />
+        </Show>
 
-      {screen === 'setup' && (
-        <SetupWizard onSuccess={async (_workspace) => {
-          const instances = await discoverWorkspaces()
-          const instance = instances[0] ?? null
-          if (instance) {
-            await saveWorkspaceData({ instances: [instance.id], lastActive: instance.id })
-          }
-          setScreen('ready')
-        }} />
-      )}
+        <Show when={screen() === 'setup'}>
+          <SetupWizard onSuccess={async (entry: WorkspaceEntry) => {
+            await saveWorkspaces([entry])
+            setScreen('ready')
+          }} />
+        </Show>
 
-      {screen === 'ready' && (
-        <>
-          <OpenACPApp />
+        <Show when={screen() === 'ready'}>
+          <MarkedProvider>
+            <OpenACPApp />
+          </MarkedProvider>
           <UpdateToasts />
-        </>
-      )}
-    </>
-  )
-}
-
-const root = document.getElementById("root")
-if (root) {
-  createRoot(root).render(<App />)
+        </Show>
+      </>
+    )
+  }, root)
 }
 
 export { OpenACPApp }

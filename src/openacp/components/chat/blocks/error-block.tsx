@@ -4,10 +4,10 @@ interface ErrorBlockProps {
   block: ErrorBlock
 }
 
-export function ErrorBlockView({ block }: ErrorBlockProps) {
+export function ErrorBlockView(props: ErrorBlockProps) {
   return (
-    <div style={{ color: "var(--surface-critical-strong)", fontSize: "13px" }}>
-      <strong>Error:</strong> {block.content}
+    <div style={{ color: "var(--surface-critical-strong)", "font-size": "13px" }}>
+      <strong>Error:</strong> {props.block.content}
     </div>
   )
 }

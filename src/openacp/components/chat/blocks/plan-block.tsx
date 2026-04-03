@@ -1,24 +1,25 @@
+import { For } from "solid-js"
 import type { PlanBlock, PlanEntry } from "../../../types"
 
 interface PlanBlockProps {
   block: PlanBlock
 }
 
-function PlanIcon({ status }: { status: PlanEntry["status"] }) {
-  switch (status) {
+function PlanIcon(props: { status: PlanEntry["status"] }) {
+  switch (props.status) {
     case "completed":
       return <span style={{ color: "#a6e3a1" }}>&#10003;</span>
     case "in_progress":
       return (
         <span
-          className="oac-spinner"
+          class="oac-spinner"
           style={{
             display: "inline-block",
             width: "12px",
             height: "12px",
             border: "1.5px solid var(--text-weak)",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
+            "border-top-color": "transparent",
+            "border-radius": "50%",
           }}
         />
       )
@@ -27,19 +28,21 @@ function PlanIcon({ status }: { status: PlanEntry["status"] }) {
   }
 }
 
-export function PlanBlockView({ block }: PlanBlockProps) {
+export function PlanBlockView(props: PlanBlockProps) {
   return (
     <div>
-      <div className="oac-plan-header">Update Todos</div>
-      {block.entries.map((entry, i) => (
-        <div className="oac-plan-entry" key={i}>
-          <span className="shrink-0"><PlanIcon status={entry.status} /></span>
-          <span className={[
-            entry.status === "completed" ? "oac-plan-entry--completed" : "",
-            entry.status === "in_progress" ? "oac-plan-entry--in-progress" : "",
-          ].filter(Boolean).join(" ") || undefined}>{entry.content}</span>
-        </div>
-      ))}
+      <div class="oac-plan-header">Update Todos</div>
+      <For each={props.block.entries}>
+        {(entry) => (
+          <div class="oac-plan-entry">
+            <span class="shrink-0"><PlanIcon status={entry.status} /></span>
+            <span classList={{
+              "oac-plan-entry--completed": entry.status === "completed",
+              "oac-plan-entry--in-progress": entry.status === "in_progress",
+            }}>{entry.content}</span>
+          </div>
+        )}
+      </For>
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, onMount, type ParentProps } from "solid-js"
+import { createStore } from "solid-js/store"
 import { useWorkspace } from "./workspace"
 import type { Session } from "../types"
 
@@ -12,7 +13,7 @@ interface SessionsContext {
   delete: (id: string) => void
 }
 
-const Ctx = createContext<SessionsContext | undefined>(undefined)
+const Ctx = createContext<SessionsContext>()
 
 export function useSessions() {
   const ctx = useContext(Ctx)
@@ -20,31 +21,33 @@ export function useSessions() {
   return ctx
 }
 
-export function SessionsProvider(props: { children: ReactNode }) {
+export function SessionsProvider(props: ParentProps) {
   const workspace = useWorkspace()
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [loading, setLoading] = useState(true)
+  const [store, setStore] = createStore({
+    sessions: [] as Session[],
+    loading: true,
+  })
 
-  const refresh = useCallback(async () => {
+  async function refresh() {
     try {
-      const result = await workspace.client.listSessions()
-      setSessions(result.sort((a, b) =>
+      const sessions = await workspace.client.listSessions()
+      setStore("sessions", sessions.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ))
     } catch {
-      setSessions([])
+      setStore("sessions", [])
     } finally {
-      setLoading(false)
+      setStore("loading", false)
     }
-  }, [workspace.client])
+  }
 
-  const create = useCallback(async (agent?: string): Promise<Session | null> => {
+  async function create(agent?: string): Promise<Session | null> {
     try {
       const session = await workspace.client.createSession({
         agent,
       })
       // Only add if not already present (SSE session:created may have arrived first)
-      setSessions((prev) => {
+      setStore("sessions", (prev) => {
         if (prev.some((s) => s.id === session.id)) return prev
         return [session, ...prev]
       })
@@ -52,19 +55,19 @@ export function SessionsProvider(props: { children: ReactNode }) {
     } catch {
       return null
     }
-  }, [workspace.client, workspace.directory])
+  }
 
-  const remove = useCallback(async (id: string) => {
+  async function remove(id: string) {
     try {
       await workspace.client.deleteSession(id)
     } catch {
       // Server may fail (500) but still remove locally
     }
-    setSessions((prev) => prev.filter((s) => s.id !== id))
-  }, [workspace.client])
+    setStore("sessions", (prev) => prev.filter((s) => s.id !== id))
+  }
 
-  const upsert = useCallback((session: Session) => {
-    setSessions((prev) => {
+  function upsert(session: Session) {
+    setStore("sessions", (prev) => {
       const idx = prev.findIndex((s) => s.id === session.id)
       if (idx >= 0) {
         const next = [...prev]
@@ -73,19 +76,17 @@ export function SessionsProvider(props: { children: ReactNode }) {
       }
       return [session, ...prev]
     })
-  }, [])
+  }
 
-  const del = useCallback((id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id))
-  }, [])
+  function del(id: string) {
+    setStore("sessions", (prev) => prev.filter((s) => s.id !== id))
+  }
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
+  onMount(() => { void refresh() })
 
   const value: SessionsContext = {
-    list: () => sessions,
-    loading: () => loading,
+    list: () => store.sessions,
+    loading: () => store.loading,
     create,
     remove,
     refresh,

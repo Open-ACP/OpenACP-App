@@ -1,5 +1,5 @@
-import { useMemo } from "react"
-import { TextShimmer } from "../ui/text-shimmer"
+import { For, Match, Show, Switch, createMemo } from "solid-js"
+import { TextShimmer } from "../../../ui/src/components/text-shimmer"
 import { TimelineStep, type StepStatus } from "./timeline-step"
 import { TextBlockView } from "./blocks/text-block"
 import { ThinkingBlockView } from "./blocks/thinking-block"
@@ -18,12 +18,6 @@ type RenderItem =
   | { kind: "block"; block: MessageBlock; index: number }
   | { kind: "noise-group"; tools: ToolBlock[] }
 
-/** Filter out empty text blocks (whitespace-only) */
-function isBlockVisible(block: MessageBlock): boolean {
-  if (block.type === "text" && !block.content.trim()) return false
-  return true
-}
-
 function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
   const items: RenderItem[] = []
   let noiseBuffer: ToolBlock[] = []
@@ -40,7 +34,6 @@ function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
-    if (!isBlockVisible(block)) continue
     if (block.type === "tool" && block.isNoise) {
       noiseBuffer.push(block)
     } else {
@@ -63,57 +56,66 @@ function blockStatus(block: MessageBlock): StepStatus {
   return "default"
 }
 
-function renderBlock(block: MessageBlock, streaming: boolean | undefined, isLastBlock: boolean) {
-  switch (block.type) {
-    case "text":
-      return <TextBlockView block={block as TextBlock} streaming={streaming && isLastBlock} />
-    case "thinking":
-      return <ThinkingBlockView block={block as ThinkingBlock} />
-    case "tool":
-      return <ToolBlockView block={block as ToolBlock} />
-    case "plan":
-      return <PlanBlockView block={block as PlanBlock} />
-    case "error":
-      return <ErrorBlockView block={block as ErrorBlock} />
-    default:
-      return null
-  }
-}
-
-export function MessageTurn({ message, streaming }: MessageTurnProps) {
-  const blocks = useMemo(() => message.blocks ?? [], [message.blocks])
-  const isEmpty = blocks.length === 0
-  const renderItems = useMemo(() => groupBlocks(blocks), [blocks])
+export function MessageTurn(props: MessageTurnProps) {
+  const blocks = createMemo(() => props.message.blocks ?? [])
+  const isEmpty = () => blocks().length === 0
+  const renderItems = createMemo(() => groupBlocks(blocks()))
 
   return (
-    <div data-component="oac-assistant-message" className="px-1">
-      {isEmpty ? (
-        streaming ? (
-          <div className="oac-timeline">
-            <div className="oac-step oac-step--progress">
-              <TextShimmer text="Thinking" active className="text-14-regular text-text-weak" style={{ fontStyle: "italic" }} />
+    <div data-component="oac-assistant-message" class="px-1">
+      <Show when={!isEmpty()} fallback={
+        <Show when={props.streaming}>
+          <div class="oac-timeline">
+            <div class="oac-step oac-step--progress">
+              <TextShimmer text="Thinking" active class="text-14-regular text-text-weak" style={{ "font-style": "italic" }} />
             </div>
           </div>
-        ) : null
-      ) : (
-        <div className="oac-timeline">
-          {renderItems.map((item, idx) => {
-            const isFirst = idx === 0
-            const isLast = idx === renderItems.length - 1
-            if (item.kind === "noise-group") {
-              return <ToolGroup key={`ng-${idx}`} tools={item.tools} isFirst={isFirst} isLast={isLast} />
-            }
-            const blockItem = item as { kind: "block"; block: MessageBlock; index: number }
-            const block = blockItem.block
-            const isLastBlock = blockItem.index === blocks.length - 1
-            return (
-              <TimelineStep key={`b-${idx}`} status={blockStatus(block)} isFirst={isFirst} isLast={isLast}>
-                {renderBlock(block, streaming, isLastBlock)}
-              </TimelineStep>
-            )
-          })}
+        </Show>
+      }>
+        <div class="oac-timeline">
+          <div class="oac-timeline-line" />
+          <For each={renderItems()}>
+            {(item) => (
+              <Switch>
+                <Match when={item.kind === "noise-group"}>
+                  <ToolGroup tools={(item as { kind: "noise-group"; tools: ToolBlock[] }).tools} />
+                </Match>
+                <Match when={item.kind === "block"}>
+                  {(() => {
+                    const blockItem = item as { kind: "block"; block: MessageBlock; index: number }
+                    const block = blockItem.block
+                    const isLastBlock = () => blockItem.index === blocks().length - 1
+                    return (
+                      <TimelineStep status={blockStatus(block)}>
+                        <Switch>
+                          <Match when={block.type === "text"}>
+                            <TextBlockView
+                              block={block as TextBlock}
+                              streaming={props.streaming && isLastBlock()}
+                            />
+                          </Match>
+                          <Match when={block.type === "thinking"}>
+                            <ThinkingBlockView block={block as ThinkingBlock} />
+                          </Match>
+                          <Match when={block.type === "tool"}>
+                            <ToolBlockView block={block as ToolBlock} />
+                          </Match>
+                          <Match when={block.type === "plan"}>
+                            <PlanBlockView block={block as PlanBlock} />
+                          </Match>
+                          <Match when={block.type === "error"}>
+                            <ErrorBlockView block={block as ErrorBlock} />
+                          </Match>
+                        </Switch>
+                      </TimelineStep>
+                    )
+                  })()}
+                </Match>
+              </Switch>
+            )}
+          </For>
         </div>
-      )}
+      </Show>
     </div>
   )
 }

@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useCallback, useRef, type ReactNode } from "react"
-import { useImmer } from "use-immer"
+import { createContext, useContext, onCleanup, onMount, type ParentProps } from "solid-js"
+import { createStore, produce } from "solid-js/store"
 import { useWorkspace } from "./workspace"
 import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
@@ -20,6 +20,8 @@ interface ChatContext {
   streaming: () => boolean
   /** Is history loading */
   loadingHistory: () => boolean
+  /** SSE connection state */
+  sseStatus: () => 'connected' | 'reconnecting' | 'disconnected'
   /** Active session ID */
   activeSession: () => string | undefined
   /** Set active session */
@@ -34,7 +36,7 @@ interface ChatContext {
   addCommandResponse: (sessionID: string, text: string, role?: "user" | "assistant") => void
 }
 
-const Ctx = createContext<ChatContext | undefined>(undefined)
+const Ctx = createContext<ChatContext>()
 
 export function useChat() {
   const ctx = useContext(Ctx)
@@ -139,145 +141,70 @@ function stepToPart(step: HistoryStep): MessagePart | null {
   }
 }
 
-// ── Diff extraction from tool events ──────────────────────────────────
-
-function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; rawOutput?: unknown; content?: unknown; name?: string }): FileDiff | null {
-  // Try meta.filediff first (server-provided)
-  const meta = evt.meta as Record<string, any> | undefined
-  if (meta?.filediff) {
-    const fd = meta.filediff
-    return { path: fd.path || "", before: fd.before ?? fd.oldText, after: fd.after ?? fd.newText }
-  }
-
-  // Check content array for diff objects (from tool_call_update after edit)
-  if (Array.isArray(evt.content)) {
-    for (const item of evt.content) {
-      if (item && typeof item === "object" && (item as any).type === "diff") {
-        const d = item as any
-        return { path: d.path || "", before: d.oldText ?? undefined, after: d.newText ?? "" }
-      }
-    }
-  }
-
-  // Parse input — try rawInput then content object
-  let input: Record<string, any> | undefined
-  for (const src of [evt.rawInput, evt.content]) {
-    if (!src || Array.isArray(src)) continue
-    if (typeof src === "string") {
-      try { input = JSON.parse(src) } catch { /* ignore */ }
-    } else if (typeof src === "object") {
-      const obj = src as Record<string, any>
-      if (obj.input && typeof obj.input === "object") {
-        input = obj.input as Record<string, any>
-      } else if (obj.file_path || obj.filePath || obj.old_string || obj.content) {
-        input = obj
-      }
-    }
-    if (input && Object.keys(input).length > 0) break
-  }
-  if (!input) return null
-
-  const name = (evt.name || "").toLowerCase()
-  const path = (input.file_path || input.filePath || input.path || "") as string
-
-  // Edit tool: old_string + new_string
-  if (name === "edit" && (input.old_string != null || input.new_string != null)) {
-    return { path, before: input.old_string != null ? String(input.old_string) : undefined, after: String(input.new_string ?? input.content ?? "") }
-  }
-
-  // Write tool: content only
-  if (name === "write" && input.content != null) {
-    return { path, after: String(input.content) }
-  }
-
-  // apply_patch
-  if (name === "apply_patch" && input.patch != null) {
-    return { path: input.file_path || input.path || "patch", after: String(input.patch) }
-  }
-
-  return null
-}
-
 // ── Chat Provider ───────────────────────────────────────────────────────────
 
-export function ChatProvider(props: { children: ReactNode }) {
+export function ChatProvider(props: ParentProps) {
   const workspace = useWorkspace()
   const sessions = useSessions()
-  const sseRef = useRef(createSSEManager())
+  const sse = createSSEManager()
 
-  const [store, updateStore] = useImmer({
+  const [store, setStore] = createStore({
     messagesBySession: {} as Record<string, Message[]>,
     activeSession: undefined as string | undefined,
     streaming: false,
     loadingHistory: false,
+    sseStatus: 'disconnected' as 'connected' | 'reconnecting' | 'disconnected',
   })
 
-  // Use ref so the store snapshot is always current in callbacks
-  const storeRef = useRef(store)
-  storeRef.current = store
-
-  const abortedSessions = useRef(new Set<string>())
-  const assistantMsgId = useRef(new Map<string, string>())
-  const loadedSessions = useRef(new Set<string>())
-  const thinkingStartTime = useRef(new Map<string, number>())
-  const msgCounter = useRef(0)
-  const partCounter = useRef(0)
-  const sendingRef = useRef(false)
-
-  // Text batching refs
-  const textBuffer = useRef(new Map<string, string>())
-  const thoughtBuffer = useRef(new Map<string, string>())
-  const flushScheduledRef = useRef(false)
+  const abortedSessions = new Set<string>()
+  const assistantMsgId = new Map<string, string>()
+  const loadedSessions = new Set<string>()
+  const thinkingStartTime = new Map<string, number>()
+  let msgCounter = 0
+  let partCounter = 0
 
   function nextId(prefix: string) {
-    return `${prefix}-${Date.now()}-${++msgCounter.current}`
+    return `${prefix}-${Date.now()}-${++msgCounter}`
   }
 
   function nextPartId() {
-    return `part-${Date.now()}-${++partCounter.current}`
+    return `part-${Date.now()}-${++partCounter}`
   }
 
   function addMessage(sessionID: string, msg: Message) {
-    updateStore(draft => {
-      if (!draft.messagesBySession[sessionID]) draft.messagesBySession[sessionID] = []
-      draft.messagesBySession[sessionID].push(msg)
-    })
+    setStore("messagesBySession", sessionID, (prev) => [...(prev || []), msg])
   }
 
   function setMessages(sessionID: string, msgs: Message[]) {
-    updateStore(draft => {
-      draft.messagesBySession[sessionID] = msgs
-    })
+    setStore("messagesBySession", sessionID, msgs)
   }
 
   function updateAssistantParts(sessionID: string, updater: (parts: MessagePart[]) => void) {
-    const msgId = assistantMsgId.current.get(sessionID)
+    const msgId = assistantMsgId.get(sessionID)
     if (!msgId) return
-    updateStore(draft => {
-      const msgs = draft.messagesBySession[sessionID]
+    setStore("messagesBySession", sessionID, produce((msgs) => {
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.parts)
-    })
+    }))
   }
 
   function updateAssistantBlocks(sessionID: string, updater: (blocks: MessageBlock[]) => void) {
-    const msgId = assistantMsgId.current.get(sessionID)
+    const msgId = assistantMsgId.get(sessionID)
     if (!msgId) return
-    updateStore(draft => {
-      const msgs = draft.messagesBySession[sessionID]
+    setStore("messagesBySession", sessionID, produce((msgs) => {
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.blocks)
-    })
+    }))
   }
 
   function ensureAssistantMessage(sessionID: string, parentId?: string): string {
-    let msgId = assistantMsgId.current.get(sessionID)
+    let msgId = assistantMsgId.get(sessionID)
     if (msgId) return msgId
 
     msgId = nextId("ast")
-    assistantMsgId.current.set(sessionID, msgId)
+    assistantMsgId.set(sessionID, msgId)
     addMessage(sessionID, {
       id: msgId,
       role: "assistant",
@@ -287,7 +214,7 @@ export function ChatProvider(props: { children: ReactNode }) {
       createdAt: Date.now(),
       parentID: parentId,
     })
-    updateStore(draft => { draft.streaming = true })
+    setStore("streaming", true)
     return msgId
   }
 
@@ -298,7 +225,7 @@ export function ChatProvider(props: { children: ReactNode }) {
   // ── History loading ─────────────────────────────────────────────────────
 
   async function loadHistory(sessionID: string) {
-    const hasInMemory = (storeRef.current.messagesBySession[sessionID]?.length ?? 0) > 0
+    const hasInMemory = (store.messagesBySession[sessionID]?.length ?? 0) > 0
 
     // 1. Show something immediately: in-memory > cache
     if (!hasInMemory) {
@@ -309,12 +236,12 @@ export function ChatProvider(props: { children: ReactNode }) {
     }
 
     // 2. Always fetch server for latest (other clients may have added messages)
-    updateStore(draft => { draft.loadingHistory = true })
+    setStore("loadingHistory", true)
     try {
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
-        const current = storeRef.current.messagesBySession[sessionID] ?? []
+        const current = store.messagesBySession[sessionID] ?? []
 
         // Server has more complete history — use it as base,
         // but keep any in-flight streaming messages (not yet in server history)
@@ -330,29 +257,92 @@ export function ChatProvider(props: { children: ReactNode }) {
     } catch {
       // Server unavailable — showing cache/in-memory data
     } finally {
-      updateStore(draft => { draft.loadingHistory = false })
+      setStore("loadingHistory", false)
     }
+  }
+
+  // ── Diff extraction from tool events ──────────────────────────────────
+
+  function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; rawOutput?: unknown; content?: unknown; name?: string }): FileDiff | null {
+    // Try meta.filediff first (server-provided)
+    const meta = evt.meta as Record<string, any> | undefined
+    if (meta?.filediff) {
+      const fd = meta.filediff
+      return { path: fd.path || "", before: fd.before ?? fd.oldText, after: fd.after ?? fd.newText }
+    }
+
+    // Check content array for diff objects (from tool_call_update after edit)
+    if (Array.isArray(evt.content)) {
+      for (const item of evt.content) {
+        if (item && typeof item === "object" && (item as any).type === "diff") {
+          const d = item as any
+          return { path: d.path || "", before: d.oldText ?? undefined, after: d.newText ?? "" }
+        }
+      }
+    }
+
+    // Parse input — try rawInput then content object
+    let input: Record<string, any> | undefined
+    for (const src of [evt.rawInput, evt.content]) {
+      if (!src || Array.isArray(src)) continue
+      if (typeof src === "string") {
+        try { input = JSON.parse(src) } catch { /* ignore */ }
+      } else if (typeof src === "object") {
+        const obj = src as Record<string, any>
+        if (obj.input && typeof obj.input === "object") {
+          input = obj.input as Record<string, any>
+        } else if (obj.file_path || obj.filePath || obj.old_string || obj.content) {
+          input = obj
+        }
+      }
+      if (input && Object.keys(input).length > 0) break
+    }
+    if (!input) return null
+
+    const name = (evt.name || "").toLowerCase()
+    const path = (input.file_path || input.filePath || input.path || "") as string
+
+    // Edit tool: old_string + new_string
+    if (name === "edit" && (input.old_string != null || input.new_string != null)) {
+      return { path, before: input.old_string != null ? String(input.old_string) : undefined, after: String(input.new_string ?? input.content ?? "") }
+    }
+
+    // Write tool: content only
+    if (name === "write" && input.content != null) {
+      return { path, after: String(input.content) }
+    }
+
+    // apply_patch
+    if (name === "apply_patch" && input.patch != null) {
+      return { path: input.file_path || input.path || "patch", after: String(input.patch) }
+    }
+
+    return null
   }
 
   // ── Text batching — accumulate chunks, flush once per frame ────────────
 
+  const textBuffer = new Map<string, string>() // sessionID → pending text
+  const thoughtBuffer = new Map<string, string>()
+  let flushScheduled = false
+
   function scheduleFlush() {
-    if (flushScheduledRef.current) return
-    flushScheduledRef.current = true
+    if (flushScheduled) return
+    flushScheduled = true
     requestAnimationFrame(flushBuffers)
   }
 
   function flushBuffers() {
-    flushScheduledRef.current = false
+    flushScheduled = false
 
-    for (const [sessionID, text] of textBuffer.current) {
+    for (const [sessionID, text] of textBuffer) {
       ensureAssistantMessage(sessionID)
 
       // Seal thinking blocks when text arrives
-      const thinkStart = thinkingStartTime.current.get(sessionID)
+      const thinkStart = thinkingStartTime.get(sessionID)
       if (thinkStart) {
         const durationMs = Date.now() - thinkStart
-        thinkingStartTime.current.delete(sessionID)
+        thinkingStartTime.delete(sessionID)
         updateAssistantBlocks(sessionID, (blocks) => {
           const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
           if (thinking) {
@@ -379,9 +369,9 @@ export function ChatProvider(props: { children: ReactNode }) {
         }
       })
     }
-    textBuffer.current.clear()
+    textBuffer.clear()
 
-    for (const [sessionID, text] of thoughtBuffer.current) {
+    for (const [sessionID, text] of thoughtBuffer) {
       ensureAssistantMessage(sessionID)
       updateAssistantParts(sessionID, (parts) => {
         const existing = [...parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
@@ -396,14 +386,14 @@ export function ChatProvider(props: { children: ReactNode }) {
         if (existing) {
           existing.content += text
         } else {
-          if (!thinkingStartTime.current.has(sessionID)) {
-            thinkingStartTime.current.set(sessionID, Date.now())
+          if (!thinkingStartTime.has(sessionID)) {
+            thinkingStartTime.set(sessionID, Date.now())
           }
           blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
         }
       })
     }
-    thoughtBuffer.current.clear()
+    thoughtBuffer.clear()
   }
 
   // ── SSE event handling ──────────────────────────────────────────────────
@@ -411,24 +401,24 @@ export function ChatProvider(props: { children: ReactNode }) {
   function handleAgentEvent(event: AgentEvent) {
     const sessionID = event.sessionId
     if (!sessionID) return
-    if (abortedSessions.current.has(sessionID)) return
+    if (abortedSessions.has(sessionID)) return
 
     const evt = event.event
 
     switch (evt.type) {
       case "text": {
         ensureAssistantMessage(sessionID)
-        textBuffer.current.set(sessionID, (textBuffer.current.get(sessionID) ?? "") + evt.content)
+        textBuffer.set(sessionID, (textBuffer.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
       }
 
       case "thought": {
         ensureAssistantMessage(sessionID)
-        if (!thinkingStartTime.current.has(sessionID)) {
-          thinkingStartTime.current.set(sessionID, Date.now())
+        if (!thinkingStartTime.has(sessionID)) {
+          thinkingStartTime.set(sessionID, Date.now())
         }
-        thoughtBuffer.current.set(sessionID, (thoughtBuffer.current.get(sessionID) ?? "") + evt.content)
+        thoughtBuffer.set(sessionID, (thoughtBuffer.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
       }
@@ -552,18 +542,18 @@ export function ChatProvider(props: { children: ReactNode }) {
         updateAssistantBlocks(sessionID, (blocks) => {
           blocks.push({ type: "error", id: nextPartId(), content: evt.content })
         })
-        assistantMsgId.current.delete(sessionID)
-        updateStore(draft => { draft.streaming = false })
+        assistantMsgId.delete(sessionID)
+        setStore("streaming", false)
         break
       }
 
       case "usage": {
         flushBuffers() // flush any remaining text
         // Seal any active thinking
-        const thinkStart2 = thinkingStartTime.current.get(sessionID)
+        const thinkStart2 = thinkingStartTime.get(sessionID)
         if (thinkStart2) {
           const durationMs = Date.now() - thinkStart2
-          thinkingStartTime.current.delete(sessionID)
+          thinkingStartTime.delete(sessionID)
           updateAssistantBlocks(sessionID, (blocks) => {
             const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
             if (thinking) {
@@ -572,11 +562,11 @@ export function ChatProvider(props: { children: ReactNode }) {
             }
           })
         }
-        assistantMsgId.current.delete(sessionID)
-        updateStore(draft => { draft.streaming = false })
+        assistantMsgId.delete(sessionID)
+        setStore("streaming", false)
         void sessions.refresh()
         // Cache messages after turn complete
-        const msgs = storeRef.current.messagesBySession[sessionID]
+        const msgs = store.messagesBySession[sessionID]
         if (msgs) void cacheMessages(sessionID, msgs)
         break
       }
@@ -584,33 +574,35 @@ export function ChatProvider(props: { children: ReactNode }) {
   }
 
   function connect() {
-    sseRef.current.connect(workspace.directory, workspace.client.eventsUrl, {
+    sse.connect(workspace.directory, workspace.client.eventsUrl, {
       onAgentEvent: handleAgentEvent,
       onSessionCreated: (s) => sessions.upsert(s),
       onSessionUpdated: (s) => sessions.upsert(s),
       onSessionDeleted: (id) => sessions.delete(id),
-      onConnected: () => {},
-      onDisconnected: () => {},
+      onConnected: () => setStore('sseStatus', 'connected'),
+      onReconnecting: () => setStore('sseStatus', 'reconnecting'),
+      onDisconnected: () => setStore('sseStatus', 'disconnected'),
     })
   }
 
+  let sending = false
   async function sendPrompt(text: string): Promise<boolean> {
-    if (sendingRef.current) return false
-    sendingRef.current = true
+    if (sending) return false
+    sending = true
     try {
       return await doSendPrompt(text)
     } finally {
-      sendingRef.current = false
+      sending = false
     }
   }
 
   async function doSendPrompt(text: string): Promise<boolean> {
-    let sessionID = storeRef.current.activeSession
+    let sessionID = store.activeSession
     if (!sessionID) {
       const session = await sessions.create()
       if (!session) return false
       sessionID = session.id
-      updateStore(draft => { draft.activeSession = sessionID })
+      setStore("activeSession", sessionID)
     }
 
     const userMsgId = nextId("usr")
@@ -624,7 +616,7 @@ export function ChatProvider(props: { children: ReactNode }) {
     })
 
     const astMsgId = nextId("ast")
-    assistantMsgId.current.set(sessionID, astMsgId)
+    assistantMsgId.set(sessionID, astMsgId)
     addMessage(sessionID, {
       id: astMsgId,
       role: "assistant",
@@ -634,7 +626,7 @@ export function ChatProvider(props: { children: ReactNode }) {
       createdAt: Date.now(),
       parentID: userMsgId,
     })
-    updateStore(draft => { draft.streaming = true })
+    setStore("streaming", true)
 
     connect()
 
@@ -658,31 +650,28 @@ export function ChatProvider(props: { children: ReactNode }) {
   }
 
   function setActiveSession(id: string) {
-    updateStore(draft => { draft.activeSession = id })
+    setStore("activeSession", id)
     void loadHistory(id)
   }
 
+  onMount(() => connect())
+  onCleanup(() => sse.disconnectAll())
+
   function abort() {
-    const sessionID = storeRef.current.activeSession
+    const sessionID = store.activeSession
     if (!sessionID) return
-    abortedSessions.current.add(sessionID)
-    assistantMsgId.current.delete(sessionID)
-    updateStore(draft => { draft.streaming = false })
-    setTimeout(() => abortedSessions.current.delete(sessionID), 2000)
+    abortedSessions.add(sessionID)
+    assistantMsgId.delete(sessionID)
+    setStore("streaming", false)
+    setTimeout(() => abortedSessions.delete(sessionID), 2000)
   }
 
-  useEffect(() => {
-    connect()
-    return () => {
-      sseRef.current.disconnectAll()
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const value: ChatContext = {
-    messages: () => storeRef.current.messagesBySession[storeRef.current.activeSession || ""] || [],
-    streaming: () => storeRef.current.streaming,
-    loadingHistory: () => storeRef.current.loadingHistory,
-    activeSession: () => storeRef.current.activeSession,
+    messages: () => store.messagesBySession[store.activeSession || ""] || [],
+    streaming: () => store.streaming,
+    loadingHistory: () => store.loadingHistory,
+    sseStatus: () => store.sseStatus,
+    activeSession: () => store.activeSession,
     setActiveSession,
     sendPrompt,
     abort,

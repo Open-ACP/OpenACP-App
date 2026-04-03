@@ -1,5 +1,5 @@
-import { Markdown } from "../../ui/markdown"
-import { usePacedValue } from "../../../hooks/use-paced-value"
+import { Markdown } from "../../../../ui/src/components/markdown"
+import { createPacedValue } from "../../../hooks/create-paced-value"
 import type { TextBlock } from "../../../types"
 
 interface TextBlockProps {
@@ -7,17 +7,18 @@ interface TextBlockProps {
   streaming?: boolean
 }
 
-export function TextBlockView({ block, streaming }: TextBlockProps) {
-  const pacedText = usePacedValue(block.content, streaming ?? false)
-  // Trim leading newlines to prevent empty <br> gaps at start of text blocks
-  const trimmedText = pacedText.replace(/^\n+/, "")
+export function TextBlockView(props: TextBlockProps) {
+  const pacedText = createPacedValue(
+    () => props.block.content,
+    () => props.streaming ?? false,
+  )
 
   return (
-    <div className="min-w-0">
+    <div class="min-w-0">
       <Markdown
-        text={trimmedText}
-        cacheKey={block.id}
-        streaming={streaming}
+        text={pacedText()}
+        cacheKey={props.block.id}
+        streaming={props.streaming}
       />
     </div>
   )
