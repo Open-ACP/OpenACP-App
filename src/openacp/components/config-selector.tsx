@@ -1,7 +1,5 @@
-import { createResource, createSignal, For, Show } from "solid-js"
-import { Popover } from "@kobalte/core/popover"
-import { Button } from "@openacp/ui/button"
-import { Icon } from "@openacp/ui/icon"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { CaretDown } from "@phosphor-icons/react"
 import { useWorkspace } from "../context/workspace"
 
 interface ConfigChoice {
@@ -10,120 +8,135 @@ interface ConfigChoice {
   description?: string
 }
 
-export function ConfigSelector(props: {
+interface ConfigData {
+  id: string
+  name: string
+  currentValue: string
+  choices: ConfigChoice[]
+}
+
+export function ConfigSelector({
+  category,
+  sessionID,
+  onValueChange,
+  refreshKey,
+}: {
   category: "mode" | "model"
   sessionID: string | undefined
   onValueChange?: (value: string) => void
   refreshKey?: number
 }) {
   const workspace = useWorkspace()
-  const [open, setOpen] = createSignal(false)
+  const [open, setOpen] = useState(false)
+  const [config, setConfig] = useState<ConfigData | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
-  const [config, { refetch }] = createResource(
-    () => `${props.sessionID ?? ""}:${props.refreshKey ?? 0}`,
-    async (key) => {
-      const sid = key.split(":")[0]
-      if (!sid) return null
-      try {
-        const res = await workspace.client.getSessionConfig(sid)
-        const opt = res.configOptions?.find(
-          (o: any) => o.category === props.category || o.id === props.category
-        )
-        if (!opt || opt.type !== "select") return null
+  const fetchConfig = useCallback(async () => {
+    if (!sessionID) { setConfig(null); return }
+    try {
+      const res = await workspace.client.getSessionConfig(sessionID)
+      const opt = res.configOptions?.find(
+        (o: any) => o.category === category || o.id === category
+      )
+      if (!opt || opt.type !== "select") { setConfig(null); return }
 
-        // Flatten grouped options — API uses `name` not `label`
-        const choices: ConfigChoice[] = []
-        for (const item of opt.options || []) {
-          if ("options" in item && Array.isArray(item.options)) {
-            for (const sub of item.options) {
-              choices.push({ value: sub.value, label: sub.label || sub.name || sub.value, description: sub.description })
-            }
-          } else {
-            choices.push({ value: item.value, label: item.label || item.name || item.value, description: item.description })
+      // Flatten grouped options
+      const choices: ConfigChoice[] = []
+      for (const item of opt.options || []) {
+        if ("options" in item && Array.isArray(item.options)) {
+          for (const sub of item.options) {
+            choices.push({ value: sub.value, label: sub.label || sub.name || sub.value, description: sub.description })
           }
+        } else {
+          choices.push({ value: item.value, label: item.label || item.name || item.value, description: item.description })
         }
-        return { id: opt.id, name: opt.name, currentValue: opt.currentValue as string, choices }
-      } catch {
-        return null
       }
-    },
-  )
+      setConfig({ id: opt.id, name: opt.name, currentValue: opt.currentValue as string, choices })
+    } catch {
+      setConfig(null)
+    }
+  }, [sessionID, category, workspace.client])
 
-  const currentLabel = () => {
-    const c = config()
-    if (!c) return props.category
-    const choice = c.choices.find((ch) => ch.value === c.currentValue)
-    return choice?.label || c.currentValue
-  }
+  useEffect(() => {
+    fetchConfig()
+  }, [fetchConfig, refreshKey])
+
+  // Click outside to close
+  useEffect(() => {
+    if (!open) return
+    const handle = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handle)
+    return () => document.removeEventListener("mousedown", handle)
+  }, [open])
+
+  const currentLabel = config
+    ? (config.choices.find((ch) => ch.value === config.currentValue)?.label || config.currentValue)
+    : category
 
   async function select(value: string) {
-    const c = config()
-    if (!c || !props.sessionID) return
+    if (!config || !sessionID) return
     try {
-      await workspace.client.setSessionConfig(props.sessionID, c.id, value)
-      const updated = await refetch()
-      props.onValueChange?.(value)
-      console.log(`[config] ${props.category} set to ${value}`, updated)
+      await workspace.client.setSessionConfig(sessionID, config.id, value)
+      await fetchConfig()
+      onValueChange?.(value)
     } catch (e) {
-      console.error(`Failed to set ${props.category}`, e)
+      console.error(`Failed to set ${category}`, e)
     }
     setOpen(false)
   }
 
+  if (!sessionID) return null
+
   return (
-    <Show when={props.sessionID}>
-      <Popover open={open()} onOpenChange={(v) => { setOpen(v); if (v) void refetch() }} placement={props.category === "mode" ? "top-end" : "top-start"} gutter={4}>
-        <Popover.Trigger
-          as={Button}
-          variant="ghost"
-          size="normal"
-          class="min-w-0 max-w-[160px] text-13-regular text-text-base capitalize"
+    <div ref={rootRef} className="relative">
+      <button
+        className="min-w-0 max-w-[160px] text-13-regular text-text-base capitalize flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface-raised-base-hover transition-colors"
+        onClick={() => { setOpen(!open); if (!open) fetchConfig() }}
+      >
+        <span className="truncate">{currentLabel}</span>
+        <CaretDown size={12} className="shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full mb-1 left-0 w-72 flex flex-col p-1 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-y-auto"
+          style={category === "mode" ? { left: "auto", right: 0 } : undefined}
         >
-          <span class="truncate">{currentLabel()}</span>
-          <Icon name="chevron-down" size="small" class="shrink-0" />
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Content
-            class="w-72 flex flex-col p-1 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 outline-none overflow-y-auto"
-            onPointerDownOutside={() => setOpen(false)}
-          >
-            <span class="block px-3 py-1 text-text-weaker" style={{ "font-size": "10px", "line-height": "1.4", "letter-spacing": "0.02em" }}>
-              {props.category === "mode" ? "Modes" : (config()?.name || props.category)}
-            </span>
-            <For each={config()?.choices || []}>
-              {(choice) => {
-                const isCurrent = () => choice.value === config()?.currentValue
-                return (
-                  <button
-                    class="w-full flex items-start gap-2 px-3 py-1.5 rounded text-left hover:bg-surface-raised-base-hover"
-                    onClick={() => select(choice.value)}
+          <span className="block px-3 py-1 text-text-weaker" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
+            {category === "mode" ? "Modes" : (config?.name || category)}
+          </span>
+          {(config?.choices || []).map((choice) => {
+            const isCurrent = choice.value === config?.currentValue
+            return (
+              <button
+                key={choice.value}
+                className="w-full flex items-start gap-2 px-3 py-1.5 rounded text-left hover:bg-surface-raised-base-hover"
+                onClick={() => select(choice.value)}
+              >
+                <span className="w-4 shrink-0 text-center mt-px">
+                  {isCurrent && (
+                    <span className="text-text-interactive-base">&#10003;</span>
+                  )}
+                </span>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span
+                    className={isCurrent ? "text-text-strong" : "text-text-base"}
+                    style={{ fontSize: "12px", fontWeight: "500", lineHeight: "1.4" }}
                   >
-                    <span class="w-4 shrink-0 text-center mt-px">
-                      <Show when={isCurrent()}>
-                        <span class="text-text-interactive-base">✓</span>
-                      </Show>
-                    </span>
-                    <div class="flex flex-col min-w-0 flex-1">
-                      <span
-                        classList={{
-                          "text-text-strong": isCurrent(),
-                          "text-text-base": !isCurrent(),
-                        }}
-                        style={{ "font-size": "12px", "font-weight": "500", "line-height": "1.4" }}
-                      >
-                        {choice.label}
-                      </span>
-                      <Show when={choice.description}>
-                        <span class="text-text-weak truncate" style={{ "font-size": "10.5px", "line-height": "1.3" }}>{choice.description}</span>
-                      </Show>
-                    </div>
-                  </button>
-                )
-              }}
-            </For>
-          </Popover.Content>
-        </Popover.Portal>
-      </Popover>
-    </Show>
+                    {choice.label}
+                  </span>
+                  {choice.description && (
+                    <span className="text-text-weak truncate" style={{ fontSize: "10.5px", lineHeight: "1.3" }}>{choice.description}</span>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

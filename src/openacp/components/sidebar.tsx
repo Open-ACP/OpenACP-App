@@ -1,10 +1,6 @@
-import { For, Show, createMemo, createSignal } from "solid-js"
-import { Icon } from "@openacp/ui/icon"
-import { IconButton } from "@openacp/ui/icon-button"
-import { Spinner } from "@openacp/ui/spinner"
-import { Tooltip } from "@openacp/ui/tooltip"
-import { DropdownMenu } from "@openacp/ui/dropdown-menu"
-import { ResizeHandle } from "@openacp/ui/resize-handle"
+import { useState, useMemo } from "react"
+import { Plus, Minus, Archive } from "@phosphor-icons/react"
+import { ResizeHandle } from "./ui/resize-handle"
 import { useSessions } from "../context/sessions"
 import { useChat } from "../context/chat"
 import { useWorkspace } from "../context/workspace"
@@ -18,118 +14,114 @@ export function SidebarPanel() {
   const chat = useChat()
   const workspace = useWorkspace()
 
-  const [panelWidth, setPanelWidth] = createSignal(DEFAULT_SIDEBAR_WIDTH)
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
 
-  const workspaceName = createMemo(() => workspace.directory.split("/").pop() || "Workspace")
-  const workspacePath = createMemo(() => {
+  const workspaceName = useMemo(() => workspace.directory.split("/").pop() || "Workspace", [workspace.directory])
+  const workspacePath = useMemo(() => {
     const parts = workspace.directory.split("/")
     if (parts.length > 3) return "~/" + parts.slice(3).join("/")
     return workspace.directory
-  })
+  }, [workspace.directory])
 
   return (
     <div
-      class="relative flex flex-col min-h-0 min-w-0 box-border rounded-tl-[12px] px-3 border-l border-t border-border-weaker-base bg-background-base overflow-hidden shrink-0"
-      style={{ width: `${panelWidth()}px` }}
+      className="relative flex flex-col min-h-0 min-w-0 box-border rounded-tl-[12px] px-3 border-l border-t border-border-weaker-base bg-background-base overflow-hidden shrink-0"
+      style={{ width: `${panelWidth}px` }}
     >
       <ResizeHandle
         direction="horizontal"
         edge="end"
-        size={panelWidth()}
+        size={panelWidth}
         min={MIN_SIDEBAR_WIDTH}
         max={MAX_SIDEBAR_WIDTH}
         onResize={setPanelWidth}
       />
-      {/* Project header — matches layout.tsx SidebarPanel lines 2109-2155 */}
-      <div class="shrink-0 pl-1 py-1">
-        <div class="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
-          <div class="flex flex-col min-w-0">
-            <span class="text-14-medium text-text-strong truncate">{workspaceName()}</span>
-            <Tooltip placement="bottom" gutter={2} value={workspace.directory} class="shrink-0">
-              <span class="text-12-regular text-text-base truncate">{workspacePath()}</span>
-            </Tooltip>
+      {/* Project header */}
+      <div className="shrink-0 pl-1 py-1">
+        <div className="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
+          <div className="flex flex-col min-w-0">
+            <span className="text-14-medium text-text-strong truncate">{workspaceName}</span>
+            <span className="text-12-regular text-text-base truncate" title={workspace.directory}>{workspacePath}</span>
           </div>
-          <DropdownMenu>
-            <DropdownMenu.Trigger
-              as={IconButton}
-              icon="dot-grid"
-              variant="ghost"
-              class="shrink-0 size-6 rounded-md transition-opacity opacity-0 group-hover/project:opacity-100 group-focus-within/project:opacity-100 data-[expanded]:opacity-100 data-[expanded]:bg-surface-base-active"
-            />
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content class="mt-1">
-                <DropdownMenu.Item onSelect={() => {}}>
-                  <DropdownMenu.ItemLabel>Close project</DropdownMenu.ItemLabel>
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu>
+          {/* Dropdown menu placeholder */}
+          <button className="shrink-0 size-6 rounded-md flex items-center justify-center transition-opacity opacity-0 group-hover/project:opacity-100 group-focus-within/project:opacity-100 hover:bg-surface-raised-base-hover text-icon-weak">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+              <circle cx="4.5" cy="10" r="1.25" fill="currentColor" />
+              <circle cx="10" cy="10" r="1.25" fill="currentColor" />
+              <circle cx="15.5" cy="10" r="1.25" fill="currentColor" />
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* Session list */}
-      <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-        <nav class="flex flex-col gap-1">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+        <nav className="flex flex-col gap-1">
           {/* New session */}
-          {(() => {
-            const [creating, setCreating] = createSignal(false)
-            return (
-              <button
-                class="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-border-base text-12-medium text-text-base hover:bg-surface-raised-base-hover transition-colors active:scale-[0.98] disabled:opacity-50"
-                disabled={creating()}
-                onClick={async () => {
-                  if (creating()) return
-                  setCreating(true)
-                  try {
-                    const session = await sessions.create()
-                    if (session) {
-                      chat.setActiveSession(session.id)
-                    } else {
-                      const { showToast } = await import("../../ui/src/components/toast")
-                      showToast({ description: "Failed to create session. Max sessions may be reached.", variant: "error" })
-                    }
-                  } finally {
-                    setCreating(false)
-                  }
-                }}
-              >
-                <Show when={creating()} fallback={
-                  <Icon name="plus" size="small" class="text-icon-weak" />
-                }>
-                  <div class="w-3.5 h-3.5 border-2 rounded-full oac-spinner" style={{ "border-color": "var(--text-weak)", "border-top-color": "transparent" }} />
-                </Show>
-                <Show when={creating()} fallback="New session">
-                  Creating...
-                </Show>
-              </button>
-            )
-          })()}
+          <NewSessionButton />
 
-          <div class="h-2" />
+          <div className="h-2" />
 
-          <Show when={sessions.loading()}>
-            <SessionSkeleton />
-          </Show>
+          {sessions.loading() && <SessionSkeleton />}
 
-          <For each={sessions.list()}>
-            {(session) => (
-              <SessionItem
-                session={session}
-                active={chat.activeSession() === session.id}
-                streaming={chat.streaming() && chat.activeSession() === session.id}
-                onClick={() => chat.setActiveSession(session.id)}
-                onDelete={() => sessions.remove(session.id)}
-              />
-            )}
-          </For>
+          {sessions.list().map((session) => (
+            <SessionItem
+              key={session.id}
+              session={session}
+              active={chat.activeSession() === session.id}
+              streaming={chat.streaming() && chat.activeSession() === session.id}
+              onClick={() => chat.setActiveSession(session.id)}
+              onDelete={() => sessions.remove(session.id)}
+            />
+          ))}
         </nav>
       </div>
     </div>
   )
 }
 
-/** Matches SessionItem + SessionRow from sidebar-items.tsx */
-function SessionItem(props: {
+function NewSessionButton() {
+  const sessions = useSessions()
+  const chat = useChat()
+  const [creating, setCreating] = useState(false)
+
+  return (
+    <button
+      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-border-base text-12-medium text-text-base hover:bg-surface-raised-base-hover transition-colors active:scale-[0.98] disabled:opacity-50"
+      disabled={creating}
+      onClick={async () => {
+        if (creating) return
+        setCreating(true)
+        try {
+          const session = await sessions.create()
+          if (session) {
+            chat.setActiveSession(session.id)
+          } else {
+            const { showToast } = await import("../../ui/src/components/toast")
+            showToast({ description: "Failed to create session. Max sessions may be reached.", variant: "error" })
+          }
+        } finally {
+          setCreating(false)
+        }
+      }}
+    >
+      {creating ? (
+        <div className="w-3.5 h-3.5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} />
+      ) : (
+        <Plus size={14} weight="bold" className="text-icon-weak" />
+      )}
+      {creating ? "Creating..." : "New session"}
+    </button>
+  )
+}
+
+function SessionItem({
+  session,
+  active,
+  streaming,
+  onClick,
+  onDelete,
+}: {
   session: { id: string; name: string; agent: string; status: string }
   active: boolean
   streaming: boolean
@@ -138,36 +130,33 @@ function SessionItem(props: {
 }) {
   return (
     <div
-      data-session-id={props.session.id}
-      class="group/session relative w-full min-w-0 rounded-md cursor-default pl-2 pr-3 transition-colors
-             hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active"
+      data-session-id={session.id}
+      className="group/session relative w-full min-w-0 rounded-md cursor-default pl-2 pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover"
     >
-      <div class="flex min-w-0 items-center gap-1">
-        <div class="min-w-0 flex-1">
+      <div className="flex min-w-0 items-center gap-1">
+        <div className="min-w-0 flex-1">
           <button
-            class="flex items-center gap-1 min-w-0 w-full text-left focus:outline-none py-1"
-            classList={{ active: props.active }}
-            onClick={props.onClick}
+            className={`flex items-center gap-1 min-w-0 w-full text-left focus:outline-none py-1 ${active ? "active" : ""}`}
+            onClick={onClick}
           >
-            <div class="shrink-0 size-6 flex items-center justify-center">
-              <Show when={props.streaming} fallback={
-                <Icon name="dash" size="small" class="text-icon-weak" />
-              }>
-                <Spinner class="size-[15px]" />
-              </Show>
+            <div className="shrink-0 size-6 flex items-center justify-center">
+              {streaming ? (
+                <div className="size-[15px] border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} />
+              ) : (
+                <Minus size={14} className="text-icon-weak" />
+              )}
             </div>
-            <span class="text-14-regular text-text-strong min-w-0 flex-1 truncate">{props.session.name}</span>
+            <span className="text-14-regular text-text-strong min-w-0 flex-1 truncate">{session.name}</span>
           </button>
         </div>
-        <div class="shrink-0 overflow-hidden transition-[width,opacity] w-0 opacity-0 pointer-events-none group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto">
-          <Tooltip value="Archive" placement="top">
-            <IconButton
-              icon="archive"
-              variant="ghost"
-              class="size-6 rounded-md"
-              onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); props.onDelete() }}
-            />
-          </Tooltip>
+        <div className="shrink-0 overflow-hidden transition-[width,opacity] w-0 opacity-0 pointer-events-none group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto">
+          <button
+            className="size-6 rounded-md flex items-center justify-center hover:bg-surface-raised-base-hover text-icon-weak hover:text-icon-base transition-colors"
+            title="Archive"
+            onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onDelete() }}
+          >
+            <Archive size={14} />
+          </button>
         </div>
       </div>
     </div>
@@ -176,10 +165,10 @@ function SessionItem(props: {
 
 function SessionSkeleton() {
   return (
-    <div class="flex flex-col gap-1">
-      <For each={[1, 2, 3, 4]}>
-        {() => <div class="h-8 w-full rounded-md bg-surface-raised-base opacity-60 animate-pulse" />}
-      </For>
+    <div className="flex flex-col gap-1">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-8 w-full rounded-md bg-surface-raised-base opacity-60 animate-pulse" />
+      ))}
     </div>
   )
 }

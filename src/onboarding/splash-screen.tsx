@@ -1,11 +1,11 @@
 export function SplashScreen() {
   return (
-    <div class="flex h-screen w-screen flex-col items-center justify-center gap-5 bg-background-base">
-      <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-text-strong">
+    <div className="flex h-screen w-screen flex-col items-center justify-center gap-5 bg-background-base">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-text-strong">
         <img
           src="/icons/icon.png"
           alt="OpenACP"
-          class="h-8 w-8"
+          className="h-8 w-8"
           onError={(e) => {
             e.currentTarget.style.display = "none";
             e.currentTarget.parentElement!.innerHTML =
@@ -13,13 +13,13 @@ export function SplashScreen() {
           }}
         />
       </div>
-      <span class="text-16-medium text-text-strong">OpenACP</span>
-      <div class="flex items-center gap-1.5">
-        <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-weak [animation-delay:-0.3s]" />
-        <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-weak [animation-delay:-0.15s]" />
-        <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-text-weak" />
+      <span className="text-16-medium text-text-strong">OpenACP</span>
+      <div className="flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-weak [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-weak [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-text-weak" />
       </div>
-      <span class="text-14-regular text-text-weak">Checking environment...</span>
+      <span className="text-14-regular text-text-weak">Checking environment...</span>
     </div>
   );
 }
