@@ -1,5 +1,5 @@
-import { For, Match, Show, Switch, createMemo } from "solid-js"
-import { TextShimmer } from "../../../ui/src/components/text-shimmer"
+import React, { useMemo } from "react"
+import { TextShimmer } from "../ui/text-shimmer"
 import { TimelineStep, type StepStatus } from "./timeline-step"
 import { TextBlockView } from "./blocks/text-block"
 import { ThinkingBlockView } from "./blocks/thinking-block"
@@ -56,66 +56,54 @@ function blockStatus(block: MessageBlock): StepStatus {
   return "default"
 }
 
-export function MessageTurn(props: MessageTurnProps) {
-  const blocks = createMemo(() => props.message.blocks ?? [])
-  const isEmpty = () => blocks().length === 0
-  const renderItems = createMemo(() => groupBlocks(blocks()))
+export function MessageTurn({ message, streaming }: MessageTurnProps) {
+  const blocks = useMemo(() => message.blocks ?? [], [message.blocks])
+  const isEmpty = blocks.length === 0
+  const renderItems = useMemo(() => groupBlocks(blocks), [blocks])
 
-  return (
-    <div data-component="oac-assistant-message" class="px-1">
-      <Show when={!isEmpty()} fallback={
-        <Show when={props.streaming}>
-          <div class="oac-timeline">
-            <div class="oac-step oac-step--progress">
-              <TextShimmer text="Thinking" active class="text-14-regular text-text-weak" style={{ "font-style": "italic" }} />
+  if (isEmpty) {
+    if (streaming) {
+      return (
+        <div data-component="oac-assistant-message" className="px-1">
+          <div className="oac-timeline">
+            <div className="oac-step oac-step--progress">
+              <TextShimmer text="Thinking" active className="text-14-regular text-text-weak" style={{ fontStyle: "italic" }} />
             </div>
           </div>
-        </Show>
-      }>
-        <div class="oac-timeline">
-          <div class="oac-timeline-line" />
-          <For each={renderItems()}>
-            {(item) => (
-              <Switch>
-                <Match when={item.kind === "noise-group"}>
-                  <ToolGroup tools={(item as { kind: "noise-group"; tools: ToolBlock[] }).tools} />
-                </Match>
-                <Match when={item.kind === "block"}>
-                  {(() => {
-                    const blockItem = item as { kind: "block"; block: MessageBlock; index: number }
-                    const block = blockItem.block
-                    const isLastBlock = () => blockItem.index === blocks().length - 1
-                    return (
-                      <TimelineStep status={blockStatus(block)}>
-                        <Switch>
-                          <Match when={block.type === "text"}>
-                            <TextBlockView
-                              block={block as TextBlock}
-                              streaming={props.streaming && isLastBlock()}
-                            />
-                          </Match>
-                          <Match when={block.type === "thinking"}>
-                            <ThinkingBlockView block={block as ThinkingBlock} />
-                          </Match>
-                          <Match when={block.type === "tool"}>
-                            <ToolBlockView block={block as ToolBlock} />
-                          </Match>
-                          <Match when={block.type === "plan"}>
-                            <PlanBlockView block={block as PlanBlock} />
-                          </Match>
-                          <Match when={block.type === "error"}>
-                            <ErrorBlockView block={block as ErrorBlock} />
-                          </Match>
-                        </Switch>
-                      </TimelineStep>
-                    )
-                  })()}
-                </Match>
-              </Switch>
-            )}
-          </For>
         </div>
-      </Show>
+      )
+    }
+    return <div data-component="oac-assistant-message" className="px-1" />
+  }
+
+  return (
+    <div data-component="oac-assistant-message" className="px-1">
+      <div className="oac-timeline">
+        <div className="oac-timeline-line" />
+        {renderItems.map((item, idx) => {
+          if (item.kind === "noise-group") {
+            return <ToolGroup key={`ng-${idx}`} tools={item.tools} />
+          }
+          const blockItem = item as { kind: "block"; block: MessageBlock; index: number }
+          const block = blockItem.block
+          const isLastBlock = blockItem.index === blocks.length - 1
+          return (
+            <TimelineStep key={block.type === "tool" ? block.id : `b-${idx}`} status={blockStatus(block)}>
+              {block.type === "text" ? (
+                <TextBlockView block={block as TextBlock} streaming={streaming && isLastBlock} />
+              ) : block.type === "thinking" ? (
+                <ThinkingBlockView block={block as ThinkingBlock} />
+              ) : block.type === "tool" ? (
+                <ToolBlockView block={block as ToolBlock} />
+              ) : block.type === "plan" ? (
+                <PlanBlockView block={block as PlanBlock} />
+              ) : block.type === "error" ? (
+                <ErrorBlockView block={block as ErrorBlock} />
+              ) : null}
+            </TimelineStep>
+          )
+        })}
+      </div>
     </div>
   )
 }

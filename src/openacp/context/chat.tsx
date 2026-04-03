@@ -1,5 +1,5 @@
-import { createContext, useContext, onCleanup, onMount, type ParentProps } from "solid-js"
-import { createStore, produce } from "solid-js/store"
+import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo } from "react"
+import { useImmer } from "use-immer"
 import { useWorkspace } from "./workspace"
 import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
@@ -14,29 +14,19 @@ import {
 } from "../components/chat/block-utils"
 
 interface ChatContext {
-  /** Messages for active session */
   messages: () => Message[]
-  /** Is assistant currently streaming */
   streaming: () => boolean
-  /** Is history loading */
   loadingHistory: () => boolean
-  /** SSE connection state */
   sseStatus: () => 'connected' | 'reconnecting' | 'disconnected'
-  /** Active session ID */
   activeSession: () => string | undefined
-  /** Set active session */
   setActiveSession: (id: string) => void
-  /** Send a prompt */
   sendPrompt: (text: string) => Promise<boolean>
-  /** Abort current response */
   abort: () => void
-  /** Connect SSE for workspace */
   connect: () => void
-  /** Add a command message to chat */
   addCommandResponse: (sessionID: string, text: string, role?: "user" | "assistant") => void
 }
 
-const Ctx = createContext<ChatContext>()
+const Ctx = createContext<ChatContext | undefined>(undefined)
 
 export function useChat() {
   const ctx = useContext(Ctx)
@@ -107,11 +97,8 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
   }
 
   return {
-    id,
-    role: turn.role,
-    sessionID: sessionId,
-    parts,
-    blocks,
+    id, role: turn.role, sessionID: sessionId,
+    parts, blocks,
     createdAt: new Date(turn.timestamp).getTime(),
   }
 }
@@ -126,10 +113,8 @@ function stepToPart(step: HistoryStep): MessagePart | null {
       const s = step as any
       const diff: FileDiff | null = s.diff ? { path: s.diff.path || "", before: s.diff.oldText, after: s.diff.newText } : null
       return {
-        id: uid("p"),
-        type: "tool_call",
-        toolCallId: step.id as string,
-        name: step.name as string,
+        id: uid("p"), type: "tool_call",
+        toolCallId: step.id as string, name: step.name as string,
         status: (step.status as ToolCallPart["status"]) || "completed",
         input: step.input as Record<string, unknown> | undefined,
         output: typeof step.output === "string" ? step.output : step.output ? JSON.stringify(step.output) : undefined,
@@ -143,78 +128,90 @@ function stepToPart(step: HistoryStep): MessagePart | null {
 
 // ── Chat Provider ───────────────────────────────────────────────────────────
 
-export function ChatProvider(props: ParentProps) {
+interface ChatStore {
+  messagesBySession: Record<string, Message[]>
+  activeSession: string | undefined
+  streaming: boolean
+  loadingHistory: boolean
+  sseStatus: 'connected' | 'reconnecting' | 'disconnected'
+}
+
+export function ChatProvider({ children }: { children: React.ReactNode }) {
   const workspace = useWorkspace()
   const sessions = useSessions()
-  const sse = createSSEManager()
+  const sseRef = useRef(createSSEManager())
 
-  const [store, setStore] = createStore({
-    messagesBySession: {} as Record<string, Message[]>,
-    activeSession: undefined as string | undefined,
+  const [store, setStore] = useImmer<ChatStore>({
+    messagesBySession: {},
+    activeSession: undefined,
     streaming: false,
     loadingHistory: false,
-    sseStatus: 'disconnected' as 'connected' | 'reconnecting' | 'disconnected',
+    sseStatus: 'disconnected',
   })
 
-  const abortedSessions = new Set<string>()
-  const assistantMsgId = new Map<string, string>()
-  const loadedSessions = new Set<string>()
-  const thinkingStartTime = new Map<string, number>()
-  let msgCounter = 0
-  let partCounter = 0
+  const abortedSessions = useRef(new Set<string>())
+  const assistantMsgId = useRef(new Map<string, string>())
+  const thinkingStartTime = useRef(new Map<string, number>())
+  const msgCounter = useRef(0)
+  const partCounter = useRef(0)
+  const sendingRef = useRef(false)
+
+  // Text batching
+  const textBuffer = useRef(new Map<string, string>())
+  const thoughtBuffer = useRef(new Map<string, string>())
+  const flushScheduled = useRef(false)
 
   function nextId(prefix: string) {
-    return `${prefix}-${Date.now()}-${++msgCounter}`
+    return `${prefix}-${Date.now()}-${++msgCounter.current}`
   }
-
   function nextPartId() {
-    return `part-${Date.now()}-${++partCounter}`
+    return `part-${Date.now()}-${++partCounter.current}`
   }
 
   function addMessage(sessionID: string, msg: Message) {
-    setStore("messagesBySession", sessionID, (prev) => [...(prev || []), msg])
+    setStore((draft) => {
+      if (!draft.messagesBySession[sessionID]) draft.messagesBySession[sessionID] = []
+      draft.messagesBySession[sessionID].push(msg)
+    })
   }
 
   function setMessages(sessionID: string, msgs: Message[]) {
-    setStore("messagesBySession", sessionID, msgs)
+    setStore((draft) => { draft.messagesBySession[sessionID] = msgs })
   }
 
   function updateAssistantParts(sessionID: string, updater: (parts: MessagePart[]) => void) {
-    const msgId = assistantMsgId.get(sessionID)
+    const msgId = assistantMsgId.current.get(sessionID)
     if (!msgId) return
-    setStore("messagesBySession", sessionID, produce((msgs) => {
+    setStore((draft) => {
+      const msgs = draft.messagesBySession[sessionID]
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.parts)
-    }))
+    })
   }
 
   function updateAssistantBlocks(sessionID: string, updater: (blocks: MessageBlock[]) => void) {
-    const msgId = assistantMsgId.get(sessionID)
+    const msgId = assistantMsgId.current.get(sessionID)
     if (!msgId) return
-    setStore("messagesBySession", sessionID, produce((msgs) => {
+    setStore((draft) => {
+      const msgs = draft.messagesBySession[sessionID]
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.blocks)
-    }))
+    })
   }
 
   function ensureAssistantMessage(sessionID: string, parentId?: string): string {
-    let msgId = assistantMsgId.get(sessionID)
+    let msgId = assistantMsgId.current.get(sessionID)
     if (msgId) return msgId
 
     msgId = nextId("ast")
-    assistantMsgId.set(sessionID, msgId)
+    assistantMsgId.current.set(sessionID, msgId)
     addMessage(sessionID, {
-      id: msgId,
-      role: "assistant",
-      sessionID,
-      parts: [],
-      blocks: [],
-      createdAt: Date.now(),
-      parentID: parentId,
+      id: msgId, role: "assistant", sessionID,
+      parts: [], blocks: [], createdAt: Date.now(), parentID: parentId,
     })
-    setStore("streaming", true)
+    setStore((draft) => { draft.streaming = true })
     return msgId
   }
 
@@ -227,7 +224,6 @@ export function ChatProvider(props: ParentProps) {
   async function loadHistory(sessionID: string) {
     const hasInMemory = (store.messagesBySession[sessionID]?.length ?? 0) > 0
 
-    // 1. Show something immediately: in-memory > cache
     if (!hasInMemory) {
       const cached = await loadCachedMessages(sessionID)
       if (cached && cached.length > 0) {
@@ -235,43 +231,33 @@ export function ChatProvider(props: ParentProps) {
       }
     }
 
-    // 2. Always fetch server for latest (other clients may have added messages)
-    setStore("loadingHistory", true)
+    setStore((draft) => { draft.loadingHistory = true })
     try {
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
         const current = store.messagesBySession[sessionID] ?? []
-
-        // Server has more complete history — use it as base,
-        // but keep any in-flight streaming messages (not yet in server history)
         const lastServerTurn = history.turns[history.turns.length - 1]
         const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
-
-        // Messages created after the last server turn = in-flight (streaming)
         const inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
-
         setMessages(sessionID, [...serverMessages, ...inFlight])
         void cacheMessages(sessionID, serverMessages)
       }
     } catch {
-      // Server unavailable — showing cache/in-memory data
+      // Server unavailable
     } finally {
-      setStore("loadingHistory", false)
+      setStore((draft) => { draft.loadingHistory = false })
     }
   }
 
-  // ── Diff extraction from tool events ──────────────────────────────────
+  // ── Diff extraction ──────────────────────────────────────────────────
 
   function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; rawOutput?: unknown; content?: unknown; name?: string }): FileDiff | null {
-    // Try meta.filediff first (server-provided)
     const meta = evt.meta as Record<string, any> | undefined
     if (meta?.filediff) {
       const fd = meta.filediff
       return { path: fd.path || "", before: fd.before ?? fd.oldText, after: fd.after ?? fd.newText }
     }
-
-    // Check content array for diff objects (from tool_call_update after edit)
     if (Array.isArray(evt.content)) {
       for (const item of evt.content) {
         if (item && typeof item === "object" && (item as any).type === "diff") {
@@ -280,8 +266,6 @@ export function ChatProvider(props: ParentProps) {
         }
       }
     }
-
-    // Parse input — try rawInput then content object
     let input: Record<string, any> | undefined
     for (const src of [evt.rawInput, evt.content]) {
       if (!src || Array.isArray(src)) continue
@@ -298,51 +282,37 @@ export function ChatProvider(props: ParentProps) {
       if (input && Object.keys(input).length > 0) break
     }
     if (!input) return null
-
     const name = (evt.name || "").toLowerCase()
     const path = (input.file_path || input.filePath || input.path || "") as string
-
-    // Edit tool: old_string + new_string
     if (name === "edit" && (input.old_string != null || input.new_string != null)) {
       return { path, before: input.old_string != null ? String(input.old_string) : undefined, after: String(input.new_string ?? input.content ?? "") }
     }
-
-    // Write tool: content only
     if (name === "write" && input.content != null) {
       return { path, after: String(input.content) }
     }
-
-    // apply_patch
     if (name === "apply_patch" && input.patch != null) {
       return { path: input.file_path || input.path || "patch", after: String(input.patch) }
     }
-
     return null
   }
 
-  // ── Text batching — accumulate chunks, flush once per frame ────────────
-
-  const textBuffer = new Map<string, string>() // sessionID → pending text
-  const thoughtBuffer = new Map<string, string>()
-  let flushScheduled = false
+  // ── Text batching ────────────────────────────────────────────────
 
   function scheduleFlush() {
-    if (flushScheduled) return
-    flushScheduled = true
+    if (flushScheduled.current) return
+    flushScheduled.current = true
     requestAnimationFrame(flushBuffers)
   }
 
   function flushBuffers() {
-    flushScheduled = false
+    flushScheduled.current = false
 
-    for (const [sessionID, text] of textBuffer) {
+    for (const [sessionID, text] of textBuffer.current) {
       ensureAssistantMessage(sessionID)
-
-      // Seal thinking blocks when text arrives
-      const thinkStart = thinkingStartTime.get(sessionID)
+      const thinkStart = thinkingStartTime.current.get(sessionID)
       if (thinkStart) {
         const durationMs = Date.now() - thinkStart
-        thinkingStartTime.delete(sessionID)
+        thinkingStartTime.current.delete(sessionID)
         updateAssistantBlocks(sessionID, (blocks) => {
           const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
           if (thinking) {
@@ -351,7 +321,6 @@ export function ChatProvider(props: ParentProps) {
           }
         })
       }
-
       updateAssistantParts(sessionID, (parts) => {
         const last = parts[parts.length - 1]
         if (last?.type === "text") {
@@ -369,9 +338,9 @@ export function ChatProvider(props: ParentProps) {
         }
       })
     }
-    textBuffer.clear()
+    textBuffer.current.clear()
 
-    for (const [sessionID, text] of thoughtBuffer) {
+    for (const [sessionID, text] of thoughtBuffer.current) {
       ensureAssistantMessage(sessionID)
       updateAssistantParts(sessionID, (parts) => {
         const existing = [...parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
@@ -386,14 +355,14 @@ export function ChatProvider(props: ParentProps) {
         if (existing) {
           existing.content += text
         } else {
-          if (!thinkingStartTime.has(sessionID)) {
-            thinkingStartTime.set(sessionID, Date.now())
+          if (!thinkingStartTime.current.has(sessionID)) {
+            thinkingStartTime.current.set(sessionID, Date.now())
           }
           blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
         }
       })
     }
-    thoughtBuffer.clear()
+    thoughtBuffer.current.clear()
   }
 
   // ── SSE event handling ──────────────────────────────────────────────────
@@ -401,28 +370,26 @@ export function ChatProvider(props: ParentProps) {
   function handleAgentEvent(event: AgentEvent) {
     const sessionID = event.sessionId
     if (!sessionID) return
-    if (abortedSessions.has(sessionID)) return
+    if (abortedSessions.current.has(sessionID)) return
 
     const evt = event.event
 
     switch (evt.type) {
       case "text": {
         ensureAssistantMessage(sessionID)
-        textBuffer.set(sessionID, (textBuffer.get(sessionID) ?? "") + evt.content)
+        textBuffer.current.set(sessionID, (textBuffer.current.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
       }
-
       case "thought": {
         ensureAssistantMessage(sessionID)
-        if (!thinkingStartTime.has(sessionID)) {
-          thinkingStartTime.set(sessionID, Date.now())
+        if (!thinkingStartTime.current.has(sessionID)) {
+          thinkingStartTime.current.set(sessionID, Date.now())
         }
-        thoughtBuffer.set(sessionID, (thoughtBuffer.get(sessionID) ?? "") + evt.content)
+        thoughtBuffer.current.set(sessionID, (thoughtBuffer.current.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
       }
-
       case "tool_call": {
         ensureAssistantMessage(sessionID)
         const diff = extractDiff(evt)
@@ -436,14 +403,10 @@ export function ChatProvider(props: ParentProps) {
             if (diff) existing.diff = diff
           } else {
             parts.push({
-              id: nextPartId(),
-              type: "tool_call",
-              toolCallId: evt.id,
-              name: evt.name,
+              id: nextPartId(), type: "tool_call",
+              toolCallId: evt.id, name: evt.name,
               status: evt.status as ToolCallPart["status"],
-              input: evt.rawInput,
-              output: evt.rawOutput,
-              diff,
+              input: evt.rawInput, output: evt.rawOutput, diff,
             })
           }
         })
@@ -456,33 +419,23 @@ export function ChatProvider(props: ParentProps) {
             ? (typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2))
             : null
           if (existing) {
-            existing.name = evt.name
-            existing.status = evt.status as ToolBlock["status"]
-            existing.kind = kind
-            existing.title = title
+            existing.name = evt.name; existing.status = evt.status as ToolBlock["status"]
+            existing.kind = kind; existing.title = title
             if (input) existing.input = input
             if (outputStr != null) existing.output = outputStr
           } else {
             blocks.push({
-              type: "tool",
-              id: evt.id,
-              name: evt.name,
-              kind,
+              type: "tool", id: evt.id, name: evt.name, kind,
               status: (evt.status as ToolBlock["status"]) || "running",
-              title,
-              description: extractDescription(input, title),
-              command: extractCommand(kind, input),
-              input,
-              output: outputStr,
-              diffStats: null,
-              isNoise: isNoiseTool(evt.name, evt.isNoise),
-              isHidden: false,
+              title, description: extractDescription(input, title),
+              command: extractCommand(kind, input), input,
+              output: outputStr, diffStats: null,
+              isNoise: isNoiseTool(evt.name, evt.isNoise), isHidden: false,
             })
           }
         })
         break
       }
-
       case "tool_update": {
         ensureAssistantMessage(sessionID)
         const diff = extractDiff(evt)
@@ -507,7 +460,6 @@ export function ChatProvider(props: ParentProps) {
             if (evt.name) existing.name = evt.name
             if (evt.displayTitle) existing.title = evt.displayTitle
             if (evt.displayKind) existing.kind = evt.displayKind
-            // Extract diffStats from meta
             const meta = evt.meta as Record<string, any> | undefined
             if (meta?.diffStats) {
               existing.diffStats = meta.diffStats as { added: number; removed: number }
@@ -516,7 +468,6 @@ export function ChatProvider(props: ParentProps) {
         })
         break
       }
-
       case "plan": {
         ensureAssistantMessage(sessionID)
         if (evt.entries && Array.isArray(evt.entries)) {
@@ -532,9 +483,8 @@ export function ChatProvider(props: ParentProps) {
         }
         break
       }
-
       case "error": {
-        flushBuffers() // flush pending text before error
+        flushBuffers()
         ensureAssistantMessage(sessionID)
         updateAssistantParts(sessionID, (parts) => {
           parts.push({ id: nextPartId(), type: "text", content: `\n\n**Error:** ${evt.content}` })
@@ -542,18 +492,16 @@ export function ChatProvider(props: ParentProps) {
         updateAssistantBlocks(sessionID, (blocks) => {
           blocks.push({ type: "error", id: nextPartId(), content: evt.content })
         })
-        assistantMsgId.delete(sessionID)
-        setStore("streaming", false)
+        assistantMsgId.current.delete(sessionID)
+        setStore((draft) => { draft.streaming = false })
         break
       }
-
       case "usage": {
-        flushBuffers() // flush any remaining text
-        // Seal any active thinking
-        const thinkStart2 = thinkingStartTime.get(sessionID)
+        flushBuffers()
+        const thinkStart2 = thinkingStartTime.current.get(sessionID)
         if (thinkStart2) {
           const durationMs = Date.now() - thinkStart2
-          thinkingStartTime.delete(sessionID)
+          thinkingStartTime.current.delete(sessionID)
           updateAssistantBlocks(sessionID, (blocks) => {
             const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
             if (thinking) {
@@ -562,10 +510,9 @@ export function ChatProvider(props: ParentProps) {
             }
           })
         }
-        assistantMsgId.delete(sessionID)
-        setStore("streaming", false)
+        assistantMsgId.current.delete(sessionID)
+        setStore((draft) => { draft.streaming = false })
         void sessions.refresh()
-        // Cache messages after turn complete
         const msgs = store.messagesBySession[sessionID]
         if (msgs) void cacheMessages(sessionID, msgs)
         break
@@ -573,28 +520,17 @@ export function ChatProvider(props: ParentProps) {
     }
   }
 
-  function connect() {
-    sse.connect(workspace.directory, workspace.client.eventsUrl, {
+  const connect = useCallback(() => {
+    sseRef.current.connect(workspace.directory, workspace.client.eventsUrl, {
       onAgentEvent: handleAgentEvent,
       onSessionCreated: (s) => sessions.upsert(s),
       onSessionUpdated: (s) => sessions.upsert(s),
       onSessionDeleted: (id) => sessions.delete(id),
-      onConnected: () => setStore('sseStatus', 'connected'),
-      onReconnecting: () => setStore('sseStatus', 'reconnecting'),
-      onDisconnected: () => setStore('sseStatus', 'disconnected'),
+      onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
+      onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
+      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),
     })
-  }
-
-  let sending = false
-  async function sendPrompt(text: string): Promise<boolean> {
-    if (sending) return false
-    sending = true
-    try {
-      return await doSendPrompt(text)
-    } finally {
-      sending = false
-    }
-  }
+  }, [workspace.directory, workspace.client.eventsUrl])
 
   async function doSendPrompt(text: string): Promise<boolean> {
     let sessionID = store.activeSession
@@ -602,31 +538,24 @@ export function ChatProvider(props: ParentProps) {
       const session = await sessions.create()
       if (!session) return false
       sessionID = session.id
-      setStore("activeSession", sessionID)
+      setStore((draft) => { draft.activeSession = sessionID })
     }
 
     const userMsgId = nextId("usr")
     addMessage(sessionID, {
-      id: userMsgId,
-      role: "user",
-      sessionID,
+      id: userMsgId, role: "user", sessionID,
       parts: [{ id: nextPartId(), type: "text", content: text }],
       blocks: [{ type: "text", id: nextPartId(), content: text }],
       createdAt: Date.now(),
     })
 
     const astMsgId = nextId("ast")
-    assistantMsgId.set(sessionID, astMsgId)
+    assistantMsgId.current.set(sessionID, astMsgId)
     addMessage(sessionID, {
-      id: astMsgId,
-      role: "assistant",
-      sessionID,
-      parts: [],
-      blocks: [],
-      createdAt: Date.now(),
-      parentID: userMsgId,
+      id: astMsgId, role: "assistant", sessionID,
+      parts: [], blocks: [], createdAt: Date.now(), parentID: userMsgId,
     })
-    setStore("streaming", true)
+    setStore((draft) => { draft.streaming = true })
 
     connect()
 
@@ -638,35 +567,47 @@ export function ChatProvider(props: ParentProps) {
     }
   }
 
-  function addCommandResponse(sessionID: string, text: string, role: "user" | "assistant" = "assistant") {
+  const sendPrompt = useCallback(async (text: string): Promise<boolean> => {
+    if (sendingRef.current) return false
+    sendingRef.current = true
+    try {
+      return await doSendPrompt(text)
+    } finally {
+      sendingRef.current = false
+    }
+  }, [store.activeSession, workspace.client])
+
+  const addCommandResponse = useCallback((sessionID: string, text: string, role: "user" | "assistant" = "assistant") => {
     addMessage(sessionID, {
       id: nextId(role === "user" ? "cmd-usr" : "cmd-ast"),
-      role,
-      sessionID,
+      role, sessionID,
       parts: [{ id: nextPartId(), type: "text", content: text }],
       blocks: [{ type: "text", id: nextPartId(), content: text }],
       createdAt: Date.now(),
     })
-  }
+  }, [])
 
-  function setActiveSession(id: string) {
-    setStore("activeSession", id)
+  const setActiveSession = useCallback((id: string) => {
+    setStore((draft) => { draft.activeSession = id })
     void loadHistory(id)
-  }
+  }, [workspace.client])
 
-  onMount(() => connect())
-  onCleanup(() => sse.disconnectAll())
-
-  function abort() {
+  const abort = useCallback(() => {
     const sessionID = store.activeSession
     if (!sessionID) return
-    abortedSessions.add(sessionID)
-    assistantMsgId.delete(sessionID)
-    setStore("streaming", false)
-    setTimeout(() => abortedSessions.delete(sessionID), 2000)
-  }
+    abortedSessions.current.add(sessionID)
+    assistantMsgId.current.delete(sessionID)
+    setStore((draft) => { draft.streaming = false })
+    setTimeout(() => abortedSessions.current.delete(sessionID), 2000)
+  }, [store.activeSession])
 
-  const value: ChatContext = {
+  // Connect on mount, disconnect on cleanup
+  useEffect(() => {
+    connect()
+    return () => sseRef.current.disconnectAll()
+  }, [connect])
+
+  const value = useMemo((): ChatContext => ({
     messages: () => store.messagesBySession[store.activeSession || ""] || [],
     streaming: () => store.streaming,
     loadingHistory: () => store.loadingHistory,
@@ -677,7 +618,7 @@ export function ChatProvider(props: ParentProps) {
     abort,
     connect,
     addCommandResponse,
-  }
+  }), [store, setActiveSession, sendPrompt, abort, connect, addCommandResponse])
 
-  return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

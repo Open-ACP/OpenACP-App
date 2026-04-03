@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config"
-import solid from "vite-plugin-solid"
+import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import path from "node:path"
 import fs from "node:fs"
@@ -93,7 +93,7 @@ export const Ghostty = class {};`
 }
 
 export default defineConfig({
-  plugins: [openacpResolver(), solid(), tailwindcss()],
+  plugins: [openacpResolver(), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src/app"),

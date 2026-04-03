@@ -1,5 +1,5 @@
-import { Show, createSignal, createMemo } from "solid-js"
-import { TextShimmer } from "../../../../ui/src/components/text-shimmer"
+import React, { useState, useMemo } from "react"
+import { TextShimmer } from "../../ui/text-shimmer"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
 
@@ -7,60 +7,55 @@ interface ToolBlockProps {
   block: ToolBlock
 }
 
-export function ToolBlockView(props: ToolBlockProps) {
-  const [expanded, setExpanded] = createSignal(true)
-  const isPending = () => props.block.status === "pending" || props.block.status === "running"
+export function ToolBlockView({ block }: ToolBlockProps) {
+  const [expanded, setExpanded] = useState(true)
+  const isPending = block.status === "pending" || block.status === "running"
 
-  const icon = createMemo(() => kindIcon(props.block.kind))
-  const label = createMemo(() => kindLabel(props.block.kind))
-  const inputText = createMemo(() => formatToolInput(props.block.input))
-  const hasBody = () => !!inputText() || !!props.block.output
+  const icon = useMemo(() => kindIcon(block.kind), [block.kind])
+  const label = useMemo(() => kindLabel(block.kind), [block.kind])
+  const inputText = useMemo(() => formatToolInput(block.input), [block.input])
+  const hasBody = !!inputText || !!block.output
 
   return (
     <div>
       <div
-        class="oac-tool-card-title"
-        classList={{ "oac-tool-card-shimmer": isPending() }}
-        onClick={() => hasBody() && setExpanded(!expanded())}
+        className={`oac-tool-card-title${isPending ? " oac-tool-card-shimmer" : ""}`}
+        onClick={() => hasBody && setExpanded(!expanded)}
       >
-        <span>{icon()}</span>
-        <span style={{ "font-weight": "500" }}>{label()}</span>
-        <span style={{ color: "var(--text-weak)" }}>{props.block.title}</span>
-        <Show when={props.block.diffStats}>
-          {(stats) => (
-            <>
-              <Show when={stats().added > 0}>
-                <span class="oac-diff-stat-add">+{stats().added}</span>
-              </Show>
-              <Show when={stats().removed > 0}>
-                <span class="oac-diff-stat-del">-{stats().removed}</span>
-              </Show>
-            </>
-          )}
-        </Show>
-        <Show when={isPending()}>
-          <TextShimmer text="" active class="" />
-        </Show>
+        <span>{icon}</span>
+        <span style={{ fontWeight: "500" }}>{label}</span>
+        <span style={{ color: "var(--text-weak)" }}>{block.title}</span>
+        {block.diffStats && (
+          <>
+            {block.diffStats.added > 0 && (
+              <span className="oac-diff-stat-add">+{block.diffStats.added}</span>
+            )}
+            {block.diffStats.removed > 0 && (
+              <span className="oac-diff-stat-del">-{block.diffStats.removed}</span>
+            )}
+          </>
+        )}
+        {isPending && <TextShimmer text="" active className="" />}
       </div>
 
-      <Show when={expanded() && hasBody()}>
-        <div class="oac-tool-card-body">
-          <div class="oac-tool-card-grid">
-            <Show when={inputText()}>
-              <div class="oac-tool-card-row">
-                <div class="oac-tool-card-row-label">IN</div>
-                <div class="oac-tool-card-row-content">{inputText()}</div>
+      {expanded && hasBody && (
+        <div className="oac-tool-card-body">
+          <div className="oac-tool-card-grid">
+            {inputText && (
+              <div className="oac-tool-card-row">
+                <div className="oac-tool-card-row-label">IN</div>
+                <div className="oac-tool-card-row-content">{inputText}</div>
               </div>
-            </Show>
-            <Show when={props.block.output}>
-              <div class="oac-tool-card-row">
-                <div class="oac-tool-card-row-label">OUT</div>
-                <div class="oac-tool-card-row-content">{props.block.output}</div>
+            )}
+            {block.output && (
+              <div className="oac-tool-card-row">
+                <div className="oac-tool-card-row-label">OUT</div>
+                <div className="oac-tool-card-row-content">{block.output}</div>
               </div>
-            </Show>
+            )}
           </div>
         </div>
-      </Show>
+      )}
     </div>
   )
 }

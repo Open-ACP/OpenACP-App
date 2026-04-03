@@ -1,17 +1,17 @@
-import { createContext, useContext, type ParentProps } from "solid-js"
+import React, { createContext, useContext, useMemo } from "react"
 import { createApiClient, type ApiClient } from "../api/client"
 import type { ServerInfo } from "../types"
 import type { WorkspaceEntry } from "../api/workspace-store"
 
 interface WorkspaceContext {
   instanceId: string
-  directory: string  // workspace root dir (for display/file ops)
+  directory: string
   workspace: WorkspaceEntry
   server: ServerInfo
   client: ApiClient
 }
 
-const Ctx = createContext<WorkspaceContext>()
+const Ctx = createContext<WorkspaceContext | undefined>(undefined)
 
 export function useWorkspace() {
   const ctx = useContext(Ctx)
@@ -21,7 +21,6 @@ export function useWorkspace() {
 
 /**
  * Resolve workspace server info by instance ID.
- * Looks up the instance root from instances.json, then reads api.port + api-secret.
  */
 export async function resolveWorkspaceServer(instanceId: string): Promise<ServerInfo | null> {
   try {
@@ -32,27 +31,30 @@ export async function resolveWorkspaceServer(instanceId: string): Promise<Server
   }
 }
 
-export function WorkspaceProvider(props: ParentProps<{
+export function WorkspaceProvider(props: {
   workspace: WorkspaceEntry
   server: ServerInfo
   onReconnectNeeded?: () => void
   onTokenRefreshed?: (update: { expiresAt: string; refreshDeadline: string }) => void
-}>) {
-  const client = createApiClient(props.server, props.workspace.id)
-  if (props.onReconnectNeeded) {
-    client.setOnReconnectNeeded(props.onReconnectNeeded)
-  }
-  if (props.onTokenRefreshed) {
-    client.setOnTokenRefreshed(props.onTokenRefreshed)
-  }
+  children: React.ReactNode
+}) {
+  const value = useMemo(() => {
+    const client = createApiClient(props.server, props.workspace.id)
+    if (props.onReconnectNeeded) {
+      client.setOnReconnectNeeded(props.onReconnectNeeded)
+    }
+    if (props.onTokenRefreshed) {
+      client.setOnTokenRefreshed(props.onTokenRefreshed)
+    }
 
-  const value: WorkspaceContext = {
-    get instanceId() { return props.workspace.id },
-    get directory() { return props.workspace.directory },
-    get workspace() { return props.workspace },
-    server: props.server,
-    client,
-  }
+    return {
+      instanceId: props.workspace.id,
+      directory: props.workspace.directory,
+      workspace: props.workspace,
+      server: props.server,
+      client,
+    }
+  }, [props.workspace, props.server])
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>
 }

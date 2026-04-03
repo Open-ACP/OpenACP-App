@@ -1,40 +1,39 @@
-import { Show } from "solid-js"
+import React from "react"
 import type { ThinkingBlock } from "../../../types"
 
 interface ThinkingBlockProps {
   block: ThinkingBlock
 }
 
-export function ThinkingBlockView(props: ThinkingBlockProps) {
-  const summaryText = () => {
-    if (props.block.isStreaming) return "Thinking..."
-    if (props.block.durationMs !== null) {
-      const seconds = Math.round(props.block.durationMs / 1000)
+export function ThinkingBlockView({ block }: ThinkingBlockProps) {
+  const summaryText = (() => {
+    if (block.isStreaming) return "Thinking..."
+    if (block.durationMs !== null) {
+      const seconds = Math.round(block.durationMs / 1000)
       return `Thought for ${seconds}s`
     }
     return "Thinking"
+  })()
+
+  const hasContent = !!block.content?.trim()
+
+  if (!hasContent) {
+    return (
+      <div style={{ fontStyle: "italic", fontSize: "12px", color: "var(--text-weak)" }}>
+        {summaryText}
+      </div>
+    )
   }
 
-  const hasContent = () => !!props.block.content?.trim()
-
   return (
-    <Show
-      when={hasContent()}
-      fallback={
-        <div style={{ "font-style": "italic", "font-size": "12px", color: "var(--text-weak)" }}>
-          {summaryText()}
-        </div>
-      }
-    >
-      <details class="oac-thinking">
-        <summary>
-          <span>{summaryText()}</span>
-          <span class="oac-thinking-chevron">▶</span>
-        </summary>
-        <div class="oac-thinking-content">
-          {props.block.content}
-        </div>
-      </details>
-    </Show>
+    <details className="oac-thinking">
+      <summary>
+        <span>{summaryText}</span>
+        <span className="oac-thinking-chevron">&#9654;</span>
+      </summary>
+      <div className="oac-thinking-content">
+        {block.content}
+      </div>
+    </details>
   )
 }

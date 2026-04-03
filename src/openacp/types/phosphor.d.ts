@@ -1,12 +1,3 @@
-declare module "phosphor-solid-js/dist/icons/*.esm" {
-  import { Component } from "solid-js"
-  interface PhosphorIconProps {
-    size?: number | string
-    weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone"
-    color?: string
-    class?: string
-    mirrored?: boolean
-  }
-  const Icon: Component<PhosphorIconProps>
-  export default Icon
-}
+// Phosphor icons are now imported from @phosphor-icons/react
+// This file kept for reference but no longer needed for solid-js declarations
+export {}

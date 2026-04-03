@@ -1,5 +1,4 @@
-import { createContext, useContext, onMount, type ParentProps } from "solid-js"
-import { createStore } from "solid-js/store"
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 import { useWorkspace } from "./workspace"
 import type { Session } from "../types"
 
@@ -13,7 +12,7 @@ interface SessionsContext {
   delete: (id: string) => void
 }
 
-const Ctx = createContext<SessionsContext>()
+const Ctx = createContext<SessionsContext | undefined>(undefined)
 
 export function useSessions() {
   const ctx = useContext(Ctx)
@@ -21,33 +20,30 @@ export function useSessions() {
   return ctx
 }
 
-export function SessionsProvider(props: ParentProps) {
+export function SessionsProvider({ children }: { children: React.ReactNode }) {
   const workspace = useWorkspace()
-  const [store, setStore] = createStore({
-    sessions: [] as Session[],
-    loading: true,
-  })
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [loading, setLoading] = useState(true)
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
-      const sessions = await workspace.client.listSessions()
-      setStore("sessions", sessions.sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ))
+      const result = await workspace.client.listSessions()
+      setSessions(
+        result.sort((a: Session, b: Session) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      )
     } catch {
-      setStore("sessions", [])
+      setSessions([])
     } finally {
-      setStore("loading", false)
+      setLoading(false)
     }
-  }
+  }, [workspace.client])
 
-  async function create(agent?: string): Promise<Session | null> {
+  const create = useCallback(async (agent?: string): Promise<Session | null> => {
     try {
-      const session = await workspace.client.createSession({
-        agent,
-      })
-      // Only add if not already present (SSE session:created may have arrived first)
-      setStore("sessions", (prev) => {
+      const session = await workspace.client.createSession({ agent })
+      setSessions((prev) => {
         if (prev.some((s) => s.id === session.id)) return prev
         return [session, ...prev]
       })
@@ -55,19 +51,19 @@ export function SessionsProvider(props: ParentProps) {
     } catch {
       return null
     }
-  }
+  }, [workspace.client])
 
-  async function remove(id: string) {
+  const remove = useCallback(async (id: string) => {
     try {
       await workspace.client.deleteSession(id)
     } catch {
-      // Server may fail (500) but still remove locally
+      // Server may fail but still remove locally
     }
-    setStore("sessions", (prev) => prev.filter((s) => s.id !== id))
-  }
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [workspace.client])
 
-  function upsert(session: Session) {
-    setStore("sessions", (prev) => {
+  const upsert = useCallback((session: Session) => {
+    setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === session.id)
       if (idx >= 0) {
         const next = [...prev]
@@ -76,23 +72,25 @@ export function SessionsProvider(props: ParentProps) {
       }
       return [session, ...prev]
     })
-  }
+  }, [])
 
-  function del(id: string) {
-    setStore("sessions", (prev) => prev.filter((s) => s.id !== id))
-  }
+  const del = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [])
 
-  onMount(() => { void refresh() })
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
 
-  const value: SessionsContext = {
-    list: () => store.sessions,
-    loading: () => store.loading,
+  const value = useMemo((): SessionsContext => ({
+    list: () => sessions,
+    loading: () => loading,
     create,
     remove,
     refresh,
     upsert,
     delete: del,
-  }
+  }), [sessions, loading, create, remove, refresh, upsert, del])
 
-  return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

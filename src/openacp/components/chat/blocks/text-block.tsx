@@ -1,5 +1,6 @@
-import { Markdown } from "../../../../ui/src/components/markdown"
-import { createPacedValue } from "../../../hooks/create-paced-value"
+import React from "react"
+import { Markdown } from "../../ui/markdown"
+import { usePacedValue } from "../../../hooks/use-paced-value"
 import type { TextBlock } from "../../../types"
 
 interface TextBlockProps {
@@ -7,18 +8,15 @@ interface TextBlockProps {
   streaming?: boolean
 }
 
-export function TextBlockView(props: TextBlockProps) {
-  const pacedText = createPacedValue(
-    () => props.block.content,
-    () => props.streaming ?? false,
-  )
+export function TextBlockView({ block, streaming }: TextBlockProps) {
+  const pacedText = usePacedValue(block.content, streaming ?? false)
 
   return (
-    <div class="min-w-0">
+    <div className="min-w-0">
       <Markdown
-        text={pacedText()}
-        cacheKey={props.block.id}
-        streaming={props.streaming}
+        text={pacedText}
+        cacheKey={block.id}
+        streaming={streaming}
       />
     </div>
   )

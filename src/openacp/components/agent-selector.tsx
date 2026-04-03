@@ -1,8 +1,4 @@
-import { createResource, createSignal, createEffect } from "solid-js"
-import { Popover } from "@kobalte/core/popover"
-import { Button } from "@openacp/ui/button"
-import { Icon } from "@openacp/ui/icon"
-import { List } from "@openacp/ui/list"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useWorkspace } from "../context/workspace"
 
 export function AgentSelector(props: {
@@ -10,77 +6,77 @@ export function AgentSelector(props: {
   onSelect: (agent: string) => void
 }) {
   const workspace = useWorkspace()
-  const [open, setOpen] = createSignal(false)
+  const [open, setOpen] = useState(false)
+  const [agents, setAgents] = useState<any[]>([])
+  const [search, setSearch] = useState("")
+  const rootRef = useRef<HTMLDivElement>(null)
 
-  const [agents] = createResource(async () => {
-    try {
-      const result = await workspace.client.agents()
-      return result.agents
-    } catch {
-      return []
+  useEffect(() => {
+    workspace.client.agents().then((r: any) => setAgents(r.agents || [])).catch(() => setAgents([]))
+  }, [workspace.client])
+
+  // Auto-select first agent
+  useEffect(() => {
+    if (agents.length > 0 && !props.current) {
+      props.onSelect(agents[0].name)
     }
-  })
+  }, [agents, props.current])
 
-  // Auto-select first agent if none selected
-  createEffect(() => {
-    const list = agents()
-    if (list && list.length > 0 && !props.current) {
-      props.onSelect(list[0].name)
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    function handle(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
     }
-  })
+    document.addEventListener("mousedown", handle)
+    return () => document.removeEventListener("mousedown", handle)
+  }, [open])
 
-  const currentName = () => {
-    const name = props.current
-    if (!name) return "Select Agent"
-    const agent = agents()?.find((a) => a.name === name)
-    return agent?.displayName || agent?.name || name
-  }
+  const currentName = (() => {
+    if (!props.current) return "Select Agent"
+    const agent = agents.find((a) => a.name === props.current)
+    return agent?.displayName || agent?.name || props.current
+  })()
+
+  const filtered = search
+    ? agents.filter((a) => (a.displayName || a.name).toLowerCase().includes(search.toLowerCase()))
+    : agents
 
   return (
-    <Popover
-      open={open()}
-      onOpenChange={setOpen}
-      placement="top-start"
-      gutter={4}
-    >
-      <Popover.Trigger
-        as={Button}
-        variant="ghost"
-        size="normal"
-        class="min-w-0 max-w-[320px] text-13-regular text-text-base capitalize"
+    <div ref={rootRef} className="relative">
+      <button
+        className="min-w-0 max-w-[320px] text-13-regular text-text-base capitalize flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface-raised-base-hover"
+        onClick={() => setOpen(!open)}
       >
-        <span class="truncate">{currentName()}</span>
-        <Icon name="chevron-down" size="small" class="shrink-0" />
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          class="w-72 h-80 flex flex-col p-2 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 outline-none overflow-hidden"
-          onEscapeKeyDown={(e: Event) => { e.preventDefault(); setOpen(false) }}
-          onPointerDownOutside={() => setOpen(false)}
-          onFocusOutside={() => setOpen(false)}
-        >
-          <Popover.Title class="sr-only">Select agent</Popover.Title>
-          <List
-            class="flex-1 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 p-1"
-            search={{ placeholder: "Search agents...", autofocus: true }}
-            emptyMessage="No agents available"
-            key={(x: any) => x.name}
-            items={() => agents() || []}
-            current={props.current}
-            filterKeys={["name", "displayName"]}
-            onSelect={(x: any) => {
-              if (x) props.onSelect(x.name)
-              setOpen(false)
-            }}
-          >
-            {(i: any) => (
-              <div class="w-full flex items-center gap-x-2 text-13-regular">
-                <span class="truncate capitalize">{i.displayName || i.name}</span>
-              </div>
-            )}
-          </List>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover>
+        <span className="truncate">{currentName}</span>
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M5.83 8.33L10 12.5l4.17-4.17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {open && (
+        <div className="absolute bottom-full mb-1 left-0 w-72 max-h-80 flex flex-col p-2 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-hidden">
+          <input
+            type="text"
+            placeholder="Search agents..."
+            className="w-full bg-transparent text-13-regular text-text-strong placeholder:text-text-weak focus:outline-none mb-1 px-2 py-1"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="flex-1 overflow-y-auto">
+            {filtered.length === 0 && <div className="text-13-regular text-text-weak px-2 py-2">No agents available</div>}
+            {filtered.map((agent: any) => (
+              <button
+                key={agent.name}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-13-regular hover:bg-surface-raised-base-hover ${
+                  agent.name === props.current ? "text-text-strong" : "text-text-base"
+                }`}
+                onClick={() => { props.onSelect(agent.name); setOpen(false) }}
+              >
+                <span className="truncate capitalize">{agent.displayName || agent.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
