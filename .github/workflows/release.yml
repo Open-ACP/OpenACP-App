@@ -91,10 +91,11 @@ jobs:
           SEMVER=$(node -e "
             const v = '$VERSION';
             const parts = v.split('.');
-            const year = parts[0];
-            const mmdd = parts[1];
-            const n = parts[2] || '0';
-            console.log('0.' + year + '.' + mmdd + n);
+            const year = parseInt(parts[0]);
+            const mmdd = parseInt(parts[1]);
+            const n = parseInt(parts[2] || '0');
+            const patch = mmdd * 100 + n;
+            console.log(year + '.' + mmdd + '.' + n);
           ")
           # Update package.json with date-based version (for display)
           node -e "
