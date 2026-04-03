@@ -86,40 +86,22 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
-          # Convert date-based version (2026.0403.1) to valid semver
-          # YYYY.MMDD.N → YYYY.MMDD.N (keep as-is, but ensure MMDD has no leading zero for semver)
-          # Semver doesn't allow leading zeros, so 0403 → 403
-          # To preserve the full date, encode as: YYYY.(M*100+DD).N
-          # e.g. 2026.0403.2 → 2026.403.2
-          SEMVER=$(node -e "
+          echo "Version: $VERSION"
+          # Version format is YYYY.MDD.N (e.g. 2026.403.1) — already semver-compatible
+          node -e "
+            const fs = require('fs');
             const v = '$VERSION';
-            const parts = v.split('.');
-            const year = parts[0];
-            const mmdd = String(parseInt(parts[1]));
-            const n = parts[2] || '0';
-            console.log(year + '.' + mmdd + '.' + n);
-          ")
-          echo "SEMVER=$SEMVER"
-          echo "VERSION=$VERSION"
-          # Update package.json
-          node -e "
-            const fs = require('fs');
+            // package.json
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$SEMVER';
+            pkg.version = v;
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-          # Update tauri.conf.json
-          node -e "
-            const fs = require('fs');
+            // tauri.conf.json
             const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
-            conf.version = '$SEMVER';
+            conf.version = v;
             fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
-          "
-          # Update Cargo.toml
-          node -e "
-            const fs = require('fs');
+            // Cargo.toml
             let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
-            cargo = cargo.replace(/^version = \".*\"/m, 'version = \"$SEMVER\"');
+            cargo = cargo.replace(/^version = \".*\"/m, 'version = \"' + v + '\"');
             fs.writeFileSync('src-tauri/Cargo.toml', cargo);
           "
 
