@@ -166,7 +166,7 @@ export function CommandPalette({
       await workspace.client.setSessionConfig(sessionID, configId, value)
       onConfigChanged?.()
     } catch (e) {
-      const { showToast } = await import("../../ui/src/components/toast")
+      const { showToast } = await import("../lib/toast")
       showToast({ description: "Failed to set config", variant: "error" })
     }
     setSubPicker(null)
@@ -219,7 +219,7 @@ export function CommandPalette({
         const s = await sessions.create()
         if (s) chat.setActiveSession(s.id)
         else {
-          const { showToast } = await import("../../ui/src/components/toast")
+          const { showToast } = await import("../lib/toast")
           showToast({ description: "Failed to create session", variant: "error" })
         }
         onClose()

@@ -97,8 +97,7 @@ function NewSessionButton() {
           if (session) {
             chat.setActiveSession(session.id)
           } else {
-            const { showToast } = await import("../../ui/src/components/toast")
-            showToast({ description: "Failed to create session. Max sessions may be reached.", variant: "error" })
+            console.error("Failed to create session. Max sessions may be reached.")
           }
         } finally {
           setCreating(false)

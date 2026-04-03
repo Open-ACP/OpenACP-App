@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from "react"
 import DOMPurify from "dompurify"
 import morphdom from "morphdom"
 import { checksum } from "@openacp/util/encode"
-import { stream } from "@openacp/ui/markdown-stream"
+import { stream } from "../../lib/markdown-stream"
 
 type Entry = {
   hash: string

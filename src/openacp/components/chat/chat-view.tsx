@@ -72,7 +72,7 @@ function EmptyState() {
       if (session) {
         chat.setActiveSession(session.id)
       } else {
-        const { showToast } = await import("../../../ui/src/components/toast")
+        const { showToast } = await import("../../lib/toast")
         showToast({ description: "Failed to create session. Max sessions may be reached.", variant: "error" })
       }
     } finally {

@@ -1,5 +1,38 @@
-import * as i18n from "@solid-primitives/i18n"
 import { Store } from "@tauri-apps/plugin-store"
+
+// i18n utilities (replaces @solid-primitives/i18n)
+type FlatDict = Record<string, string>
+
+function flatten(obj: Record<string, any>, prefix = ""): FlatDict {
+  const result: FlatDict = {}
+  for (const key of Object.keys(obj)) {
+    const path = prefix ? `${prefix}.${key}` : key
+    const value = obj[key]
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(result, flatten(value, path))
+    } else if (typeof value === "string") {
+      result[path] = value
+    }
+  }
+  return result
+}
+
+function resolveTemplate(raw: string, params?: Record<string, string | number>): string {
+  if (!params) return raw
+  return raw.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const val = params[key]
+    return val != null ? String(val) : `{{${key}}}`
+  })
+}
+
+function translator(getDict: () => FlatDict, resolve: typeof resolveTemplate) {
+  return (key: string, params?: Record<string, string | number>): string => {
+    const dict = getDict()
+    const raw = dict[key]
+    if (raw == null) return key
+    return resolve(raw, params)
+  }
+}
 
 import { dict as desktopEn } from "./en"
 import { dict as desktopZh } from "./zh"
@@ -17,21 +50,6 @@ import { dict as desktopNo } from "./no"
 import { dict as desktopBr } from "./br"
 import { dict as desktopBs } from "./bs"
 
-import { dict as appEn } from "../../app/i18n/en"
-import { dict as appZh } from "../../app/i18n/zh"
-import { dict as appZht } from "../../app/i18n/zht"
-import { dict as appKo } from "../../app/i18n/ko"
-import { dict as appDe } from "../../app/i18n/de"
-import { dict as appEs } from "../../app/i18n/es"
-import { dict as appFr } from "../../app/i18n/fr"
-import { dict as appDa } from "../../app/i18n/da"
-import { dict as appJa } from "../../app/i18n/ja"
-import { dict as appPl } from "../../app/i18n/pl"
-import { dict as appRu } from "../../app/i18n/ru"
-import { dict as appAr } from "../../app/i18n/ar"
-import { dict as appNo } from "../../app/i18n/no"
-import { dict as appBr } from "../../app/i18n/br"
-import { dict as appBs } from "../../app/i18n/bs"
 
 export type Locale =
   | "en"
@@ -50,8 +68,7 @@ export type Locale =
   | "br"
   | "bs"
 
-type RawDictionary = typeof appEn & typeof desktopEn
-type Dictionary = i18n.Flatten<RawDictionary>
+type Dictionary = FlatDict
 
 const LOCALES: readonly Locale[] = [
   "en",
@@ -136,24 +153,24 @@ function pickLocale(value: unknown): Locale | null {
   return parseLocale(record.locale)
 }
 
-const base = i18n.flatten({ ...appEn, ...desktopEn })
+const base = flatten(desktopEn)
 
 function build(locale: Locale): Dictionary {
   if (locale === "en") return base
-  if (locale === "zh") return { ...base, ...i18n.flatten(appZh), ...i18n.flatten(desktopZh) }
-  if (locale === "zht") return { ...base, ...i18n.flatten(appZht), ...i18n.flatten(desktopZht) }
-  if (locale === "de") return { ...base, ...i18n.flatten(appDe), ...i18n.flatten(desktopDe) }
-  if (locale === "es") return { ...base, ...i18n.flatten(appEs), ...i18n.flatten(desktopEs) }
-  if (locale === "fr") return { ...base, ...i18n.flatten(appFr), ...i18n.flatten(desktopFr) }
-  if (locale === "da") return { ...base, ...i18n.flatten(appDa), ...i18n.flatten(desktopDa) }
-  if (locale === "ja") return { ...base, ...i18n.flatten(appJa), ...i18n.flatten(desktopJa) }
-  if (locale === "pl") return { ...base, ...i18n.flatten(appPl), ...i18n.flatten(desktopPl) }
-  if (locale === "ru") return { ...base, ...i18n.flatten(appRu), ...i18n.flatten(desktopRu) }
-  if (locale === "ar") return { ...base, ...i18n.flatten(appAr), ...i18n.flatten(desktopAr) }
-  if (locale === "no") return { ...base, ...i18n.flatten(appNo), ...i18n.flatten(desktopNo) }
-  if (locale === "br") return { ...base, ...i18n.flatten(appBr), ...i18n.flatten(desktopBr) }
-  if (locale === "bs") return { ...base, ...i18n.flatten(appBs), ...i18n.flatten(desktopBs) }
-  return { ...base, ...i18n.flatten(appKo), ...i18n.flatten(desktopKo) }
+  if (locale === "zh") return { ...base, ...flatten(desktopZh) }
+  if (locale === "zht") return { ...base, ...flatten(desktopZht) }
+  if (locale === "de") return { ...base, ...flatten(desktopDe) }
+  if (locale === "es") return { ...base, ...flatten(desktopEs) }
+  if (locale === "fr") return { ...base, ...flatten(desktopFr) }
+  if (locale === "da") return { ...base, ...flatten(desktopDa) }
+  if (locale === "ja") return { ...base, ...flatten(desktopJa) }
+  if (locale === "pl") return { ...base, ...flatten(desktopPl) }
+  if (locale === "ru") return { ...base, ...flatten(desktopRu) }
+  if (locale === "ar") return { ...base, ...flatten(desktopAr) }
+  if (locale === "no") return { ...base, ...flatten(desktopNo) }
+  if (locale === "br") return { ...base, ...flatten(desktopBr) }
+  if (locale === "bs") return { ...base, ...flatten(desktopBs) }
+  return { ...base, ...flatten(desktopKo) }
 }
 
 const state = {
@@ -164,7 +181,7 @@ const state = {
 
 state.dict = build(state.locale)
 
-const translate = i18n.translator(() => state.dict, i18n.resolveTemplate)
+const translate = translator(() => state.dict, resolveTemplate)
 
 export function t(key: keyof Dictionary, params?: Record<string, string | number>) {
   return translate(key, params)

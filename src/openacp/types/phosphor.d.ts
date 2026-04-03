@@ -1,5 +1,5 @@
 declare module "phosphor-solid-js/dist/icons/*.esm" {
-  import { Component } from "solid-js"
+  import React from "react"
   interface PhosphorIconProps {
     size?: number | string
     weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone"
@@ -7,6 +7,6 @@ declare module "phosphor-solid-js/dist/icons/*.esm" {
     class?: string
     mirrored?: boolean
   }
-  const Icon: Component<PhosphorIconProps>
+  const Icon: React.FC<PhosphorIconProps>
   export default Icon
 }
