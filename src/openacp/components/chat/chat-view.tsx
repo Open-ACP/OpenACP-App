@@ -1,8 +1,9 @@
 import { For, Show, createMemo, createSignal, createEffect, on } from "solid-js"
-import { useChat } from "../context/chat"
-import { useSessions } from "../context/sessions"
-import { createAutoScroll } from "../../ui/src/hooks/create-auto-scroll"
-import { MessageBubble } from "./message"
+import { useChat } from "../../context/chat"
+import { useSessions } from "../../context/sessions"
+import { createAutoScroll } from "../../../ui/src/hooks/create-auto-scroll"
+import { UserMessage } from "./user-message"
+import { MessageTurn } from "./message-turn"
 
 function ChatHeader(props: { onOpenReview?: () => void }) {
   const chat = useChat()
@@ -16,14 +17,6 @@ function ChatHeader(props: { onOpenReview?: () => void }) {
 
   const title = createMemo(() => session()?.name || "Untitled")
 
-  const sseLabel = () => {
-    switch (chat.sseStatus()) {
-      case 'connected': return { text: 'Connected', color: 'bg-green-500' }
-      case 'reconnecting': return { text: 'Reconnecting...', color: 'bg-yellow-500 animate-pulse' }
-      default: return { text: 'Disconnected', color: 'bg-red-500' }
-    }
-  }
-
   return (
     <Show when={chat.activeSession()}>
       <div class="flex items-center h-11 px-4 border-b border-border-weaker-base flex-shrink-0">
@@ -31,10 +24,6 @@ function ChatHeader(props: { onOpenReview?: () => void }) {
           <span class="text-14-medium text-text-strong truncate block">{title()}</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <div class="flex items-center gap-1.5 px-2 py-1 rounded-md" title={`SSE: ${chat.sseStatus()}`}>
-            <span class={`w-1.5 h-1.5 rounded-full ${sseLabel().color}`} />
-            <span class="text-11-regular text-text-weaker">{sseLabel().text}</span>
-          </div>
           <button
             class="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors"
             title="Review changes"
@@ -83,7 +72,7 @@ function EmptyState() {
       if (session) {
         chat.setActiveSession(session.id)
       } else {
-        const { showToast } = await import("../../ui/src/components/toast")
+        const { showToast } = await import("../../../ui/src/components/toast")
         showToast({ description: "Failed to create session. Max sessions may be reached.", variant: "error" })
       }
     } finally {
@@ -190,12 +179,27 @@ export function ChatView(props: { onOpenReview?: () => void }) {
               <For each={chat.messages()}>
                 {(msg, index) => {
                   const isLast = () => index() === chat.messages().length - 1
+                  const isUser = () => msg.role === "user"
+                  const prevMsg = () => index() > 0 ? chat.messages()[index() - 1] : undefined
+                  // Spacing: more before user messages, less before assistant
+                  const topGap = () => {
+                    if (index() === 0) return "0px"
+                    if (isUser()) return "24px"
+                    // assistant after user: small gap
+                    if (prevMsg()?.role === "user") return "8px"
+                    return "16px"
+                  }
                   return (
-                    <MessageBubble
-                      message={msg}
-                      streaming={chat.streaming() && isLast() && msg.role === "assistant"}
-                      isFirst={index() === 0}
-                    />
+                    <div style={{ "margin-top": topGap() }}>
+                      {isUser() ? (
+                        <UserMessage message={msg} />
+                      ) : (
+                        <MessageTurn
+                          message={msg}
+                          streaming={chat.streaming() && isLast()}
+                        />
+                      )}
+                    </div>
                   )
                 }}
               </For>
