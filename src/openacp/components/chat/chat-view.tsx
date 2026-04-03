@@ -135,6 +135,11 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
     autoScroll.forceScrollToBottom()
   }, [chat.activeSession()])
 
+  // Scroll to bottom when a cross-adapter message arrives (message:queued)
+  useEffect(() => {
+    if (chat.scrollTrigger() > 0) autoScroll.forceScrollToBottom()
+  }, [chat.scrollTrigger()])
+
   const hasMessages = chat.activeSession() && chat.messages().length > 0
 
   return (

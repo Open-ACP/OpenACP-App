@@ -20,6 +20,7 @@ interface ChatContext {
   loadingHistory: () => boolean
   sseStatus: () => 'connected' | 'reconnecting' | 'disconnected'
   activeSession: () => string | undefined
+  scrollTrigger: () => number
   setActiveSession: (id: string) => void
   sendPrompt: (text: string, attachments?: import("../types").FileAttachment[]) => Promise<boolean>
   abort: () => void
@@ -135,6 +136,7 @@ interface ChatStore {
   streaming: boolean
   loadingHistory: boolean
   sseStatus: 'connected' | 'reconnecting' | 'disconnected'
+  scrollTrigger: number
 }
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
@@ -148,6 +150,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     streaming: false,
     loadingHistory: false,
     sseStatus: 'disconnected',
+    scrollTrigger: 0,
   })
 
   const abortedSessions = useRef(new Set<string>())
@@ -526,14 +529,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   function handleMessageQueued(ev: MessageQueuedEvent) {
     const userMsgId = nextId("usr-ext")
     turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
-    addMessage(ev.sessionId, {
-      id: userMsgId,
-      role: "user",
-      sessionID: ev.sessionId,
-      parts: [{ id: nextPartId(), type: "text", content: ev.text }],
-      blocks: [{ type: "text", id: nextPartId(), content: ev.text }],
-      createdAt: new Date(ev.timestamp).getTime(),
-      sourceAdapterId: ev.sourceAdapterId,
+    setStore((draft) => {
+      if (!draft.messagesBySession[ev.sessionId]) draft.messagesBySession[ev.sessionId] = []
+      draft.messagesBySession[ev.sessionId].push({
+        id: userMsgId,
+        role: "user",
+        sessionID: ev.sessionId,
+        parts: [{ id: nextPartId(), type: "text", content: ev.text }],
+        blocks: [{ type: "text", id: nextPartId(), content: ev.text }],
+        createdAt: new Date(ev.timestamp).getTime(),
+        sourceAdapterId: ev.sourceAdapterId,
+      })
+      // Sort by createdAt so the message lands in correct chronological position
+      // (it may arrive while a previous AI turn is still streaming)
+      draft.messagesBySession[ev.sessionId].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      draft.scrollTrigger++
     })
   }
 
@@ -651,6 +661,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     loadingHistory: () => store.loadingHistory,
     sseStatus: () => store.sseStatus,
     activeSession: () => store.activeSession,
+    scrollTrigger: () => store.scrollTrigger,
     setActiveSession,
     sendPrompt,
     abort,
