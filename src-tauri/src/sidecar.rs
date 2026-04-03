@@ -32,33 +32,34 @@ impl SidecarManager {
     /// ~/.openacp/api.port and ~/.openacp/api-secret
     pub async fn detect_running(&mut self) -> bool {
         let Some(info) = read_server_files() else {
+            tracing::debug!("detect_running: api.port or api-secret not found");
             return false;
         };
 
-        // Health check
+        tracing::debug!(url = %info.url, "detect_running: health-checking");
         if check_health(&info.url, &info.token).await {
+            tracing::info!(url = %info.url, "detect_running: server is up");
             self.server_info = Some(info);
             return true;
         }
 
+        tracing::debug!(url = %info.url, "detect_running: health check failed");
         false
     }
 
     /// Start the OpenACP server as a subprocess
     pub async fn start(&mut self) -> Result<(), String> {
-        // First check if already running
+        tracing::info!("start_server: checking if already running");
         if self.detect_running().await {
+            tracing::info!("start_server: server already running, skipping spawn");
             return Ok(());
         }
 
-        // Find openacp binary
         let bin = find_openacp_binary().ok_or("Could not find openacp binary")?;
-
-        tracing::info!(?bin, "Starting OpenACP server");
+        tracing::info!(?bin, "start_server: spawning openacp start");
 
         let child = tokio::process::Command::new(&bin)
             .arg("start")
-            .arg("--headless")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -66,11 +67,11 @@ impl SidecarManager {
 
         self.child = Some(child);
 
-        // Wait for server to become ready
-        for _ in 0..60 {
+        for i in 0..60 {
             tokio::time::sleep(Duration::from_millis(500)).await;
+            tracing::debug!("start_server: poll {}/60", i + 1);
             if self.detect_running().await {
-                tracing::info!("OpenACP server is ready");
+                tracing::info!("start_server: server ready after {}ms", (i + 1) * 500);
                 return Ok(());
             }
         }
@@ -94,16 +95,38 @@ fn openacp_dir() -> Option<PathBuf> {
 fn read_server_files() -> Option<ServerInfo> {
     let dir = openacp_dir()?;
 
-    let port_str = std::fs::read_to_string(dir.join("api.port")).ok()?;
-    let port: u16 = port_str.trim().parse().ok()?;
+    let port_path = dir.join("api.port");
+    let secret_path = dir.join("api-secret");
 
-    let token = std::fs::read_to_string(dir.join("api-secret")).ok()?;
-    let token = token.trim().to_string();
+    let port_str = match std::fs::read_to_string(&port_path) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::debug!("read_server_files: cannot read {}: {e}", port_path.display());
+            return None;
+        }
+    };
+    let port: u16 = match port_str.trim().parse() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::debug!("read_server_files: invalid port {:?}: {e}", port_str.trim());
+            return None;
+        }
+    };
+
+    let token = match std::fs::read_to_string(&secret_path) {
+        Ok(s) => s.trim().to_string(),
+        Err(e) => {
+            tracing::debug!("read_server_files: cannot read {}: {e}", secret_path.display());
+            return None;
+        }
+    };
 
     if token.is_empty() {
+        tracing::debug!("read_server_files: api-secret is empty");
         return None;
     }
 
+    tracing::debug!(port, "read_server_files: ok");
     Some(ServerInfo {
         url: format!("http://127.0.0.1:{port}"),
         token,
@@ -117,17 +140,28 @@ async fn check_health(url: &str, token: &str) -> bool {
         .build()
     {
         Ok(c) => c,
-        Err(_) => return false,
+        Err(e) => {
+            tracing::error!("check_health: failed to build reqwest client: {e}");
+            return false;
+        }
     };
 
-    let health_url = format!("{url}/api/health");
-    client
-        .get(&health_url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
+    let health_url = format!("{url}/api/v1/system/health");
+    match client.get(&health_url).send().await {
+        Ok(r) => {
+            let ok = r.status().is_success();
+            tracing::debug!(status = %r.status(), health_url, "check_health: response");
+            ok
+        }
+        Err(e) => {
+            tracing::debug!(health_url, "check_health: request failed: {e}");
+            false
+        }
+    }
+}
+
+pub fn find_openacp_binary_pub() -> Option<PathBuf> {
+    find_openacp_binary()
 }
 
 fn find_openacp_binary() -> Option<PathBuf> {

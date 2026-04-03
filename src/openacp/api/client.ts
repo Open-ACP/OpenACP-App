@@ -1,7 +1,32 @@
-import type { Agent, ServerInfo, Session } from "../types"
+import type { Agent, AuthInfo, ServerCommand, ServerInfo, Session, SessionHistory, StoredToken, TokenInfo } from "../types"
 
-export function createApiClient(server: ServerInfo) {
-  const { url, token } = server
+export function createApiClient(server: ServerInfo, workspaceId?: string) {
+  const { url } = server
+  let token = server.token
+  let onReconnectNeeded: (() => void) | undefined
+  let onTokenRefreshed: ((update: { expiresAt: string; refreshDeadline: string }) => void) | undefined
+
+  async function tryRefreshToken(): Promise<boolean> {
+    try {
+      const res = await fetch(`${url}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return false
+      const data: TokenInfo = await res.json()
+      token = data.accessToken
+      // Persist refreshed token to keychain
+      if (workspaceId) {
+        const { setKeychainToken } = await import('./keychain.js')
+        await setKeychainToken(workspaceId, data.accessToken)
+      }
+      // Notify caller so WorkspaceEntry dates can be updated in the store
+      onTokenRefreshed?.({ expiresAt: data.expiresAt, refreshDeadline: data.refreshDeadline })
+      return true
+    } catch {
+      return false
+    }
+  }
 
   async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${url}/api/v1${path}`, {
@@ -12,6 +37,29 @@ export function createApiClient(server: ServerInfo) {
         ...(init?.headers as Record<string, string> | undefined),
       },
     })
+
+    // Auto-refresh expired JWT and retry once
+    if (res.status === 401 && token.startsWith("eyJ")) {
+      const refreshed = await tryRefreshToken()
+      if (refreshed) {
+        const retry = await fetch(`${url}/api/v1${path}`, {
+          ...init,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            ...(init?.headers as Record<string, string> | undefined),
+          },
+        })
+        if (!retry.ok) {
+          const body = await retry.text().catch(() => "")
+          throw new Error(`API ${retry.status} ${path}: ${body}`)
+        }
+        return retry.json()
+      }
+      // Refresh failed — token is no longer valid
+      onReconnectNeeded?.()
+    }
+
     if (!res.ok) {
       const body = await res.text().catch(() => "")
       throw new Error(`API ${res.status} ${path}: ${body}`)
@@ -20,6 +68,10 @@ export function createApiClient(server: ServerInfo) {
   }
 
   return {
+    /** Register a callback invoked when the JWT can no longer be refreshed */
+    setOnReconnectNeeded(cb: () => void) { onReconnectNeeded = cb },
+    /** Register a callback invoked after a successful token refresh with updated expiry dates */
+    setOnTokenRefreshed(cb: (update: { expiresAt: string; refreshDeadline: string }) => void) { onTokenRefreshed = cb },
     /** Check server health */
     async health(): Promise<boolean> {
       try {
@@ -28,6 +80,12 @@ export function createApiClient(server: ServerInfo) {
       } catch {
         return false
       }
+    },
+
+    /** Get the server version string (e.g. "2026.327.1") */
+    async getServerVersion(): Promise<string> {
+      const res = await api<{ version: string }>("/system/health")
+      return res.version
     },
 
     /** List agents (models) available on this workspace server */
@@ -85,6 +143,112 @@ export function createApiClient(server: ServerInfo) {
         method: "PUT",
         body: JSON.stringify({ value }),
       })
+    },
+
+    /** Generate a new JWT token (requires secret token auth) */
+    async generateToken(opts: { role: string; name: string; expire?: string; scopes?: string[] }): Promise<TokenInfo> {
+      return api("/auth/tokens", {
+        method: "POST",
+        body: JSON.stringify(opts),
+      })
+    },
+
+    /** Refresh the current JWT (works even if expired, within refresh deadline) */
+    async refreshToken(): Promise<TokenInfo> {
+      const data = await api<TokenInfo>("/auth/refresh", { method: "POST" })
+      token = data.accessToken
+      return data
+    },
+
+    /** List active tokens (requires auth:manage scope) */
+    async listTokens(): Promise<StoredToken[]> {
+      const res = await api<{ tokens: StoredToken[] }>("/auth/tokens")
+      return res.tokens || []
+    },
+
+    /** Revoke a token by ID (requires auth:manage scope) */
+    async revokeToken(tokenId: string): Promise<void> {
+      await api(`/auth/tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" })
+    },
+
+    /** Get current auth info (role, scopes, expiry) */
+    async me(): Promise<AuthInfo> {
+      return api("/auth/me")
+    },
+
+    /** List registered commands from server */
+    async getCommands(): Promise<ServerCommand[]> {
+      try {
+        const res = await api<{ commands: any[] }>("/commands")
+        return (res.commands || []).map((c: any) => ({
+          name: c.name,
+          description: c.description || "",
+          usage: c.usage || "",
+          category: c.category || "system",
+        }))
+      } catch {
+        return []
+      }
+    },
+
+    /** Execute a server command */
+    async executeCommand(command: string, sessionID?: string): Promise<{ result?: any; error?: string }> {
+      try {
+        const body: Record<string, string> = { command }
+        if (sessionID) body.sessionId = sessionID
+        return await api("/commands/execute", {
+          method: "POST",
+          body: JSON.stringify(body),
+        })
+      } catch (e: any) {
+        return { error: e?.message || "Command failed" }
+      }
+    },
+
+    /** Set client overrides (bypass permissions, etc.) */
+    async setClientOverrides(sessionID: string, overrides: { bypassPermissions?: boolean }): Promise<void> {
+      await api(`/sessions/${encodeURIComponent(sessionID)}/config/overrides`, {
+        method: "PUT",
+        body: JSON.stringify(overrides),
+      })
+    },
+
+    /** Get full conversation history for a session */
+    async getSessionHistory(sessionID: string): Promise<SessionHistory | null> {
+      try {
+        const res = await api<{ history: SessionHistory }>(`/sessions/${encodeURIComponent(sessionID)}/history`)
+        return res.history
+      } catch {
+        return null
+      }
+    },
+
+    /** List all installed plugins with runtime state */
+    async listPlugins(): Promise<{ plugins: import('../types').InstalledPlugin[] }> {
+      return api('/plugins')
+    },
+
+    /** Fetch marketplace plugins (proxied from registry, with installed flag) */
+    async getMarketplace(): Promise<{
+      plugins: import('../types').MarketplacePlugin[]
+      categories: import('../types').MarketplaceCategory[]
+    }> {
+      return api('/plugins/marketplace')
+    },
+
+    /** Enable a plugin via hot-load */
+    async enablePlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}/enable`, { method: 'POST' })
+    },
+
+    /** Disable a plugin via hot-unload */
+    async disablePlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}/disable`, { method: 'POST' })
+    },
+
+    /** Uninstall a plugin (remove from registry + unload) */
+    async uninstallPlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}`, { method: 'DELETE' })
     },
 
     /** SSE events URL for EventSource */

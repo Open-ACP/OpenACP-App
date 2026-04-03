@@ -14,7 +14,7 @@ Desktop application for [OpenACP](https://github.com/lngdao/OpenACP) — manage 
 - [OpenACP](https://github.com/lngdao/OpenACP) server running in your workspace (`openacp start`)
 - Node.js 22+
 - pnpm 9+
-- Rust (for Tauri)
+- Rust (for Tauri) — install via [rustup.rs](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 
 ## Development
 

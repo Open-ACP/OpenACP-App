@@ -1,28 +1,32 @@
-import { createContext, useContext, onCleanup, onMount, type ParentProps } from "solid-js"
-import { createStore, produce } from "solid-js/store"
+import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo } from "react"
+import { useImmer } from "use-immer"
 import { useWorkspace } from "./workspace"
 import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
-import type { AgentEvent, Message } from "../types"
+import { cacheMessages, loadCachedMessages } from "../api/history-cache"
+import type {
+  AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
+  TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
+  SessionHistory, HistoryTurn, HistoryStep,
+} from "../types"
+import {
+  resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
+} from "../components/chat/block-utils"
 
 interface ChatContext {
-  /** Messages for active session */
   messages: () => Message[]
-  /** Is assistant currently streaming */
   streaming: () => boolean
-  /** Active session ID */
+  loadingHistory: () => boolean
+  sseStatus: () => 'connected' | 'reconnecting' | 'disconnected'
   activeSession: () => string | undefined
-  /** Set active session */
   setActiveSession: (id: string) => void
-  /** Send a prompt */
   sendPrompt: (text: string) => Promise<boolean>
-  /** Abort current response */
   abort: () => void
-  /** Connect SSE for workspace */
   connect: () => void
+  addCommandResponse: (sessionID: string, text: string, role?: "user" | "assistant") => void
 }
 
-const Ctx = createContext<ChatContext>()
+const Ctx = createContext<ChatContext | undefined>(undefined)
 
 export function useChat() {
   const ctx = useContext(Ctx)
@@ -30,167 +34,529 @@ export function useChat() {
   return ctx
 }
 
-export function ChatProvider(props: ParentProps) {
+// ── History → Message conversion ────────────────────────────────────────────
+
+let idCounter = 0
+function uid(prefix: string) { return `${prefix}-${++idCounter}` }
+
+function historyToMessages(history: SessionHistory): Message[] {
+  const messages: Message[] = []
+  for (const turn of history.turns) {
+    messages.push(turnToMessage(turn, history.sessionId))
+  }
+  return messages
+}
+
+function stepToBlock(step: HistoryStep): MessageBlock | null {
+  switch (step.type) {
+    case "text":
+      return { type: "text", id: uid("b"), content: step.content as string }
+    case "thinking":
+      return { type: "thinking", id: uid("b"), content: step.content as string, durationMs: null, isStreaming: false }
+    case "tool_call": {
+      const s = step as any
+      const kind = resolveKind(s.name ?? "", s.kind)
+      const input = (s.input as Record<string, unknown> | null) ?? null
+      const title = buildTitle(s.name ?? "", kind, input)
+      return {
+        type: "tool", id: s.id ?? uid("b"), name: s.name ?? "", kind,
+        status: (s.status as ToolBlock["status"]) || "completed",
+        title, description: extractDescription(input, title),
+        command: extractCommand(kind, input), input,
+        output: typeof s.output === "string" ? s.output : s.output ? JSON.stringify(s.output) : null,
+        diffStats: null, isNoise: isNoiseTool(s.name ?? ""), isHidden: false,
+      }
+    }
+    case "plan": {
+      const entries = validatePlanEntries((step as any).entries ?? [])
+      if (entries.length === 0) return null
+      return { type: "plan", id: uid("b"), entries }
+    }
+    default:
+      return null
+  }
+}
+
+function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
+  const id = uid(turn.role === "user" ? "hist-usr" : "hist-ast")
+  const parts: MessagePart[] = []
+  const blocks: MessageBlock[] = []
+
+  if (turn.role === "user") {
+    if (turn.content) {
+      parts.push({ id: uid("p"), type: "text", content: turn.content })
+      blocks.push({ type: "text", id: uid("b"), content: turn.content })
+    }
+  } else if (turn.steps) {
+    for (const step of turn.steps) {
+      const part = stepToPart(step)
+      if (part) parts.push(part)
+      const block = stepToBlock(step)
+      if (block) blocks.push(block)
+    }
+  }
+
+  return {
+    id, role: turn.role, sessionID: sessionId,
+    parts, blocks,
+    createdAt: new Date(turn.timestamp).getTime(),
+  }
+}
+
+function stepToPart(step: HistoryStep): MessagePart | null {
+  switch (step.type) {
+    case "text":
+      return { id: uid("p"), type: "text", content: step.content as string }
+    case "thinking":
+      return { id: uid("p"), type: "thinking", content: step.content as string }
+    case "tool_call": {
+      const s = step as any
+      const diff: FileDiff | null = s.diff ? { path: s.diff.path || "", before: s.diff.oldText, after: s.diff.newText } : null
+      return {
+        id: uid("p"), type: "tool_call",
+        toolCallId: step.id as string, name: step.name as string,
+        status: (step.status as ToolCallPart["status"]) || "completed",
+        input: step.input as Record<string, unknown> | undefined,
+        output: typeof step.output === "string" ? step.output : step.output ? JSON.stringify(step.output) : undefined,
+        diff,
+      }
+    }
+    default:
+      return null
+  }
+}
+
+// ── Chat Provider ───────────────────────────────────────────────────────────
+
+interface ChatStore {
+  messagesBySession: Record<string, Message[]>
+  activeSession: string | undefined
+  streaming: boolean
+  loadingHistory: boolean
+  sseStatus: 'connected' | 'reconnecting' | 'disconnected'
+}
+
+export function ChatProvider({ children }: { children: React.ReactNode }) {
   const workspace = useWorkspace()
   const sessions = useSessions()
-  const sse = createSSEManager()
+  const sseRef = useRef(createSSEManager())
 
-  const [store, setStore] = createStore({
-    // sessionID → messages
-    messagesBySession: {} as Record<string, Message[]>,
-    activeSession: undefined as string | undefined,
+  const [store, setStore] = useImmer<ChatStore>({
+    messagesBySession: {},
+    activeSession: undefined,
     streaming: false,
+    loadingHistory: false,
+    sseStatus: 'disconnected',
   })
 
-  // Track accumulated text per session for streaming
-  const abortedSessions = new Set<string>()
-  const textAccum = new Map<string, string>()
-  // Track assistant message/part IDs per session
-  const assistantState = new Map<string, { msgId: string; partId: string; parentId?: string }>()
-  // Message ID counter
-  let msgCounter = 0
+  const abortedSessions = useRef(new Set<string>())
+  const assistantMsgId = useRef(new Map<string, string>())
+  const thinkingStartTime = useRef(new Map<string, number>())
+  const msgCounter = useRef(0)
+  const partCounter = useRef(0)
+  const sendingRef = useRef(false)
 
-  function nextMsgId() {
-    return `msg-${Date.now()}-${++msgCounter}`
+  // Text batching
+  const textBuffer = useRef(new Map<string, string>())
+  const thoughtBuffer = useRef(new Map<string, string>())
+  const flushScheduled = useRef(false)
+
+  function nextId(prefix: string) {
+    return `${prefix}-${Date.now()}-${++msgCounter.current}`
+  }
+  function nextPartId() {
+    return `part-${Date.now()}-${++partCounter.current}`
   }
 
   function addMessage(sessionID: string, msg: Message) {
-    setStore("messagesBySession", sessionID, (prev) => {
-      const msgs = prev || []
-      return [...msgs, msg]
+    setStore((draft) => {
+      if (!draft.messagesBySession[sessionID]) draft.messagesBySession[sessionID] = []
+      draft.messagesBySession[sessionID].push(msg)
     })
   }
 
-  function updateLastAssistantContent(sessionID: string, content: string) {
-    setStore("messagesBySession", sessionID, produce((msgs) => {
+  function setMessages(sessionID: string, msgs: Message[]) {
+    setStore((draft) => { draft.messagesBySession[sessionID] = msgs })
+  }
+
+  function updateAssistantParts(sessionID: string, updater: (parts: MessagePart[]) => void) {
+    const msgId = assistantMsgId.current.get(sessionID)
+    if (!msgId) return
+    setStore((draft) => {
+      const msgs = draft.messagesBySession[sessionID]
       if (!msgs) return
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        if (msgs[i].role === "assistant") {
-          msgs[i].content = content
-          break
+      const msg = msgs.find((m) => m.id === msgId)
+      if (msg) updater(msg.parts)
+    })
+  }
+
+  function updateAssistantBlocks(sessionID: string, updater: (blocks: MessageBlock[]) => void) {
+    const msgId = assistantMsgId.current.get(sessionID)
+    if (!msgId) return
+    setStore((draft) => {
+      const msgs = draft.messagesBySession[sessionID]
+      if (!msgs) return
+      const msg = msgs.find((m) => m.id === msgId)
+      if (msg) updater(msg.blocks)
+    })
+  }
+
+  function ensureAssistantMessage(sessionID: string, parentId?: string): string {
+    let msgId = assistantMsgId.current.get(sessionID)
+    if (msgId) return msgId
+
+    msgId = nextId("ast")
+    assistantMsgId.current.set(sessionID, msgId)
+    addMessage(sessionID, {
+      id: msgId, role: "assistant", sessionID,
+      parts: [], blocks: [], createdAt: Date.now(), parentID: parentId,
+    })
+    setStore((draft) => { draft.streaming = true })
+    return msgId
+  }
+
+  function findToolPart(parts: MessagePart[], toolCallId: string): ToolCallPart | undefined {
+    return parts.find((p) => p.type === "tool_call" && p.toolCallId === toolCallId) as ToolCallPart | undefined
+  }
+
+  // ── History loading ─────────────────────────────────────────────────────
+
+  async function loadHistory(sessionID: string) {
+    const hasInMemory = (store.messagesBySession[sessionID]?.length ?? 0) > 0
+
+    if (!hasInMemory) {
+      const cached = await loadCachedMessages(sessionID)
+      if (cached && cached.length > 0) {
+        setMessages(sessionID, cached)
+      }
+    }
+
+    setStore((draft) => { draft.loadingHistory = true })
+    try {
+      const history = await workspace.client.getSessionHistory(sessionID)
+      if (history && history.turns.length > 0) {
+        const serverMessages = historyToMessages(history)
+        const current = store.messagesBySession[sessionID] ?? []
+        const lastServerTurn = history.turns[history.turns.length - 1]
+        const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
+        const inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
+        setMessages(sessionID, [...serverMessages, ...inFlight])
+        void cacheMessages(sessionID, serverMessages)
+      }
+    } catch {
+      // Server unavailable
+    } finally {
+      setStore((draft) => { draft.loadingHistory = false })
+    }
+  }
+
+  // ── Diff extraction ──────────────────────────────────────────────────
+
+  function extractDiff(evt: { meta?: Record<string, unknown>; rawInput?: Record<string, unknown>; rawOutput?: unknown; content?: unknown; name?: string }): FileDiff | null {
+    const meta = evt.meta as Record<string, any> | undefined
+    if (meta?.filediff) {
+      const fd = meta.filediff
+      return { path: fd.path || "", before: fd.before ?? fd.oldText, after: fd.after ?? fd.newText }
+    }
+    if (Array.isArray(evt.content)) {
+      for (const item of evt.content) {
+        if (item && typeof item === "object" && (item as any).type === "diff") {
+          const d = item as any
+          return { path: d.path || "", before: d.oldText ?? undefined, after: d.newText ?? "" }
         }
       }
-    }))
+    }
+    let input: Record<string, any> | undefined
+    for (const src of [evt.rawInput, evt.content]) {
+      if (!src || Array.isArray(src)) continue
+      if (typeof src === "string") {
+        try { input = JSON.parse(src) } catch { /* ignore */ }
+      } else if (typeof src === "object") {
+        const obj = src as Record<string, any>
+        if (obj.input && typeof obj.input === "object") {
+          input = obj.input as Record<string, any>
+        } else if (obj.file_path || obj.filePath || obj.old_string || obj.content) {
+          input = obj
+        }
+      }
+      if (input && Object.keys(input).length > 0) break
+    }
+    if (!input) return null
+    const name = (evt.name || "").toLowerCase()
+    const path = (input.file_path || input.filePath || input.path || "") as string
+    if (name === "edit" && (input.old_string != null || input.new_string != null)) {
+      return { path, before: input.old_string != null ? String(input.old_string) : undefined, after: String(input.new_string ?? input.content ?? "") }
+    }
+    if (name === "write" && input.content != null) {
+      return { path, after: String(input.content) }
+    }
+    if (name === "apply_patch" && input.patch != null) {
+      return { path: input.file_path || input.path || "patch", after: String(input.patch) }
+    }
+    return null
   }
+
+  // ── Text batching ────────────────────────────────────────────────
+
+  function scheduleFlush() {
+    if (flushScheduled.current) return
+    flushScheduled.current = true
+    requestAnimationFrame(flushBuffers)
+  }
+
+  function flushBuffers() {
+    flushScheduled.current = false
+
+    for (const [sessionID, text] of textBuffer.current) {
+      ensureAssistantMessage(sessionID)
+      const thinkStart = thinkingStartTime.current.get(sessionID)
+      if (thinkStart) {
+        const durationMs = Date.now() - thinkStart
+        thinkingStartTime.current.delete(sessionID)
+        updateAssistantBlocks(sessionID, (blocks) => {
+          const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+          if (thinking) {
+            thinking.isStreaming = false
+            thinking.durationMs = durationMs
+          }
+        })
+      }
+      updateAssistantParts(sessionID, (parts) => {
+        const last = parts[parts.length - 1]
+        if (last?.type === "text") {
+          last.content += text
+        } else {
+          parts.push({ id: nextPartId(), type: "text", content: text })
+        }
+      })
+      updateAssistantBlocks(sessionID, (blocks) => {
+        const last = blocks[blocks.length - 1]
+        if (last?.type === "text") {
+          (last as TextBlock).content += text
+        } else {
+          blocks.push({ type: "text", id: nextPartId(), content: text })
+        }
+      })
+    }
+    textBuffer.current.clear()
+
+    for (const [sessionID, text] of thoughtBuffer.current) {
+      ensureAssistantMessage(sessionID)
+      updateAssistantParts(sessionID, (parts) => {
+        const existing = [...parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
+        if (existing) {
+          existing.content += text
+        } else {
+          parts.push({ id: nextPartId(), type: "thinking", content: text })
+        }
+      })
+      updateAssistantBlocks(sessionID, (blocks) => {
+        const existing = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+        if (existing) {
+          existing.content += text
+        } else {
+          if (!thinkingStartTime.current.has(sessionID)) {
+            thinkingStartTime.current.set(sessionID, Date.now())
+          }
+          blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
+        }
+      })
+    }
+    thoughtBuffer.current.clear()
+  }
+
+  // ── SSE event handling ──────────────────────────────────────────────────
 
   function handleAgentEvent(event: AgentEvent) {
     const sessionID = event.sessionId
     if (!sessionID) return
-    if (abortedSessions.has(sessionID)) return
+    if (abortedSessions.current.has(sessionID)) return
 
     const evt = event.event
-    const type = evt.type
-    const content = evt.content || ""
 
-    // Get or create assistant state for this session
-    let state = assistantState.get(sessionID)
-    if (!state && type === "text") {
-      // First text event — create assistant message
-      const msgId = nextMsgId()
-      state = { msgId, partId: `${msgId}-part` }
-      assistantState.set(sessionID, state)
-
-      addMessage(sessionID, {
-        id: msgId,
-        role: "assistant",
-        sessionID,
-        content: "",
-        createdAt: Date.now(),
-        parentID: state.parentId,
-      })
-      setStore("streaming", true)
-    }
-
-    if (!state) return
-
-    switch (type) {
+    switch (evt.type) {
       case "text": {
-        const prev = textAccum.get(sessionID) ?? ""
-        const next = prev + content
-        textAccum.set(sessionID, next)
-        updateLastAssistantContent(sessionID, next)
+        ensureAssistantMessage(sessionID)
+        textBuffer.current.set(sessionID, (textBuffer.current.get(sessionID) ?? "") + evt.content)
+        scheduleFlush()
         break
       }
-      case "usage": {
-        // Response complete — refresh session list to pick up renamed session
-        textAccum.delete(sessionID)
-        assistantState.delete(sessionID)
-        setStore("streaming", false)
-        void sessions.refresh()
+      case "thought": {
+        ensureAssistantMessage(sessionID)
+        if (!thinkingStartTime.current.has(sessionID)) {
+          thinkingStartTime.current.set(sessionID, Date.now())
+        }
+        thoughtBuffer.current.set(sessionID, (thoughtBuffer.current.get(sessionID) ?? "") + evt.content)
+        scheduleFlush()
+        break
+      }
+      case "tool_call": {
+        ensureAssistantMessage(sessionID)
+        const diff = extractDiff(evt)
+        updateAssistantParts(sessionID, (parts) => {
+          const existing = findToolPart(parts, evt.id)
+          if (existing) {
+            existing.name = evt.name
+            existing.status = evt.status as ToolCallPart["status"]
+            if (evt.rawInput) existing.input = evt.rawInput
+            if (evt.rawOutput) existing.output = evt.rawOutput
+            if (diff) existing.diff = diff
+          } else {
+            parts.push({
+              id: nextPartId(), type: "tool_call",
+              toolCallId: evt.id, name: evt.name,
+              status: evt.status as ToolCallPart["status"],
+              input: evt.rawInput, output: evt.rawOutput, diff,
+            })
+          }
+        })
+        updateAssistantBlocks(sessionID, (blocks) => {
+          const kind = resolveKind(evt.name, evt.kind, evt.displayKind)
+          const input = evt.rawInput ?? null
+          const title = buildTitle(evt.name, kind, input, evt.displayTitle, evt.displaySummary)
+          const existing = blocks.find((b): b is ToolBlock => b.type === "tool" && b.id === evt.id)
+          const outputStr = evt.rawOutput != null
+            ? (typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2))
+            : null
+          if (existing) {
+            existing.name = evt.name; existing.status = evt.status as ToolBlock["status"]
+            existing.kind = kind; existing.title = title
+            if (input) existing.input = input
+            if (outputStr != null) existing.output = outputStr
+          } else {
+            blocks.push({
+              type: "tool", id: evt.id, name: evt.name, kind,
+              status: (evt.status as ToolBlock["status"]) || "running",
+              title, description: extractDescription(input, title),
+              command: extractCommand(kind, input), input,
+              output: outputStr, diffStats: null,
+              isNoise: isNoiseTool(evt.name, evt.isNoise), isHidden: false,
+            })
+          }
+        })
+        break
+      }
+      case "tool_update": {
+        ensureAssistantMessage(sessionID)
+        const diff = extractDiff(evt)
+        updateAssistantParts(sessionID, (parts) => {
+          const existing = findToolPart(parts, evt.id)
+          if (existing) {
+            if (evt.status) existing.status = evt.status as ToolCallPart["status"]
+            if (evt.rawInput) existing.input = evt.rawInput
+            if (evt.rawOutput != null) existing.output = evt.rawOutput
+            if (evt.name) existing.name = evt.name
+            if (diff) existing.diff = diff
+          }
+        })
+        updateAssistantBlocks(sessionID, (blocks) => {
+          const existing = blocks.find((b): b is ToolBlock => b.type === "tool" && b.id === evt.id)
+          if (existing) {
+            if (evt.status) existing.status = evt.status as ToolBlock["status"]
+            if (evt.rawInput) existing.input = evt.rawInput
+            if (evt.rawOutput != null) {
+              existing.output = typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2)
+            }
+            if (evt.name) existing.name = evt.name
+            if (evt.displayTitle) existing.title = evt.displayTitle
+            if (evt.displayKind) existing.kind = evt.displayKind
+            const meta = evt.meta as Record<string, any> | undefined
+            if (meta?.diffStats) {
+              existing.diffStats = meta.diffStats as { added: number; removed: number }
+            }
+          }
+        })
+        break
+      }
+      case "plan": {
+        ensureAssistantMessage(sessionID)
+        if (evt.entries && Array.isArray(evt.entries)) {
+          const entries = validatePlanEntries(evt.entries)
+          updateAssistantBlocks(sessionID, (blocks) => {
+            const existing = blocks.find((b): b is PlanBlock => b.type === "plan")
+            if (existing) {
+              existing.entries = entries
+            } else {
+              blocks.push({ type: "plan", id: nextPartId(), entries })
+            }
+          })
+        }
         break
       }
       case "error": {
-        // Append error to message
-        const prev = textAccum.get(sessionID) ?? ""
-        updateLastAssistantContent(sessionID, prev + `\n\n**Error:** ${content}`)
-        textAccum.delete(sessionID)
-        assistantState.delete(sessionID)
-        setStore("streaming", false)
+        flushBuffers()
+        ensureAssistantMessage(sessionID)
+        updateAssistantParts(sessionID, (parts) => {
+          parts.push({ id: nextPartId(), type: "text", content: `\n\n**Error:** ${evt.content}` })
+        })
+        updateAssistantBlocks(sessionID, (blocks) => {
+          blocks.push({ type: "error", id: nextPartId(), content: evt.content })
+        })
+        assistantMsgId.current.delete(sessionID)
+        setStore((draft) => { draft.streaming = false })
+        break
+      }
+      case "usage": {
+        flushBuffers()
+        const thinkStart2 = thinkingStartTime.current.get(sessionID)
+        if (thinkStart2) {
+          const durationMs = Date.now() - thinkStart2
+          thinkingStartTime.current.delete(sessionID)
+          updateAssistantBlocks(sessionID, (blocks) => {
+            const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+            if (thinking) {
+              thinking.isStreaming = false
+              thinking.durationMs = durationMs
+            }
+          })
+        }
+        assistantMsgId.current.delete(sessionID)
+        setStore((draft) => { draft.streaming = false })
+        void sessions.refresh()
+        const msgs = store.messagesBySession[sessionID]
+        if (msgs) void cacheMessages(sessionID, msgs)
         break
       }
     }
   }
 
-  function connect() {
-    sse.connect(workspace.directory, workspace.client.eventsUrl, {
+  const connect = useCallback(() => {
+    sseRef.current.connect(workspace.directory, workspace.client.eventsUrl, {
       onAgentEvent: handleAgentEvent,
       onSessionCreated: (s) => sessions.upsert(s),
       onSessionUpdated: (s) => sessions.upsert(s),
       onSessionDeleted: (id) => sessions.delete(id),
-      onConnected: () => {},
-      onDisconnected: () => {},
+      onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
+      onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
+      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),
     })
-  }
-
-  let sending = false
-  async function sendPrompt(text: string): Promise<boolean> {
-    if (sending) return false
-    sending = true
-    try {
-      return await doSendPrompt(text)
-    } finally {
-      sending = false
-    }
-  }
+  }, [workspace.directory, workspace.client.eventsUrl])
 
   async function doSendPrompt(text: string): Promise<boolean> {
     let sessionID = store.activeSession
     if (!sessionID) {
-      // Auto-create session
       const session = await sessions.create()
       if (!session) return false
       sessionID = session.id
-      setStore("activeSession", sessionID)
+      setStore((draft) => { draft.activeSession = sessionID })
     }
 
-    // Add optimistic user message
-    const userMsgId = nextMsgId()
+    const userMsgId = nextId("usr")
     addMessage(sessionID, {
-      id: userMsgId,
-      role: "user",
-      sessionID,
-      content: text,
+      id: userMsgId, role: "user", sessionID,
+      parts: [{ id: nextPartId(), type: "text", content: text }],
+      blocks: [{ type: "text", id: nextPartId(), content: text }],
       createdAt: Date.now(),
     })
 
-    // Create assistant message placeholder (SSE will fill content)
-    const astMsgId = nextMsgId()
-    assistantState.set(sessionID, {
-      msgId: astMsgId,
-      partId: `part-${Date.now()}`,
-      parentId: userMsgId,
-    })
+    const astMsgId = nextId("ast")
+    assistantMsgId.current.set(sessionID, astMsgId)
     addMessage(sessionID, {
-      id: astMsgId,
-      role: "assistant",
-      sessionID,
-      content: "",
-      createdAt: Date.now(),
-      parentID: userMsgId,
+      id: astMsgId, role: "assistant", sessionID,
+      parts: [], blocks: [], createdAt: Date.now(), parentID: userMsgId,
     })
-    setStore("streaming", true)
+    setStore((draft) => { draft.streaming = true })
 
-    // Ensure SSE connected
     connect()
 
     try {
@@ -201,34 +567,58 @@ export function ChatProvider(props: ParentProps) {
     }
   }
 
-  // Connect SSE on mount
-  onMount(() => connect())
+  const sendPrompt = useCallback(async (text: string): Promise<boolean> => {
+    if (sendingRef.current) return false
+    sendingRef.current = true
+    try {
+      return await doSendPrompt(text)
+    } finally {
+      sendingRef.current = false
+    }
+  }, [store.activeSession, workspace.client])
 
-  onCleanup(() => {
-    sse.disconnectAll()
-  })
+  const addCommandResponse = useCallback((sessionID: string, text: string, role: "user" | "assistant" = "assistant") => {
+    addMessage(sessionID, {
+      id: nextId(role === "user" ? "cmd-usr" : "cmd-ast"),
+      role, sessionID,
+      parts: [{ id: nextPartId(), type: "text", content: text }],
+      blocks: [{ type: "text", id: nextPartId(), content: text }],
+      createdAt: Date.now(),
+    })
+  }, [])
 
-  function abort() {
+  const setActiveSession = useCallback((id: string) => {
+    setStore((draft) => { draft.activeSession = id })
+    void loadHistory(id)
+  }, [workspace.client])
+
+  const abort = useCallback(() => {
     const sessionID = store.activeSession
     if (!sessionID) return
-    // Ignore further SSE events for this session
-    abortedSessions.add(sessionID)
-    textAccum.delete(sessionID)
-    assistantState.delete(sessionID)
-    setStore("streaming", false)
-    // Clear aborted flag after a delay (allow new prompts)
-    setTimeout(() => abortedSessions.delete(sessionID), 2000)
-  }
+    abortedSessions.current.add(sessionID)
+    assistantMsgId.current.delete(sessionID)
+    setStore((draft) => { draft.streaming = false })
+    setTimeout(() => abortedSessions.current.delete(sessionID), 2000)
+  }, [store.activeSession])
 
-  const value: ChatContext = {
+  // Connect on mount, disconnect on cleanup
+  useEffect(() => {
+    connect()
+    return () => sseRef.current.disconnectAll()
+  }, [connect])
+
+  const value = useMemo((): ChatContext => ({
     messages: () => store.messagesBySession[store.activeSession || ""] || [],
     streaming: () => store.streaming,
+    loadingHistory: () => store.loadingHistory,
+    sseStatus: () => store.sseStatus,
     activeSession: () => store.activeSession,
-    setActiveSession: (id: string) => setStore("activeSession", id),
+    setActiveSession,
     sendPrompt,
     abort,
     connect,
-  }
+    addCommandResponse,
+  }), [store, setActiveSession, sendPrompt, abort, connect, addCommandResponse])
 
-  return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

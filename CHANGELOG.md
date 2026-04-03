@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Rich chat UI with markdown rendering (Shiki syntax highlighting, code copy buttons, KaTeX math)
+- Part-based message rendering: text, thinking, tool calls with status dots
+- Tool call display with BasicTool component (collapsible output, status indicators)
+- Chat header with session title, context circle, and more options placeholders
+- Hover metadata on messages: timestamp + copy button for user messages, copy for assistant text
+- Session history persistence via new server endpoint (`GET /sessions/:id/history`)
+- Client-side history cache using Tauri Store plugin (instant restore on session switch)
+- History-to-message conversion (server Turn/Step format to app MessagePart format)
+- Welcome screen with auto-discovered workspaces from `~/.openacp/instances.json`
+- Workspace persistence (Tauri Store) with last-active restore on app launch
+- Server auto-reconnect with polling when server restarts (health check + retry)
+- Empty state with "New Session" button when no session selected
+- Toast notifications for session creation errors (max sessions reached, etc.)
+- Bypass permissions mode detection with red border on composer input
+- Custom CSS for tool output, copy buttons, spinner animation
+- Tauri command `discover_workspaces` for reading instance registry
+
+### Changed
+- Messages use `parts: MessagePart[]` instead of plain `content: string`
+- Chat context handles text, thought, tool_call, tool_update, usage, error events as structured parts
+- SSE AgentEvent types now discriminated union matching server event format
+- Agent selector renamed from model-selector (file + component + labels)
+- Composer layout: agent left, model center, modes right-aligned
+- Config selector popover: description below label, smaller font sizes, dynamic placement
+- Sidebar "New session" creates session eagerly before chat
+- Session remove works even if server returns 500
+- Chat view padding responsive on small screens
+- Rail workspace items refined with ring indicator for active state
+- MarkedProvider wraps app root for markdown rendering
+- tsconfig paths added for `@openacp/ui/*` and `@openacp/util/*`
+
 ## 2026.0401.1
 
 ### Added

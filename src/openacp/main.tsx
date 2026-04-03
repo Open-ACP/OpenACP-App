@@ -1,21 +1,63 @@
 /**
- * OpenACP App — Entry Point
- *
- * This is a standalone entry for the new OpenACP logic layer.
- * To test: update index.html to point to this file, or use as a route.
- *
- * For now, it can be mounted alongside the existing app for development.
+ * OpenACP App — Entry Point (React)
  */
-import { render } from "solid-js/web"
+import React, { useState, useEffect } from "react"
+import { createRoot } from "react-dom/client"
 import "../ui/src/styles/tailwind/index.css"
+import "./styles.css"
 import { OpenACPApp } from "./app"
+import { SplashScreen } from "../onboarding/splash-screen"
+import { InstallScreen } from "../onboarding/install-screen"
+import { SetupWizard } from "../onboarding/setup-wizard"
+import { UpdateToasts } from "../onboarding/update-toast"
+import { determineStartupScreen, type StartupScreen } from "../onboarding/startup"
+import { saveWorkspaces, type WorkspaceEntry } from "./api/workspace-store"
 
-// Default workspace directory — will be replaced by Tauri workspace selection
-const DEFAULT_DIRECTORY = "/Users/liam/Data/Projects/OpenACP"
+function App() {
+  const [screen, setScreen] = useState<StartupScreen>('splash')
+
+  useEffect(() => {
+    ;(async () => {
+      const { invoke } = await import("@tauri-apps/api/core")
+      const [, [installedResult, configResult]] = await Promise.all([
+        new Promise(r => setTimeout(r, 500)),
+        Promise.all([
+          invoke<string | null>('check_openacp_installed').catch(() => null),
+          invoke<boolean>('check_openacp_config').catch(() => false),
+        ]),
+      ])
+      setScreen(determineStartupScreen({
+        installed: installedResult !== null,
+        configExists: Boolean(configResult),
+      }))
+    })()
+  }, [])
+
+  return (
+    <>
+      {screen === 'splash' && <SplashScreen />}
+      {screen === 'install' && (
+        <InstallScreen onSuccess={(configExists) => setScreen(configExists ? 'ready' : 'setup')} />
+      )}
+      {screen === 'setup' && (
+        <SetupWizard onSuccess={async (entry: WorkspaceEntry) => {
+          await saveWorkspaces([entry])
+          setScreen('ready')
+        }} />
+      )}
+      {screen === 'ready' && (
+        <>
+          <OpenACPApp />
+          <UpdateToasts />
+        </>
+      )}
+    </>
+  )
+}
 
 const root = document.getElementById("root")
 if (root) {
-  render(() => <OpenACPApp directory={DEFAULT_DIRECTORY} />, root)
+  createRoot(root).render(<App />)
 }
 
 export { OpenACPApp }

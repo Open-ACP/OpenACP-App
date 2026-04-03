@@ -1,36 +1,49 @@
-import { createSignal, Show } from "solid-js"
-import { DockShellForm, DockTray } from "@openacp/ui/dock-surface"
-import { IconButton } from "@openacp/ui/icon-button"
-import { Button } from "@openacp/ui/button"
-import { Icon } from "@openacp/ui/icon"
-import { Tooltip } from "@openacp/ui/tooltip"
+import React, { useState, useEffect, useRef, useCallback } from "react"
+import { Plus, Command } from "@phosphor-icons/react"
+import { DockShellForm, DockTray } from "./ui/dock-surface"
 import { useChat } from "../context/chat"
-import { ModelSelector } from "./model-selector"
-import { SlashCommandPopover } from "./slash-commands"
+import { AgentSelector } from "./agent-selector"
+import { CommandPalette } from "./command-palette"
 import { ConfigSelector } from "./config-selector"
 
 export function Composer() {
   const chat = useChat()
-  const [text, setText] = createSignal("")
-  const [model, setModel] = createSignal<string>()
-  const [slashQuery, setSlashQuery] = createSignal<string | null>(null)
+  const [text, setText] = useState("")
+  const [agent, setAgent] = useState<string>()
+  const [isBypass, setIsBypass] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteFilter, setPaletteFilter] = useState<string | undefined>()
+  const [configVersion, setConfigVersion] = useState(0)
 
-  let editorRef: HTMLDivElement | undefined
-  const space = "44px"
+  const editorRef = useRef<HTMLDivElement>(null)
+  const space = "52px"
 
-  const handleSubmit = async (e?: Event) => {
+  // Cmd+/ global shortcut
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault()
+        setPaletteFilter(undefined)
+        setPaletteOpen((v) => !v)
+      }
+    }
+    document.addEventListener("keydown", handleGlobalKeyDown)
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown)
+  }, [])
+
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault()
-    if (slashQuery() !== null) return // Don't submit while slash popover open
-    const value = text().trim()
+    if (paletteOpen) return
+    const value = text.trim()
     if (!value) return
     setText("")
-    if (editorRef) editorRef.textContent = ""
+    if (editorRef.current) editorRef.current.textContent = ""
     await chat.sendPrompt(value)
-  }
+  }, [text, paletteOpen, chat])
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && slashQuery() !== null) {
-      setSlashQuery(null)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && paletteOpen) {
+      setPaletteOpen(false)
       e.preventDefault()
       return
     }
@@ -40,124 +53,152 @@ export function Composer() {
       if (e.repeat) return
       void handleSubmit()
     }
-  }
+  }, [paletteOpen, handleSubmit])
 
-  const handleInput = () => {
-    const value = editorRef?.textContent ?? ""
+  const handleInput = useCallback(() => {
+    const value = editorRef.current?.textContent ?? ""
     setText(value)
 
-    // Detect slash command
-    if (value.startsWith("/") && !value.includes(" ")) {
-      setSlashQuery(value)
-    } else {
-      setSlashQuery(null)
+    if (value === "/") {
+      setPaletteFilter("/")
+      setPaletteOpen(true)
+      return
     }
-  }
+    if (paletteOpen && value.startsWith("/")) {
+      setPaletteFilter(value)
+      return
+    }
+    if (paletteOpen && !value.startsWith("/")) {
+      setPaletteOpen(false)
+      setPaletteFilter(undefined)
+    }
+  }, [paletteOpen])
 
-  const handleSlashSelect = (replacement: string) => {
-    if (editorRef) editorRef.textContent = replacement
-    setText(replacement)
-    setSlashQuery(null)
-    editorRef?.focus()
+  function closePalette() {
+    setPaletteOpen(false)
+    setPaletteFilter(undefined)
+    const value = text.trim()
+    if (value.startsWith("/")) {
+      setText("")
+      if (editorRef.current) editorRef.current.textContent = ""
+    }
+    editorRef.current?.focus()
   }
 
   return (
-    <div class="shrink-0 w-full pb-3 flex flex-col justify-center items-center bg-background-stronger">
-      <div class="w-full px-3 md:max-w-200 md:mx-auto 2xl:max-w-[1000px] relative">
-        {/* Slash command popover — above input */}
-        <Show when={slashQuery() !== null}>
-          <div class="absolute bottom-full left-3 right-3 mb-1 z-50">
-            <SlashCommandPopover
-              query={slashQuery()!}
+    <div className="shrink-0 w-full pb-3 flex flex-col justify-center items-center bg-background-stronger">
+      <div className="w-full px-3 md:max-w-200 md:mx-auto 2xl:max-w-[1000px] relative">
+        {paletteOpen && (
+          <div className="absolute bottom-full left-3 right-3 mb-1 z-50">
+            <CommandPalette
               sessionID={chat.activeSession()}
-              onSelect={handleSlashSelect}
-              onClose={() => {
-                setSlashQuery(null)
-                if (editorRef) editorRef.textContent = ""
-                setText("")
-              }}
+              onClose={closePalette}
+              onConfigChanged={() => setConfigVersion((v) => v + 1)}
+              initialFilter={paletteFilter?.replace("/", "")}
             />
           </div>
-        </Show>
+        )}
 
         <DockShellForm
           onSubmit={handleSubmit}
-          class="group/prompt-input focus-within:shadow-xs-border"
+          className="group/prompt-input focus-within:shadow-xs-border"
+          style={isBypass ? { borderColor: "var(--surface-critical-strong)", borderWidth: "1.5px" } : undefined}
         >
           <div
-            class="relative"
+            className="relative"
             onMouseDown={(e) => {
               const target = e.target
               if (!(target instanceof HTMLElement)) return
               if (target.closest("[data-action]")) return
-              editorRef?.focus()
+              editorRef.current?.focus()
             }}
           >
-            <div
-              class="relative max-h-[240px] overflow-y-auto no-scrollbar"
-              style={{ "scroll-padding-bottom": space }}
-            >
+            <div className="relative max-h-[240px] overflow-y-auto no-scrollbar" style={{ scrollPaddingBottom: space }}>
               <div
                 ref={editorRef}
                 data-component="prompt-input"
                 role="textbox"
                 aria-multiline="true"
-                contenteditable="true"
+                contentEditable="true"
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
-                class="select-text w-full pl-3 pr-2 pt-2 text-14-regular text-text-strong focus:outline-none whitespace-pre-wrap"
-                style={{ "padding-bottom": space }}
+                className="select-text w-full pl-3 pr-2 pt-2 text-14-regular text-text-strong focus:outline-none whitespace-pre-wrap"
+                style={{ paddingBottom: space }}
               />
-              <Show when={!text().trim()}>
+              {!text.trim() && (
                 <div
-                  class="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-14-regular text-text-weak pointer-events-none whitespace-nowrap truncate"
-                  style={{ "padding-bottom": space }}
+                  className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-14-regular text-text-weak pointer-events-none whitespace-nowrap truncate"
+                  style={{ paddingBottom: space }}
                 >
                   Ask anything... "Explain how authentication works"
                 </div>
-              </Show>
+              )}
             </div>
 
             <div
               aria-hidden="true"
-              class="pointer-events-none absolute inset-x-0 bottom-0"
+              className="pointer-events-none absolute inset-x-0 bottom-0"
               style={{
                 height: space,
                 background: "linear-gradient(to top, var(--surface-raised-stronger-non-alpha) calc(100% - 20px), transparent)",
               }}
             />
 
-            <div class="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
-              <div class="flex items-center gap-1 pointer-events-auto">
-                <Tooltip placement="top" value={chat.streaming() ? "Stop" : "Send"}>
-                  <IconButton
-                    data-action="prompt-submit"
-                    type="submit"
-                    disabled={!text().trim() && !chat.streaming()}
-                    icon={chat.streaming() ? "stop" : "arrow-up"}
-                    variant="primary"
-                    class="size-8"
-                    onClick={chat.streaming() ? (e: Event) => { e.preventDefault(); chat.abort() } : undefined}
-                  />
-                </Tooltip>
+            <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
+              <div className="flex items-center gap-1 pointer-events-auto">
+                <button
+                  data-action="prompt-submit"
+                  type="submit"
+                  disabled={!text.trim() && !chat.streaming()}
+                  className="size-8 flex items-center justify-center rounded-md bg-text-strong text-background-stronger disabled:opacity-40"
+                  onClick={chat.streaming() ? (e: React.MouseEvent) => { e.preventDefault(); chat.abort() } : undefined}
+                >
+                  {chat.streaming() ? (
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><rect x="5" y="5" width="10" height="10" fill="currentColor" rx="1" /></svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M10 15.8337V4.16699M4.16699 10.0003L10 4.16699L15.8337 10.0003" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  )}
+                </button>
               </div>
             </div>
 
-            <div class="pointer-events-none absolute bottom-2 left-2">
-              <div class="pointer-events-auto">
-                <Button data-action="prompt-attach" type="button" variant="ghost" class="size-8 p-0">
-                  <Icon name="plus" class="size-4.5" />
-                </Button>
+            <div className="pointer-events-none absolute bottom-2 left-2">
+              <div className="pointer-events-auto flex items-center gap-0.5">
+                <button data-action="prompt-attach" type="button" className="size-8 p-0 flex items-center justify-center rounded-md hover:bg-surface-raised-base-hover transition-colors">
+                  <Plus size={18} weight="bold" className="text-icon-weak" />
+                </button>
+                <button
+                  data-action="prompt-command"
+                  type="button"
+                  className="size-8 p-0 flex items-center justify-center rounded-md hover:bg-surface-raised-base-hover transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setPaletteFilter(undefined)
+                    setPaletteOpen(!paletteOpen)
+                  }}
+                >
+                  <Command size={18} weight="regular" className="text-icon-weak" />
+                </button>
               </div>
             </div>
           </div>
         </DockShellForm>
 
         <DockTray attach="top">
-          <div class="px-1.75 pt-5.5 pb-2 flex items-center gap-1.5 min-w-0">
-            <ModelSelector current={model()} onSelect={setModel} />
-            <ConfigSelector category="mode" sessionID={chat.activeSession()} />
-            <ConfigSelector category="model" sessionID={chat.activeSession()} />
+          <div className="px-1.75 pt-5.5 pb-2 flex items-center gap-1.5 min-w-0">
+            <AgentSelector current={agent} onSelect={setAgent} />
+            <ConfigSelector category="model" sessionID={chat.activeSession()} refreshKey={configVersion} />
+            <div className="flex-1" />
+            <ConfigSelector
+              category="mode"
+              sessionID={chat.activeSession()}
+              refreshKey={configVersion}
+              onValueChange={(v) => {
+                const val = v.toLowerCase()
+                setIsBypass(val.includes("bypass") || val.includes("dangerous"))
+              }}
+            />
           </div>
         </DockTray>
       </div>
