@@ -1,4 +1,4 @@
-import { createContext, useContext, type ParentProps } from "solid-js"
+import { createContext, useContext, type ReactNode } from "react"
 import { createApiClient, type ApiClient } from "../api/client"
 import type { ServerInfo } from "../types"
 
@@ -9,7 +9,7 @@ interface WorkspaceContext {
   client: ApiClient
 }
 
-const Ctx = createContext<WorkspaceContext>()
+const Ctx = createContext<WorkspaceContext | undefined>(undefined)
 
 export function useWorkspace() {
   const ctx = useContext(Ctx)
@@ -30,16 +30,17 @@ export async function resolveWorkspaceServer(instanceId: string): Promise<Server
   }
 }
 
-export function WorkspaceProvider(props: ParentProps<{
+export function WorkspaceProvider(props: {
   instanceId: string
   directory: string
   server: ServerInfo
-}>) {
+  children: ReactNode
+}) {
   const client = createApiClient(props.server)
 
   const value: WorkspaceContext = {
-    get instanceId() { return props.instanceId },
-    get directory() { return props.directory },
+    instanceId: props.instanceId,
+    directory: props.directory,
     server: props.server,
     client,
   }
