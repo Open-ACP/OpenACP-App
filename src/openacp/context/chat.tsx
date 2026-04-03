@@ -599,8 +599,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     abortedSessions.current.add(sessionID)
     assistantMsgId.current.delete(sessionID)
     setStore((draft) => { draft.streaming = false })
-    setTimeout(() => abortedSessions.current.delete(sessionID), 2000)
-  }, [store.activeSession])
+    // Tell server to actually cancel the agent's prompt
+    workspace.client.cancelPrompt(sessionID).catch(() => {})
+    setTimeout(() => abortedSessions.current.delete(sessionID), 5000)
+  }, [store.activeSession, workspace.client])
 
   // Connect on mount, disconnect on cleanup
   useEffect(() => {
