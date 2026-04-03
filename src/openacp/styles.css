@@ -331,6 +331,7 @@
 .oac-plan-entry--completed {
   color: var(--text-weak);
   text-decoration: line-through;
+  text-decoration-color: var(--text-weaker);
 }
 
 .oac-plan-entry--in-progress { color: var(--text-base); }

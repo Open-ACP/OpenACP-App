@@ -8,7 +8,7 @@ interface ToolBlockProps {
 }
 
 export function ToolBlockView(props: ToolBlockProps) {
-  const [expanded, setExpanded] = createSignal(false)
+  const [expanded, setExpanded] = createSignal(true)
   const isPending = () => props.block.status === "pending" || props.block.status === "running"
 
   const icon = createMemo(() => kindIcon(props.block.kind))

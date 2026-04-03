@@ -179,13 +179,27 @@ export function ChatView(props: { onOpenReview?: () => void }) {
               <For each={chat.messages()}>
                 {(msg, index) => {
                   const isLast = () => index() === chat.messages().length - 1
-                  return msg.role === "user" ? (
-                    <UserMessage message={msg} />
-                  ) : (
-                    <MessageTurn
-                      message={msg}
-                      streaming={chat.streaming() && isLast()}
-                    />
+                  const isUser = () => msg.role === "user"
+                  const prevMsg = () => index() > 0 ? chat.messages()[index() - 1] : undefined
+                  // Spacing: more before user messages, less before assistant
+                  const topGap = () => {
+                    if (index() === 0) return "0px"
+                    if (isUser()) return "24px"
+                    // assistant after user: small gap
+                    if (prevMsg()?.role === "user") return "8px"
+                    return "16px"
+                  }
+                  return (
+                    <div style={{ "margin-top": topGap() }}>
+                      {isUser() ? (
+                        <UserMessage message={msg} />
+                      ) : (
+                        <MessageTurn
+                          message={msg}
+                          streaming={chat.streaming() && isLast()}
+                        />
+                      )}
+                    </div>
                   )
                 }}
               </For>

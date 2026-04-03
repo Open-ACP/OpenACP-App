@@ -34,15 +34,12 @@ export function PlanBlockView(props: PlanBlockProps) {
       <div class="oac-plan-header">Update Todos</div>
       <For each={props.block.entries}>
         {(entry) => (
-          <div
-            class="oac-plan-entry"
-            classList={{
+          <div class="oac-plan-entry">
+            <span class="shrink-0"><PlanIcon status={entry.status} /></span>
+            <span classList={{
               "oac-plan-entry--completed": entry.status === "completed",
               "oac-plan-entry--in-progress": entry.status === "in_progress",
-            }}
-          >
-            <PlanIcon status={entry.status} />
-            <span>{entry.content}</span>
+            }}>{entry.content}</span>
           </div>
         )}
       </For>

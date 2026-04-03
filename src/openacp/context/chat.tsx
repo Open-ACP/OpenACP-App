@@ -449,13 +449,16 @@ export function ChatProvider(props: ParentProps) {
           const input = evt.rawInput ?? null
           const title = buildTitle(evt.name, kind, input, evt.displayTitle, evt.displaySummary)
           const existing = blocks.find((b): b is ToolBlock => b.type === "tool" && b.id === evt.id)
+          const outputStr = evt.rawOutput != null
+            ? (typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2))
+            : null
           if (existing) {
             existing.name = evt.name
             existing.status = evt.status as ToolBlock["status"]
             existing.kind = kind
             existing.title = title
             if (input) existing.input = input
-            if (evt.rawOutput) existing.output = evt.rawOutput
+            if (outputStr != null) existing.output = outputStr
           } else {
             blocks.push({
               type: "tool",
@@ -467,7 +470,7 @@ export function ChatProvider(props: ParentProps) {
               description: extractDescription(input, title),
               command: extractCommand(kind, input),
               input,
-              output: evt.rawOutput ?? null,
+              output: outputStr,
               diffStats: null,
               isNoise: isNoiseTool(evt.name, evt.isNoise),
               isHidden: false,
@@ -495,7 +498,9 @@ export function ChatProvider(props: ParentProps) {
           if (existing) {
             if (evt.status) existing.status = evt.status as ToolBlock["status"]
             if (evt.rawInput) existing.input = evt.rawInput
-            if (evt.rawOutput != null) existing.output = evt.rawOutput
+            if (evt.rawOutput != null) {
+              existing.output = typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2)
+            }
             if (evt.name) existing.name = evt.name
             if (evt.displayTitle) existing.title = evt.displayTitle
             if (evt.displayKind) existing.kind = evt.displayKind
