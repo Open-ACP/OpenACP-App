@@ -346,6 +346,28 @@
   --avatar-text-lime: #5d770d;
   --text-stronger: #171717;
 
+  /* ── shadcn/ui theme aliases ──────────────────────────────────────────── */
+  --background: var(--background-base);
+  --foreground: var(--text-strong);
+  --card: var(--background-stronger);
+  --card-foreground: var(--text-strong);
+  --popover: var(--background-stronger);
+  --popover-foreground: var(--text-strong);
+  --primary: var(--button-primary-base);
+  --primary-foreground: var(--text-invert-strong);
+  --secondary: var(--surface-raised-base);
+  --secondary-foreground: var(--text-strong);
+  --muted: var(--surface-weak);
+  --muted-foreground: var(--text-weak);
+  --accent: var(--surface-raised-base-hover);
+  --accent-foreground: var(--text-strong);
+  --destructive: var(--surface-critical-strong);
+  --destructive-foreground: var(--text-invert-strong);
+  --border: var(--border-base);
+  --input: var(--border-base);
+  --ring: var(--border-selected);
+  --radius: 0.5rem;
+
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
     --text-mix-blend-mode: plus-lighter;
@@ -605,5 +627,27 @@
     --avatar-text-cyan: #369eff;
     --avatar-text-lime: #c4f042;
     --text-stronger: rgba(255, 255, 255, 0.936);
+
+    /* ── shadcn/ui theme aliases ──────────────────────────────────────── */
+    --background: var(--background-base);
+    --foreground: var(--text-strong);
+    --card: var(--background-stronger);
+    --card-foreground: var(--text-strong);
+    --popover: var(--background-stronger);
+    --popover-foreground: var(--text-strong);
+    --primary: var(--button-primary-base);
+    --primary-foreground: var(--text-invert-strong);
+    --secondary: var(--surface-raised-base);
+    --secondary-foreground: var(--text-strong);
+    --muted: var(--surface-weak);
+    --muted-foreground: var(--text-weak);
+    --accent: var(--surface-raised-base-hover);
+    --accent-foreground: var(--text-strong);
+    --destructive: var(--surface-critical-strong);
+    --destructive-foreground: var(--text-invert-strong);
+    --border: var(--border-base);
+    --input: var(--border-base);
+    --ring: var(--border-selected);
+    --radius: 0.5rem;
   }
 }
