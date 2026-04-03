@@ -44,7 +44,6 @@ export function SessionsProvider(props: ParentProps) {
   async function create(agent?: string): Promise<Session | null> {
     try {
       const session = await workspace.client.createSession({
-        workspace: workspace.directory,
         agent,
       })
       // Only add if not already present (SSE session:created may have arrived first)
