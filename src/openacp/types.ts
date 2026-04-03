@@ -43,6 +43,57 @@ export interface FileDiff {
 
 export type MessagePart = TextPart | ThinkingPart | ToolCallPart
 
+// ── Message Blocks (new) ───────────────────────────────────────────────────
+
+export interface TextBlock {
+  type: "text"
+  id: string
+  content: string
+}
+
+export interface ThinkingBlock {
+  type: "thinking"
+  id: string
+  content: string
+  durationMs: number | null
+  isStreaming: boolean
+}
+
+export interface ToolBlock {
+  type: "tool"
+  id: string
+  name: string
+  kind: string
+  status: "pending" | "running" | "completed" | "error"
+  title: string
+  description: string | null
+  command: string | null
+  input: Record<string, unknown> | null
+  output: string | null
+  diffStats: { added: number; removed: number } | null
+  isNoise: boolean
+  isHidden: boolean
+}
+
+export interface PlanEntry {
+  content: string
+  status: "pending" | "in_progress" | "completed"
+}
+
+export interface PlanBlock {
+  type: "plan"
+  id: string
+  entries: PlanEntry[]
+}
+
+export interface ErrorBlock {
+  type: "error"
+  id: string
+  content: string
+}
+
+export type MessageBlock = TextBlock | ThinkingBlock | ToolBlock | PlanBlock | ErrorBlock
+
 // ── Messages ────────────────────────────────────────────────────────────────
 
 export interface Message {
@@ -51,6 +102,7 @@ export interface Message {
   sessionID: string
   parentID?: string
   parts: MessagePart[]
+  blocks: MessageBlock[]
   createdAt: number
 }
 
@@ -148,6 +200,10 @@ export type AgentEventPayload =
       rawInput?: Record<string, unknown>
       rawOutput?: string
       meta?: Record<string, unknown>
+      displayTitle?: string
+      displayKind?: string
+      displaySummary?: string
+      isNoise?: boolean
     }
   | {
       type: "tool_update"
@@ -159,6 +215,10 @@ export type AgentEventPayload =
       rawInput?: Record<string, unknown>
       rawOutput?: string
       meta?: Record<string, unknown>
+      displayTitle?: string
+      displayKind?: string
+      displaySummary?: string
+      isNoise?: boolean
     }
   | { type: "usage"; tokensUsed?: number; contextSize?: number; cost?: number }
   | { type: "error"; content: string; messageId?: string }

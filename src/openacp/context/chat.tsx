@@ -5,9 +5,13 @@ import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
 import { cacheMessages, loadCachedMessages } from "../api/history-cache"
 import type {
-  AgentEvent, Message, MessagePart, TextPart, ThinkingPart, ToolCallPart, FileDiff,
+  AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
+  TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
   SessionHistory, HistoryTurn, HistoryStep,
 } from "../types"
+import {
+  resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
+} from "../components/chat/block-utils"
 
 interface ChatContext {
   /** Messages for active session */
@@ -51,18 +55,52 @@ function historyToMessages(history: SessionHistory): Message[] {
   return messages
 }
 
+function stepToBlock(step: HistoryStep): MessageBlock | null {
+  switch (step.type) {
+    case "text":
+      return { type: "text", id: uid("b"), content: step.content as string }
+    case "thinking":
+      return { type: "thinking", id: uid("b"), content: step.content as string, durationMs: null, isStreaming: false }
+    case "tool_call": {
+      const s = step as any
+      const kind = resolveKind(s.name ?? "", s.kind)
+      const input = (s.input as Record<string, unknown> | null) ?? null
+      const title = buildTitle(s.name ?? "", kind, input)
+      return {
+        type: "tool", id: s.id ?? uid("b"), name: s.name ?? "", kind,
+        status: (s.status as ToolBlock["status"]) || "completed",
+        title, description: extractDescription(input, title),
+        command: extractCommand(kind, input), input,
+        output: typeof s.output === "string" ? s.output : s.output ? JSON.stringify(s.output) : null,
+        diffStats: null, isNoise: isNoiseTool(s.name ?? ""), isHidden: false,
+      }
+    }
+    case "plan": {
+      const entries = validatePlanEntries((step as any).entries ?? [])
+      if (entries.length === 0) return null
+      return { type: "plan", id: uid("b"), entries }
+    }
+    default:
+      return null
+  }
+}
+
 function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
   const id = uid(turn.role === "user" ? "hist-usr" : "hist-ast")
   const parts: MessagePart[] = []
+  const blocks: MessageBlock[] = []
 
   if (turn.role === "user") {
     if (turn.content) {
       parts.push({ id: uid("p"), type: "text", content: turn.content })
+      blocks.push({ type: "text", id: uid("b"), content: turn.content })
     }
   } else if (turn.steps) {
     for (const step of turn.steps) {
       const part = stepToPart(step)
       if (part) parts.push(part)
+      const block = stepToBlock(step)
+      if (block) blocks.push(block)
     }
   }
 
@@ -71,6 +109,7 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
     role: turn.role,
     sessionID: sessionId,
     parts,
+    blocks,
     createdAt: new Date(turn.timestamp).getTime(),
   }
 }
@@ -117,6 +156,7 @@ export function ChatProvider(props: ParentProps) {
   const abortedSessions = new Set<string>()
   const assistantMsgId = new Map<string, string>()
   const loadedSessions = new Set<string>()
+  const thinkingStartTime = new Map<string, number>()
   let msgCounter = 0
   let partCounter = 0
 
@@ -146,6 +186,16 @@ export function ChatProvider(props: ParentProps) {
     }))
   }
 
+  function updateAssistantBlocks(sessionID: string, updater: (blocks: MessageBlock[]) => void) {
+    const msgId = assistantMsgId.get(sessionID)
+    if (!msgId) return
+    setStore("messagesBySession", sessionID, produce((msgs) => {
+      if (!msgs) return
+      const msg = msgs.find((m) => m.id === msgId)
+      if (msg) updater(msg.blocks)
+    }))
+  }
+
   function ensureAssistantMessage(sessionID: string, parentId?: string): string {
     let msgId = assistantMsgId.get(sessionID)
     if (msgId) return msgId
@@ -157,6 +207,7 @@ export function ChatProvider(props: ParentProps) {
       role: "assistant",
       sessionID,
       parts: [],
+      blocks: [],
       createdAt: Date.now(),
       parentID: parentId,
     })
@@ -283,12 +334,35 @@ export function ChatProvider(props: ParentProps) {
 
     for (const [sessionID, text] of textBuffer) {
       ensureAssistantMessage(sessionID)
+
+      // Seal thinking blocks when text arrives
+      const thinkStart = thinkingStartTime.get(sessionID)
+      if (thinkStart) {
+        const durationMs = Date.now() - thinkStart
+        thinkingStartTime.delete(sessionID)
+        updateAssistantBlocks(sessionID, (blocks) => {
+          const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+          if (thinking) {
+            thinking.isStreaming = false
+            thinking.durationMs = durationMs
+          }
+        })
+      }
+
       updateAssistantParts(sessionID, (parts) => {
         const last = parts[parts.length - 1]
         if (last?.type === "text") {
           last.content += text
         } else {
           parts.push({ id: nextPartId(), type: "text", content: text })
+        }
+      })
+      updateAssistantBlocks(sessionID, (blocks) => {
+        const last = blocks[blocks.length - 1]
+        if (last?.type === "text") {
+          (last as TextBlock).content += text
+        } else {
+          blocks.push({ type: "text", id: nextPartId(), content: text })
         }
       })
     }
@@ -302,6 +376,17 @@ export function ChatProvider(props: ParentProps) {
           existing.content += text
         } else {
           parts.push({ id: nextPartId(), type: "thinking", content: text })
+        }
+      })
+      updateAssistantBlocks(sessionID, (blocks) => {
+        const existing = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+        if (existing) {
+          existing.content += text
+        } else {
+          if (!thinkingStartTime.has(sessionID)) {
+            thinkingStartTime.set(sessionID, Date.now())
+          }
+          blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
         }
       })
     }
@@ -327,6 +412,9 @@ export function ChatProvider(props: ParentProps) {
 
       case "thought": {
         ensureAssistantMessage(sessionID)
+        if (!thinkingStartTime.has(sessionID)) {
+          thinkingStartTime.set(sessionID, Date.now())
+        }
         thoughtBuffer.set(sessionID, (thoughtBuffer.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
@@ -356,6 +444,39 @@ export function ChatProvider(props: ParentProps) {
             })
           }
         })
+        updateAssistantBlocks(sessionID, (blocks) => {
+          const kind = resolveKind(evt.name, evt.kind, evt.displayKind)
+          const input = evt.rawInput ?? null
+          const title = buildTitle(evt.name, kind, input, evt.displayTitle, evt.displaySummary)
+          const existing = blocks.find((b): b is ToolBlock => b.type === "tool" && b.id === evt.id)
+          const outputStr = evt.rawOutput != null
+            ? (typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2))
+            : null
+          if (existing) {
+            existing.name = evt.name
+            existing.status = evt.status as ToolBlock["status"]
+            existing.kind = kind
+            existing.title = title
+            if (input) existing.input = input
+            if (outputStr != null) existing.output = outputStr
+          } else {
+            blocks.push({
+              type: "tool",
+              id: evt.id,
+              name: evt.name,
+              kind,
+              status: (evt.status as ToolBlock["status"]) || "running",
+              title,
+              description: extractDescription(input, title),
+              command: extractCommand(kind, input),
+              input,
+              output: outputStr,
+              diffStats: null,
+              isNoise: isNoiseTool(evt.name, evt.isNoise),
+              isHidden: false,
+            })
+          }
+        })
         break
       }
 
@@ -372,6 +493,40 @@ export function ChatProvider(props: ParentProps) {
             if (diff) existing.diff = diff
           }
         })
+        updateAssistantBlocks(sessionID, (blocks) => {
+          const existing = blocks.find((b): b is ToolBlock => b.type === "tool" && b.id === evt.id)
+          if (existing) {
+            if (evt.status) existing.status = evt.status as ToolBlock["status"]
+            if (evt.rawInput) existing.input = evt.rawInput
+            if (evt.rawOutput != null) {
+              existing.output = typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2)
+            }
+            if (evt.name) existing.name = evt.name
+            if (evt.displayTitle) existing.title = evt.displayTitle
+            if (evt.displayKind) existing.kind = evt.displayKind
+            // Extract diffStats from meta
+            const meta = evt.meta as Record<string, any> | undefined
+            if (meta?.diffStats) {
+              existing.diffStats = meta.diffStats as { added: number; removed: number }
+            }
+          }
+        })
+        break
+      }
+
+      case "plan": {
+        ensureAssistantMessage(sessionID)
+        if (evt.entries && Array.isArray(evt.entries)) {
+          const entries = validatePlanEntries(evt.entries)
+          updateAssistantBlocks(sessionID, (blocks) => {
+            const existing = blocks.find((b): b is PlanBlock => b.type === "plan")
+            if (existing) {
+              existing.entries = entries
+            } else {
+              blocks.push({ type: "plan", id: nextPartId(), entries })
+            }
+          })
+        }
         break
       }
 
@@ -381,6 +536,9 @@ export function ChatProvider(props: ParentProps) {
         updateAssistantParts(sessionID, (parts) => {
           parts.push({ id: nextPartId(), type: "text", content: `\n\n**Error:** ${evt.content}` })
         })
+        updateAssistantBlocks(sessionID, (blocks) => {
+          blocks.push({ type: "error", id: nextPartId(), content: evt.content })
+        })
         assistantMsgId.delete(sessionID)
         setStore("streaming", false)
         break
@@ -388,6 +546,19 @@ export function ChatProvider(props: ParentProps) {
 
       case "usage": {
         flushBuffers() // flush any remaining text
+        // Seal any active thinking
+        const thinkStart2 = thinkingStartTime.get(sessionID)
+        if (thinkStart2) {
+          const durationMs = Date.now() - thinkStart2
+          thinkingStartTime.delete(sessionID)
+          updateAssistantBlocks(sessionID, (blocks) => {
+            const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+            if (thinking) {
+              thinking.isStreaming = false
+              thinking.durationMs = durationMs
+            }
+          })
+        }
         assistantMsgId.delete(sessionID)
         setStore("streaming", false)
         void sessions.refresh()
@@ -436,6 +607,7 @@ export function ChatProvider(props: ParentProps) {
       role: "user",
       sessionID,
       parts: [{ id: nextPartId(), type: "text", content: text }],
+      blocks: [{ type: "text", id: nextPartId(), content: text }],
       createdAt: Date.now(),
     })
 
@@ -446,6 +618,7 @@ export function ChatProvider(props: ParentProps) {
       role: "assistant",
       sessionID,
       parts: [],
+      blocks: [],
       createdAt: Date.now(),
       parentID: userMsgId,
     })
@@ -467,6 +640,7 @@ export function ChatProvider(props: ParentProps) {
       role,
       sessionID,
       parts: [{ id: nextPartId(), type: "text", content: text }],
+      blocks: [{ type: "text", id: nextPartId(), content: text }],
       createdAt: Date.now(),
     })
   }
