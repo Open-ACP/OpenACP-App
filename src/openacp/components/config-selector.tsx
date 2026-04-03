@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { CaretDown } from "@phosphor-icons/react"
 import { useWorkspace } from "../context/workspace"
 
@@ -101,9 +102,19 @@ export function ConfigSelector({
         <CaretDown size={12} className="shrink-0" />
       </button>
 
-      {open && (
-        <div className="absolute bottom-full mb-1 left-0 w-72 flex flex-col p-1 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-y-auto"
-          style={category === "mode" ? { left: "auto", right: 0 } : undefined}
+      {open && createPortal(
+        <div className="fixed w-72 flex flex-col p-1 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-y-auto"
+          style={(() => {
+            const rect = rootRef.current?.getBoundingClientRect()
+            if (!rect) return {}
+            const pos: React.CSSProperties = { bottom: window.innerHeight - rect.top + 4 }
+            if (category === "mode") {
+              pos.right = window.innerWidth - rect.right
+            } else {
+              pos.left = rect.left
+            }
+            return pos
+          })()}
         >
           <span className="block px-3 py-1 text-text-weaker" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
             {category === "mode" ? "Modes" : (config?.name || category)}
@@ -135,7 +146,8 @@ export function ConfigSelector({
               </button>
             )
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
