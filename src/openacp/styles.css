@@ -158,30 +158,22 @@
 
 .oac-timeline {
   position: relative;
-  padding-left: 28px;
+  padding-left: 30px;
 }
 
-.oac-timeline-line {
-  position: absolute;
-  left: 12px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--border-weak-base);
-}
-
-/* ── Step dots ──────────────────────────────────────────────────────────── */
+/* ── Step dots + per-step connecting line ─────────────────────────────── */
 
 .oac-step {
   position: relative;
-  margin-bottom: 12px;
+  padding-bottom: 12px;
+  user-select: text;
 }
 
 .oac-step::before {
   content: "";
   position: absolute;
-  left: -19px;
-  top: 7px;
+  left: -21px;
+  top: 8px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -189,10 +181,27 @@
   z-index: 1;
 }
 
+.oac-step::after {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-weak-base);
+}
+
+.oac-step--first::after { top: 12px; }
+.oac-step--last::after { bottom: auto; height: 15px; }
+.oac-step--no-line::after { display: none; }
+
 .oac-step--success::before { background: #a6e3a1; }
 .oac-step--failure::before { background: #f38ba8; }
 .oac-step--progress::before { animation: oac-blink 1s linear infinite; }
-.oac-step:last-child { margin-bottom: 0; }
+.oac-step:last-child { padding-bottom: 0; }
+
+.oac-step [data-component="markdown"] > p:first-child { margin-top: 0; }
+.oac-step [data-component="markdown"] > p:last-child { margin-bottom: 0; }
 
 @keyframes oac-blink {
   0%, 100% { opacity: 1; }
@@ -367,4 +376,55 @@
 
 .oac-spinner {
   animation: oac-spin 0.6s linear infinite;
+}
+
+/* ── Grid Spinner (pulse) ───────────────────────────────────────────────── */
+
+[data-component="spinner"] { color: inherit; flex-shrink: 0; width: 18px; aspect-ratio: 1; }
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+@keyframes pulse-opacity-dim {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.6; }
+}
+
+/* ── Text Shimmer ───────────────────────────────────────────────────────── */
+
+[data-component="text-shimmer"] {
+  --text-shimmer-step: 45ms;
+  --text-shimmer-duration: 1200ms;
+  --text-shimmer-swap: 220ms;
+  --text-shimmer-index: 0;
+  --text-shimmer-spread: 5.2ch;
+  --text-shimmer-size: 360%;
+  --text-shimmer-base-color: var(--text-weak);
+  --text-shimmer-peak-color: var(--text-strong);
+  --text-shimmer-sweep: linear-gradient(90deg, transparent calc(50% - var(--text-shimmer-spread)), var(--text-shimmer-peak-color) 50%, transparent calc(50% + var(--text-shimmer-spread)));
+  --text-shimmer-base: linear-gradient(var(--text-shimmer-base-color), var(--text-shimmer-base-color));
+  display: inline-flex; align-items: baseline; font: inherit;
+}
+[data-component="text-shimmer"] [data-slot="text-shimmer-char"] { display: inline-grid; white-space: pre; font: inherit; }
+[data-component="text-shimmer"] [data-slot="text-shimmer-char-base"],
+[data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] { grid-area: 1/1; white-space: pre; transition: opacity var(--text-shimmer-swap) ease-out; font: inherit; }
+[data-component="text-shimmer"] [data-slot="text-shimmer-char-base"] { color: inherit; opacity: 1; }
+[data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] { color: var(--text-weaker); opacity: 0; }
+[data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char-shimmer"] { opacity: 1; }
+[data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"][data-run="true"] {
+  animation: text-shimmer-sweep var(--text-shimmer-duration) linear infinite both;
+  animation-delay: calc(var(--text-shimmer-step) * var(--text-shimmer-index) * -1);
+  will-change: background-position;
+}
+@keyframes text-shimmer-sweep { 0% { background-position: 100% 0, 0 0; } 100% { background-position: 0% 0, 0 0; } }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] {
+    color: transparent; -webkit-text-fill-color: transparent;
+    background-image: var(--text-shimmer-sweep), var(--text-shimmer-base);
+    background-size: var(--text-shimmer-size) 100%, 100% 100%;
+    background-position: 100% 0, 0 0; background-repeat: no-repeat;
+    -webkit-background-clip: text; background-clip: text;
+  }
+  [data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char-base"] { opacity: 0; }
 }

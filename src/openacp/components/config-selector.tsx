@@ -25,6 +25,7 @@ export function ConfigSelector(props: {
   const [open, setOpen] = useState(false)
   const [config, setConfig] = useState<ConfigData | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
 
   const fetchConfig = useCallback(async () => {
     if (!props.sessionID) { setConfig(null); return }
@@ -56,7 +57,10 @@ export function ConfigSelector(props: {
   useEffect(() => {
     if (!open) return
     function handle(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (rootRef.current?.contains(target)) return
+      if (popupRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener("mousedown", handle)
     return () => document.removeEventListener("mousedown", handle)
@@ -93,6 +97,7 @@ export function ConfigSelector(props: {
       </button>
       {open && createPortal(
         <div
+          ref={popupRef}
           className="fixed w-72 flex flex-col p-1 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-y-auto"
           style={(() => {
             const rect = rootRef.current?.getBoundingClientRect()

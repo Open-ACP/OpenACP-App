@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react"
 import { ResizeHandle } from "./ui/resize-handle"
+import { Spinner } from "./ui/spinner"
 import { useSessions } from "../context/sessions"
 import { useChat } from "../context/chat"
 import { useWorkspace } from "../context/workspace"
@@ -104,7 +105,7 @@ function NewSessionButton() {
       }}
     >
       {creating ? (
-        <div className="w-3.5 h-3.5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} />
+        <Spinner className="size-[15px] text-text-weak" />
       ) : (
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M10 4.16699V15.8337M4.16699 10.0003H15.8337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
       )}
@@ -133,7 +134,7 @@ function SessionItem({ session, active, streaming, onClick, onDelete }: {
           >
             <div className="shrink-0 size-6 flex items-center justify-center">
               {streaming ? (
-                <div className="size-[15px] border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} />
+                <Spinner className="size-[15px] text-text-weak" />
               ) : (
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 10H15" stroke="currentColor" strokeLinecap="round" className="text-icon-weak" /></svg>
               )}

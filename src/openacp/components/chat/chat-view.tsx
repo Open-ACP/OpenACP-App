@@ -159,7 +159,7 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
                   const topGap = (() => {
                     if (index === 0) return "0px"
                     if (isUser) return "24px"
-                    if (prevMsg?.role === "user") return "8px"
+                    if (prevMsg?.role === "user") return "16px"
                     return "16px"
                   })()
                   return (

@@ -11,6 +11,7 @@ export function AgentSelector(props: {
   const [agents, setAgents] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const rootRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     workspace.client.agents().then((r: any) => setAgents(r.agents || [])).catch(() => setAgents([]))
@@ -27,7 +28,10 @@ export function AgentSelector(props: {
   useEffect(() => {
     if (!open) return
     function handle(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (rootRef.current?.contains(target)) return
+      if (popupRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener("mousedown", handle)
     return () => document.removeEventListener("mousedown", handle)
@@ -54,6 +58,7 @@ export function AgentSelector(props: {
       </button>
       {open && createPortal(
         <div
+          ref={popupRef}
           className="fixed w-72 max-h-80 flex flex-col p-2 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-hidden"
           style={(() => {
             const rect = rootRef.current?.getBoundingClientRect()
