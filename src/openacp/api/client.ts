@@ -1,8 +1,10 @@
 import type { Agent, AuthInfo, ServerCommand, ServerInfo, Session, SessionHistory, StoredToken, TokenInfo } from "../types"
 
-export function createApiClient(server: ServerInfo) {
+export function createApiClient(server: ServerInfo, workspaceId?: string) {
   const { url } = server
   let token = server.token
+  let onReconnectNeeded: (() => void) | undefined
+  let onTokenRefreshed: ((update: { expiresAt: string; refreshDeadline: string }) => void) | undefined
 
   async function tryRefreshToken(): Promise<boolean> {
     try {
@@ -13,6 +15,13 @@ export function createApiClient(server: ServerInfo) {
       if (!res.ok) return false
       const data: TokenInfo = await res.json()
       token = data.accessToken
+      // Persist refreshed token to keychain
+      if (workspaceId) {
+        const { setKeychainToken } = await import('./keychain.js')
+        await setKeychainToken(workspaceId, data.accessToken)
+      }
+      // Notify caller so WorkspaceEntry dates can be updated in the store
+      onTokenRefreshed?.({ expiresAt: data.expiresAt, refreshDeadline: data.refreshDeadline })
       return true
     } catch {
       return false
@@ -47,6 +56,8 @@ export function createApiClient(server: ServerInfo) {
         }
         return retry.json()
       }
+      // Refresh failed — token is no longer valid
+      onReconnectNeeded?.()
     }
 
     if (!res.ok) {
@@ -57,6 +68,10 @@ export function createApiClient(server: ServerInfo) {
   }
 
   return {
+    /** Register a callback invoked when the JWT can no longer be refreshed */
+    setOnReconnectNeeded(cb: () => void) { onReconnectNeeded = cb },
+    /** Register a callback invoked after a successful token refresh with updated expiry dates */
+    setOnTokenRefreshed(cb: (update: { expiresAt: string; refreshDeadline: string }) => void) { onTokenRefreshed = cb },
     /** Check server health */
     async health(): Promise<boolean> {
       try {
@@ -65,6 +80,12 @@ export function createApiClient(server: ServerInfo) {
       } catch {
         return false
       }
+    },
+
+    /** Get the server version string (e.g. "2026.327.1") */
+    async getServerVersion(): Promise<string> {
+      const res = await api<{ version: string }>("/system/health")
+      return res.version
     },
 
     /** List agents (models) available on this workspace server */
@@ -200,6 +221,34 @@ export function createApiClient(server: ServerInfo) {
       } catch {
         return null
       }
+    },
+
+    /** List all installed plugins with runtime state */
+    async listPlugins(): Promise<{ plugins: import('../types').InstalledPlugin[] }> {
+      return api('/plugins')
+    },
+
+    /** Fetch marketplace plugins (proxied from registry, with installed flag) */
+    async getMarketplace(): Promise<{
+      plugins: import('../types').MarketplacePlugin[]
+      categories: import('../types').MarketplaceCategory[]
+    }> {
+      return api('/plugins/marketplace')
+    },
+
+    /** Enable a plugin via hot-load */
+    async enablePlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}/enable`, { method: 'POST' })
+    },
+
+    /** Disable a plugin via hot-unload */
+    async disablePlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}/disable`, { method: 'POST' })
+    },
+
+    /** Uninstall a plugin (remove from registry + unload) */
+    async uninstallPlugin(name: string): Promise<void> {
+      await api(`/plugins/${encodeURIComponent(name)}`, { method: 'DELETE' })
     },
 
     /** SSE events URL for EventSource */

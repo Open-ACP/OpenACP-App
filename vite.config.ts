@@ -70,12 +70,7 @@ function openacpResolver() {
         return null
       }
 
-      // Stub out @pierre/diffs (OpenACP internal package we don't have)
-      if (source.startsWith("@pierre/")) {
-        return "\0virtual:pierre-stub"
-      }
-
-      // Stub out ghostty-web
+      // Stub out ghostty-web (not available)
       if (source === "ghostty-web") {
         return "\0virtual:ghostty-stub"
       }
@@ -83,15 +78,8 @@ function openacpResolver() {
       return null
     },
     load(id: string) {
-      if (id === "\0virtual:pierre-stub" || id === "\0virtual:ghostty-stub") {
-        return `function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
-const mock = { getLoadedLanguages: () => [], getLoadedThemes: () => ['OpenACP'], loadLanguage: async () => {}, loadTheme: async () => {}, codeToHtml: (code, opts) => '<pre class="shiki"><code>' + esc(code) + '</code></pre>' };
-export const getSharedHighlighter = async () => mock;
-export const registerCustomTheme = () => {};
-export default {};
-export const Virtualizer = class {};
-export const WorkerPoolManager = class {};
-export const DEFAULT_VIRTUAL_FILE_METRICS = {};
+      if (id === "\0virtual:ghostty-stub") {
+        return `export default {};
 export const File = () => null;
 export const FileDiff = () => null;
 export const VirtualizedFile = () => null;
@@ -114,7 +102,6 @@ export default defineConfig({
   build: {
     rollupOptions: {
       external: [
-        /^@pierre\/.*/,
         "ghostty-web",
       ],
     },

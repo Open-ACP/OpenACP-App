@@ -1,17 +1,17 @@
 import { For, Show, createResource } from "solid-js"
-import { discoverWorkspaces } from "../api/workspace-store"
+import { discoverLocalInstances } from "../api/workspace-store"
 
 export function WelcomeScreen(props: {
   onOpenFolder: () => void
   onSelectWorkspace: (instanceId: string) => void
 }) {
-  const [discovered] = createResource(() => discoverWorkspaces())
+  const [discovered] = createResource(discoverLocalInstances)
 
-  const dirName = (workspace: string) => workspace.split("/").pop() || "Workspace"
-  const shortPath = (workspace: string) => {
-    const parts = workspace.split("/")
+  const dirName = (directory: string) => directory.split("/").pop() || "Workspace"
+  const shortPath = (directory: string) => {
+    const parts = directory.split("/")
     if (parts.length > 3) return "~/" + parts.slice(3).join("/")
-    return workspace
+    return directory
   }
 
   return (
@@ -41,8 +41,8 @@ export function WelcomeScreen(props: {
                     class="w-full flex flex-col gap-0.5 px-3 py-2.5 rounded-lg text-left hover:bg-surface-raised-base-hover transition-colors"
                     onClick={() => props.onSelectWorkspace(instance.id)}
                   >
-                    <span class="text-14-medium text-text-strong">{dirName(instance.workspace)}</span>
-                    <span class="text-12-regular text-text-weak truncate">{shortPath(instance.workspace)}</span>
+                    <span class="text-14-medium text-text-strong">{dirName(instance.directory)}</span>
+                    <span class="text-12-regular text-text-weak truncate">{shortPath(instance.directory)}</span>
                   </button>
                 )}
               </For>

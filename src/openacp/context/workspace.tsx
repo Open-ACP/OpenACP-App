@@ -1,10 +1,12 @@
 import { createContext, useContext, type ParentProps } from "solid-js"
 import { createApiClient, type ApiClient } from "../api/client"
 import type { ServerInfo } from "../types"
+import type { WorkspaceEntry } from "../api/workspace-store"
 
 interface WorkspaceContext {
   instanceId: string
   directory: string  // workspace root dir (for display/file ops)
+  workspace: WorkspaceEntry
   server: ServerInfo
   client: ApiClient
 }
@@ -31,15 +33,23 @@ export async function resolveWorkspaceServer(instanceId: string): Promise<Server
 }
 
 export function WorkspaceProvider(props: ParentProps<{
-  instanceId: string
-  directory: string
+  workspace: WorkspaceEntry
   server: ServerInfo
+  onReconnectNeeded?: () => void
+  onTokenRefreshed?: (update: { expiresAt: string; refreshDeadline: string }) => void
 }>) {
-  const client = createApiClient(props.server)
+  const client = createApiClient(props.server, props.workspace.id)
+  if (props.onReconnectNeeded) {
+    client.setOnReconnectNeeded(props.onReconnectNeeded)
+  }
+  if (props.onTokenRefreshed) {
+    client.setOnTokenRefreshed(props.onTokenRefreshed)
+  }
 
   const value: WorkspaceContext = {
-    get instanceId() { return props.instanceId },
-    get directory() { return props.directory },
+    get instanceId() { return props.workspace.id },
+    get directory() { return props.workspace.directory },
+    get workspace() { return props.workspace },
     server: props.server,
     client,
   }

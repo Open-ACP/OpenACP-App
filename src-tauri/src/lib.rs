@@ -2,9 +2,14 @@ mod onboarding;
 mod sidecar;
 
 use sidecar::SidecarManager;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
+
+// TODO: Replace with OS credential store (e.g., `keyring` crate) for production.
+// Currently stores tokens as plaintext JSON in app data dir — acceptable for MVP only.
+static KEYCHAIN: std::sync::Mutex<Option<HashMap<String, String>>> = std::sync::Mutex::new(None);
 
 struct AppState {
     sidecar: Arc<Mutex<SidecarManager>>,
@@ -102,11 +107,30 @@ async fn get_workspace_server_info(instance_id: String) -> Result<ServerInfo, St
     Err(format!("Could not determine port from {}", dir.display()))
 }
 
-/// Discover all registered instances from ~/.openacp/instances.json
 #[tauri::command]
-async fn discover_workspaces() -> Result<Vec<InstanceInfo>, String> {
-    let value = read_instances_json()?;
-    Ok(parse_instances(&value))
+fn path_exists(path: String) -> bool {
+    std::path::Path::new(&path).exists()
+}
+
+#[tauri::command]
+async fn invoke_cli(args: Vec<String>, _app: tauri::AppHandle) -> Result<String, String> {
+    use sidecar::find_openacp_binary_pub;
+    let bin = find_openacp_binary_pub().ok_or_else(|| "Could not find openacp binary".to_string())?;
+    let output = tokio::process::Command::new(&bin)
+        .args(&args)
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(if stderr.is_empty() {
+            format!("CLI exited with status: {}", output.status)
+        } else {
+            stderr
+        })
+    }
 }
 
 #[tauri::command]
@@ -132,6 +156,49 @@ async fn stop_server(state: tauri::State<'_, AppState>) -> Result<(), String> {
 pub struct ServerInfo {
     pub url: String,
     pub token: String,
+}
+
+#[tauri::command]
+fn keychain_set(key: String, value: String, app: tauri::AppHandle) -> Result<(), String> {
+    let mut lock = KEYCHAIN.lock().map_err(|e| e.to_string())?;
+    let map = lock.get_or_insert_with(HashMap::new);
+    map.insert(key, value);
+    // Persist to app data dir
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let keychain_path = data_dir.join("keychain.json");
+    let json = serde_json::to_string(map).map_err(|e| e.to_string())?;
+    std::fs::write(&keychain_path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn keychain_get(key: String, app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let mut lock = KEYCHAIN.lock().map_err(|e| e.to_string())?;
+    if lock.is_none() {
+        // Load from disk on first access
+        let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let keychain_path = data_dir.join("keychain.json");
+        if keychain_path.exists() {
+            let raw = std::fs::read_to_string(&keychain_path).map_err(|e| e.to_string())?;
+            let map: HashMap<String, String> = serde_json::from_str(&raw).unwrap_or_default();
+            *lock = Some(map);
+        } else {
+            *lock = Some(HashMap::new());
+        }
+    }
+    Ok(lock.as_ref().and_then(|m| m.get(&key).cloned()))
+}
+
+#[tauri::command]
+fn keychain_delete(key: String, app: tauri::AppHandle) -> Result<(), String> {
+    let mut lock = KEYCHAIN.lock().map_err(|e| e.to_string())?;
+    if let Some(map) = lock.as_mut() {
+        map.remove(&key);
+        let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let keychain_path = data_dir.join("keychain.json");
+        let json = serde_json::to_string(map).map_err(|e| e.to_string())?;
+        std::fs::write(&keychain_path, json).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -163,7 +230,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_server_info,
             get_workspace_server_info,
-            discover_workspaces,
+            path_exists,
+            invoke_cli,
             start_server,
             stop_server,
             onboarding::check_openacp_installed,
@@ -174,6 +242,9 @@ pub fn run() {
             onboarding::run_openacp_agents_list,
             onboarding::run_openacp_agent_install,
             onboarding::dev_reset_openacp,
+            keychain_set,
+            keychain_get,
+            keychain_delete,
         ])
         .setup(move |app| {
             app.manage(AppState {

@@ -30,6 +30,15 @@ export interface ToolCallPart {
   status: "pending" | "running" | "completed" | "error"
   input?: Record<string, unknown>
   output?: string
+  diff?: FileDiff | null
+}
+
+export interface FileDiff {
+  path: string
+  before?: string
+  after: string
+  additions?: number
+  deletions?: number
 }
 
 export type MessagePart = TextPart | ThinkingPart | ToolCallPart
@@ -156,3 +165,39 @@ export type AgentEventPayload =
   | { type: "commands_update"; [key: string]: unknown }
   | { type: "plan"; entries?: unknown[] }
   | { type: "resource_link"; uri: string; name?: string; [key: string]: unknown }
+
+// ─── Plugin types ──────────────────────────────────────────────────────────
+
+export interface InstalledPlugin {
+  name: string
+  version: string
+  description?: string
+  source: 'builtin' | 'npm' | 'local'
+  enabled: boolean
+  loaded: boolean
+  failed: boolean
+  essential: boolean
+  hasConfigure: boolean
+}
+
+export interface MarketplacePlugin {
+  name: string
+  displayName?: string
+  description: string
+  npm: string
+  version: string
+  minCliVersion: string
+  category: string
+  tags: string[]
+  icon: string
+  author: string
+  verified: boolean
+  featured: boolean
+  installed: boolean
+}
+
+export interface MarketplaceCategory {
+  id: string
+  name: string
+  icon: string
+}

@@ -8,6 +8,7 @@ import { ResizeHandle } from "@openacp/ui/resize-handle"
 import { useSessions } from "../context/sessions"
 import { useChat } from "../context/chat"
 import { useWorkspace } from "../context/workspace"
+import { PluginsModal } from "./plugins-modal"
 
 const DEFAULT_SIDEBAR_WIDTH = 280
 const MIN_SIDEBAR_WIDTH = 200
@@ -19,6 +20,7 @@ export function SidebarPanel() {
   const workspace = useWorkspace()
 
   const [panelWidth, setPanelWidth] = createSignal(DEFAULT_SIDEBAR_WIDTH)
+  const [pluginsOpen, setPluginsOpen] = createSignal(false)
 
   const workspaceName = createMemo(() => workspace.directory.split("/").pop() || "Workspace")
   const workspacePath = createMemo(() => {
@@ -124,6 +126,18 @@ export function SidebarPanel() {
           </For>
         </nav>
       </div>
+
+      {/* Plugins button — fixed bottom */}
+      <div class="shrink-0 pt-1 pb-2">
+        <button
+          class="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-12-medium text-text-base hover:bg-surface-raised-base-hover transition-colors"
+          onClick={() => setPluginsOpen(true)}
+        >
+          🧩 Plugins
+        </button>
+      </div>
+
+      <PluginsModal open={pluginsOpen()} onClose={() => setPluginsOpen(false)} />
     </div>
   )
 }
