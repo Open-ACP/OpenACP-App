@@ -8,7 +8,7 @@ import type {
   AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
   TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
   SessionHistory, HistoryTurn, HistoryStep,
-  MessageQueuedEvent, MessageProcessingEvent,
+  MessageQueuedEvent, MessageProcessingEvent, PermissionRequest, UsageInfo,
 } from "../types"
 import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
@@ -98,11 +98,21 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
     }
   }
 
-  return {
+  const msg: Message = {
     id, role: turn.role, sessionID: sessionId,
     parts, blocks,
     createdAt: new Date(turn.timestamp).getTime(),
   }
+
+  if (turn.usage) {
+    msg.usage = {
+      tokensUsed: turn.usage.tokensUsed,
+      contextSize: turn.usage.contextSize,
+      cost: turn.usage.cost as UsageInfo["cost"],
+    }
+  }
+
+  return msg
 }
 
 function stepToPart(step: HistoryStep): MessagePart | null {
@@ -139,7 +149,7 @@ interface ChatStore {
   scrollTrigger: number
 }
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+export function ChatProvider({ children, onPermissionRequest, onPermissionResolved }: { children: React.ReactNode; onPermissionRequest?: (req: PermissionRequest) => void; onPermissionResolved?: (event: { sessionId: string; requestId: string }) => void }) {
   const workspace = useWorkspace()
   const sessions = useSessions()
   const sseRef = useRef(createSSEManager())
@@ -228,7 +238,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // ── History loading ─────────────────────────────────────────────────────
 
   async function loadHistory(sessionID: string) {
-    const hasInMemory = (store.messagesBySession[sessionID]?.length ?? 0) > 0
+    // Read current messages via draft to avoid stale closure
+    let hasInMemory = false
+    setStore((draft) => { hasInMemory = (draft.messagesBySession[sessionID]?.length ?? 0) > 0 })
 
     if (!hasInMemory) {
       const cached = await loadCachedMessages(sessionID)
@@ -242,12 +254,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
-        const current = store.messagesBySession[sessionID] ?? []
-        const lastServerTurn = history.turns[history.turns.length - 1]
-        const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
-        const inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
-        setMessages(sessionID, [...serverMessages, ...inFlight])
-        void cacheMessages(sessionID, serverMessages)
+        // Only use server history if it has richer data than local.
+        // Server may return turns with empty steps (history recorder bug),
+        // in which case local cache/in-memory data is more complete.
+        const serverAssistantBlocks = serverMessages
+          .filter((m) => m.role === "assistant")
+          .reduce((n, m) => n + m.blocks.length, 0)
+        let localCount = 0
+        setStore((draft) => {
+          const local = draft.messagesBySession[sessionID] ?? []
+          localCount = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
+        })
+        if (serverAssistantBlocks >= localCount) {
+          let inFlight: Message[] = []
+          const lastServerTurn = history.turns[history.turns.length - 1]
+          const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
+          setStore((draft) => {
+            const current = draft.messagesBySession[sessionID] ?? []
+            inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
+          })
+          setMessages(sessionID, [...serverMessages, ...inFlight])
+          void cacheMessages(sessionID, serverMessages)
+        }
       }
     } catch {
       // Server unavailable
@@ -516,6 +544,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             }
           })
         }
+        // Attach usage data to the current assistant message
+        const usageMsgId = assistantMsgId.current.get(sessionID)
+        if (usageMsgId) {
+          const usageInfo: UsageInfo = {
+            tokensUsed: evt.tokensUsed,
+            contextSize: evt.contextSize,
+            cost: (evt as any).cost,
+          }
+          setStore((draft) => {
+            const msgs = draft.messagesBySession[sessionID]
+            if (!msgs) return
+            const msg = msgs.find((m) => m.id === usageMsgId)
+            if (msg) msg.usage = usageInfo
+          })
+        }
         assistantMsgId.current.delete(sessionID)
         setStore((draft) => { draft.streaming = false })
         void sessions.refresh()
@@ -571,6 +614,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       onSessionDeleted: (id) => sessions.delete(id),
       onMessageQueued: handleMessageQueued,
       onMessageProcessing: handleMessageProcessing,
+      onPermissionRequest: onPermissionRequest,
+      onPermissionResolved: onPermissionResolved,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
       onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),

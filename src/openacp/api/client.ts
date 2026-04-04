@@ -220,6 +220,16 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       }
     },
 
+    /** Resolve a permission request (approve/deny), optionally with feedback text */
+    async resolvePermission(sessionID: string, permissionId: string, optionId: string, feedback?: string): Promise<void> {
+      const body: Record<string, string> = { permissionId, optionId }
+      if (feedback) body.feedback = feedback
+      await api(`/sessions/${encodeURIComponent(sessionID)}/permission`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      })
+    },
+
     /** Set client overrides (bypass permissions, etc.) */
     async setClientOverrides(sessionID: string, overrides: { bypassPermissions?: boolean }): Promise<void> {
       await api(`/sessions/${encodeURIComponent(sessionID)}/config/overrides`, {

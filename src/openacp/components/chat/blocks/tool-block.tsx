@@ -3,18 +3,32 @@ import { TextShimmer } from "../../ui/text-shimmer"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
 
-interface ToolBlockProps {
-  block: ToolBlock
+const REJECTION_PATTERNS = [
+  "user doesn't want to proceed",
+  "tool use was rejected",
+  "User refused permission",
+]
+
+function isRejectionOutput(output: string | null): boolean {
+  if (!output) return false
+  return REJECTION_PATTERNS.some((p) => output.includes(p))
 }
 
-export function ToolBlockView({ block }: ToolBlockProps) {
+interface ToolBlockProps {
+  block: ToolBlock
+  feedbackReason?: string
+}
+
+export function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
   const [expanded, setExpanded] = useState(true)
   const isPending = block.status === "pending" || block.status === "running"
+  const isRejected = isRejectionOutput(block.output)
 
   const icon = useMemo(() => kindIcon(block.kind), [block.kind])
   const label = useMemo(() => kindLabel(block.kind), [block.kind])
   const inputText = useMemo(() => formatToolInput(block.input), [block.input])
-  const hasBody = !!inputText || !!block.output
+  const reason = feedbackReason && isRejected ? feedbackReason : undefined
+  const hasBody = !!inputText || (!!block.output && !isRejected) || !!reason
 
   return (
     <div>
@@ -24,8 +38,15 @@ export function ToolBlockView({ block }: ToolBlockProps) {
       >
         <span>{icon}</span>
         <span style={{ fontWeight: "500" }}>{label}</span>
-        <span style={{ color: "var(--text-weak)" }}>{block.title}</span>
-        {block.diffStats && (
+        <span style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--text-weak)" }}>
+          {isRejected ? block.title : block.title}
+        </span>
+        {isRejected && (
+          <span className="text-11-regular" style={{ color: "var(--text-critical-base, #dc2626)" }}>
+            rejected
+          </span>
+        )}
+        {block.diffStats && !isRejected && (
           <>
             {block.diffStats.added > 0 && (
               <span className="oac-diff-stat-add">+{block.diffStats.added}</span>
@@ -38,7 +59,18 @@ export function ToolBlockView({ block }: ToolBlockProps) {
         {isPending && <TextShimmer text="" active className="" />}
       </div>
 
-      {hasBody && (
+      {reason && (
+        <div className="oac-tool-card-collapse oac-tool-card-collapse--open">
+          <div className="oac-tool-card-body">
+            <div className="flex items-center gap-1.5 text-12-regular" style={{ color: "var(--text-critical-base, #dc2626)" }}>
+              <span style={{ fontWeight: 500 }}>Reason:</span>
+              <span style={{ color: "var(--text-base)" }}>{reason}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasBody && !reason && (
         <div className={`oac-tool-card-collapse ${expanded ? "oac-tool-card-collapse--open" : ""}`}>
           <div className="oac-tool-card-body">
             <div className="oac-tool-card-grid">
@@ -48,7 +80,7 @@ export function ToolBlockView({ block }: ToolBlockProps) {
                   <div className="oac-tool-card-row-content">{inputText}</div>
                 </div>
               )}
-              {block.output && (
+              {block.output && !isRejected && (
                 <div className="oac-tool-card-row">
                   <div className="oac-tool-card-row-label">OUT</div>
                   <div className="oac-tool-card-row-content">{block.output}</div>
