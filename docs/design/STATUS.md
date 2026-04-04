@@ -1,29 +1,27 @@
 # Project Status
 
 ## Current State
-- Branch: `hiru-uiux`
-- Last updated: 2026-04-02
+- Branch: `hiru/uiux`
+- Last updated: 2026-04-05
 
 ## In Progress
-- Onboarding UI restyle — code pushed, chua verify visual cuoi cung tren app
-- Pencil designs dang dung 2 bo variables (shadcn + app) — can migrate hoan toan
+- Visual QA — app icon shows correct in file but macOS Dock caches old icon (needs reboot)
+- Phase 3 cleanup — remove unused custom component code after full visual verification
 
 ## Completed
 - Setup moi truong dev (Node.js, pnpm, Rust, Tauri)
 - Build va chay full Tauri app
-- 11 Pencil mockup screens (install flow, app states, onboarding wizard)
-- Restyle 4 onboarding components (splash, install, setup wizard, update toast)
-- Fix agent list parsing (handle envelope + plain array formats)
-- Them tailwind CSS import cho onboarding screens (`src/main.tsx`)
-- Them app CSS variables vao Pencil file
-- Replace Pencil screens tu shadcn vars sang app vars
-- Cap nhat CLAUDE.md voi git workflow conventions (tu CONTRIBUTING-GUIDE)
-- Setup memory system (git confirm, user profile, conventions)
-- PR #1 merged vao fork develop
-- PR #2 created: CLAUDE.md docs update
-- Upstream PR #6 auto-updated
+- 18 Pencil mockup screens with shadcn component refs
+- shadcn/ui migration: 19 components installed, 15 app components migrated
+- Token alias layer (sidebar tokens) in theme.css + Tailwind colors
+- All lucide-react imports replaced with @phosphor-icons/react
+- Agent/config selectors: createPortal → shadcn DropdownMenu
+- Plugins modal + add-workspace modal: manual portal → shadcn Dialog
+- App icons regenerated from new OpenACP SVG logo (all platforms)
+- CLAUDE.md updated: React 19, shadcn/ui, git workflow, design reference
+- DESIGN.md full rewrite with current architecture
+- ket-phien skill updated: branch hiru/ (slash), rebase, PR to fork develop
 
 ## Blockers
-- Chua co push access tren Open-ACP/OpenACP-App (dang dung fork workflow)
-- Chua co test framework (Vitest + @solidjs/testing-library)
-- Chua co Settings dialog UI (theme switcher, font selector) — infra co san
+- macOS Dock icon cache — needs reboot to show new icon
+- No test framework yet (Vitest + React Testing Library)
