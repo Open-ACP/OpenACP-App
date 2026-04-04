@@ -10,6 +10,8 @@ interface PermissionsContext {
   addRequest: (request: PermissionRequest) => void
   /** Resolve a permission (approve/deny) */
   resolve: (sessionId: string, permissionId: string, optionId: string) => Promise<void>
+  /** Dismiss a pending permission (e.g. when aborting) */
+  dismiss: (sessionId: string) => void
   /** Check if a specific permission is being resolved */
   resolving: (permissionId: string) => boolean
 }
@@ -52,10 +54,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
   }, [workspace.client])
 
+  const dismiss = useCallback((sessionId: string) => {
+    setStore((draft) => { delete draft.pending[sessionId] })
+  }, [])
+
   const value: PermissionsContext = {
     pending: (sessionId) => store.pending[sessionId],
     addRequest,
     resolve,
+    dismiss,
     resolving: (permissionId) => !!store.resolving[permissionId],
   }
 

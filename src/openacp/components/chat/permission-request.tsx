@@ -51,12 +51,11 @@ export function PermissionRequestCard({ sessionId }: Props) {
   function handleFeedbackSubmit() {
     const text = feedback.trim()
     if (!text) return
-    // Deny the permission and send feedback as a new message
-    const deny = request!.options.find((o) => !o.isAllow)
-    if (deny) permissions.resolve(sessionId, request!.id, deny.id)
     setFeedback("")
-    // Send feedback as user message
-    chat.sendPrompt(text)
+    // Dismiss the permission card, cancel current prompt, then send feedback as new prompt
+    permissions.dismiss(sessionId)
+    chat.abort()
+    setTimeout(() => { chat.sendPrompt(text) }, 200)
   }
 
   return (
