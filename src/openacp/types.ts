@@ -258,6 +258,21 @@ export interface MessageProcessingEvent {
   timestamp: string
 }
 
+// ── Permission Request ──────────────────────────────────────────────────────
+
+export interface PermissionOption {
+  id: string
+  label: string
+  isAllow: boolean
+}
+
+export interface PermissionRequest {
+  id: string
+  sessionId: string
+  description: string
+  options: PermissionOption[]
+}
+
 // ─── Plugin types ──────────────────────────────────────────────────────────
 
 export interface InstalledPlugin {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react"
 import { WorkspaceProvider, resolveWorkspaceServer } from "./context/workspace"
 import { SessionsProvider } from "./context/sessions"
 import { ChatProvider, useChat } from "./context/chat"
+import { PermissionsProvider, usePermissions } from "./context/permissions"
 import { SidebarPanel } from "./components/sidebar"
 import { SidebarRail } from "./components/sidebar-rail"
 import { ChatView } from "./components/chat"
@@ -29,6 +30,16 @@ function ChatArea() {
         </div>
       )}
     </div>
+  )
+}
+
+function ChatWithPermissions() {
+  const permissions = usePermissions()
+  return (
+    <ChatProvider onPermissionRequest={permissions.addRequest}>
+      <SidebarPanel />
+      <ChatArea />
+    </ChatProvider>
   )
 }
 
@@ -261,10 +272,9 @@ export function OpenACPApp() {
             }}
           >
             <SessionsProvider>
-              <ChatProvider>
-                <SidebarPanel />
-                <ChatArea />
-              </ChatProvider>
+              <PermissionsProvider>
+                <ChatWithPermissions />
+              </PermissionsProvider>
             </SessionsProvider>
           </WorkspaceProvider>
         ) : (

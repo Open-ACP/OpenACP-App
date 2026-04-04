@@ -8,7 +8,7 @@ import type {
   AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
   TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
   SessionHistory, HistoryTurn, HistoryStep,
-  MessageQueuedEvent, MessageProcessingEvent,
+  MessageQueuedEvent, MessageProcessingEvent, PermissionRequest,
 } from "../types"
 import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
@@ -139,7 +139,7 @@ interface ChatStore {
   scrollTrigger: number
 }
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+export function ChatProvider({ children, onPermissionRequest }: { children: React.ReactNode; onPermissionRequest?: (req: PermissionRequest) => void }) {
   const workspace = useWorkspace()
   const sessions = useSessions()
   const sseRef = useRef(createSSEManager())
@@ -571,6 +571,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       onSessionDeleted: (id) => sessions.delete(id),
       onMessageQueued: handleMessageQueued,
       onMessageProcessing: handleMessageProcessing,
+      onPermissionRequest: onPermissionRequest,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
       onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),

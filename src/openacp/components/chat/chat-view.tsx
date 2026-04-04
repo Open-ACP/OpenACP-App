@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react"
 import { useChat } from "../../context/chat"
 import { useSessions } from "../../context/sessions"
+import { usePermissions } from "../../context/permissions"
 import { useAutoScroll } from "../../hooks/use-auto-scroll"
 import { UserMessage } from "./user-message"
 import { MessageTurn } from "./message-turn"
+import { PermissionRequestCard } from "./permission-request"
 import { showToast } from "../../lib/toast"
 import type { Message } from "../../types"
 
@@ -124,6 +126,8 @@ function ScrollToBottomButton({ visible, onClick }: { visible: boolean; onClick:
 
 export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
   const chat = useChat()
+  const permissions = usePermissions()
+  const activeSessionId = chat.activeSession()
 
   const autoScroll = useAutoScroll({
     working: chat.streaming(),
@@ -205,6 +209,7 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
                     )
                   })
                 })()}
+                {activeSessionId && <PermissionRequestCard sessionId={activeSessionId} />}
               </div>
             </div>
             <ScrollToBottomButton
