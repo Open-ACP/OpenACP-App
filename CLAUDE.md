@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenACP Desktop is a native desktop app for managing AI coding agents across multiple workspaces. Built with **Tauri 2** (Rust backend) and **SolidJS** (TypeScript frontend). Each workspace connects to a locally-running OpenACP server instance via REST + SSE.
+OpenACP Desktop is a native desktop app for managing AI coding agents across multiple workspaces. Built with **Tauri 2** (Rust backend) and **React 19** (TypeScript frontend). Each workspace connects to a locally-running OpenACP server instance via REST + SSE.
 
 ## Commands
 
@@ -44,9 +44,19 @@ The active application layer, organized as:
 - **`types.ts`** — Core types: `Session`, `Message`, `Agent`, `ServerInfo`.
 - **`app.tsx`** — Root component (workspace management). **`main.tsx`** — Entry point.
 
-### Design System (`src/ui/`)
+### Design System (`src/openacp/components/ui/`)
 
-Custom `@openacp/ui` library built on **Kobalte** headless components. 50+ components with co-located CSS files. Styling uses CSS layers (theme → base → components → utilities) with **Tailwind CSS 4** and design tokens in `src/ui/src/styles/`.
+**shadcn/ui** components (new-york style) built on **Radix UI** primitives. Components installed via `npx shadcn add`. Styling uses CSS layers (theme → base → components → utilities) with **Tailwind CSS 4** and design tokens in `src/openacp/styles/`.
+
+The legacy `src/ui/` library (Kobalte-based) is being phased out. New components should use shadcn/ui primitives from `src/openacp/components/ui/`.
+
+### Design Reference
+
+See `docs/design/DESIGN.md` for the full design system overview (tokens, components, Tailwind integration). Key files:
+
+- **Pencil file**: `docs/design/pencil/openacp.pen` — 18 screens, 87 shadcn components. Read via Pencil MCP tools to match layout 1:1 when building FE.
+- **Design tokens**: `src/openacp/styles/theme.css` — Semantic tokens + shadcn aliases.
+- **Tailwind colors**: `src/openacp/styles/tailwind/colors.css` — All tokens registered for utility classes.
 
 ### Platform Layer (`src/platform/`)
 
@@ -73,10 +83,38 @@ PlatformProvider > AppBaseProviders > AppInterface > OpenACPApp
 
 ## Key Conventions
 
-- **SolidJS, not React** — uses signals/stores, `createContext`, `createResource`. No hooks like `useState`/`useEffect`.
-- **TypeScript strict mode** with `jsxImportSource: "solid-js"`.
+- **React 19** with TypeScript strict mode.
+- **UI Components**: shadcn/ui (new-york style) + Radix UI primitives in `src/openacp/components/ui/`. Custom domain components in `src/openacp/components/`.
+- **Icons**: `@phosphor-icons/react` (configured in `components.json`).
+- **Styling**: Tailwind CSS 4 + shadcn design tokens (`--foreground`, `--border`, `--primary`, etc.) with alias layer to legacy tokens (`--text-strong`, `--border-base`, etc.) in `src/openacp/styles/theme.css`.
+- **State**: React Context + TanStack React Query for async data.
 - **Component files**: one component per file, kebab-case filenames.
-- **Styling**: co-located CSS files alongside components. Theme tokens as CSS custom properties (`--color-*`, `--background-*`).
-- **State**: SolidJS contexts + stores for app state, TanStack Solid Query for async data.
 - **i18n**: translations in `src/platform/i18n/` and `src/ui/src/i18n/` (18+ languages).
 - **Versioning**: date-based `YYYY.MMDD.N` format via `scripts/release.sh`.
+
+## Git Workflow
+
+Fork-based workflow. Upstream: `Open-ACP/OpenACP-App`, fork: `lngdao/OpenACP-App`.
+
+- **Base branch**: `develop` (not `main`)
+- **Branch naming**: `<your-name>/<feature>` (e.g., `hiru/onboarding-redesign`)
+- **Commits**: conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). No `Co-Authored-By` lines.
+- **Sync**: `git rebase develop` (not merge)
+- **PR target**: fork's `develop` only — never create upstream PRs (maintainer does that)
+
+```bash
+# Start work
+git checkout develop && git pull origin develop
+git checkout -b <name>/<feature>
+
+# Commit + push
+git add <files> && git commit -m "feat: description"
+git push origin <branch>
+
+# Create PR into fork's develop
+gh pr create --base develop --title "feat: description" --body "..."
+
+# Keep branch up to date
+git checkout develop && git pull origin develop
+git checkout <branch> && git rebase develop
+```
