@@ -8,8 +8,8 @@ interface PermissionsContext {
   pending: (sessionId: string) => PermissionRequest | undefined
   /** Handle incoming permission request from SSE */
   addRequest: (request: PermissionRequest) => void
-  /** Resolve a permission (approve/deny) */
-  resolve: (sessionId: string, permissionId: string, optionId: string) => Promise<void>
+  /** Resolve a permission (approve/deny), optionally with feedback text */
+  resolve: (sessionId: string, permissionId: string, optionId: string, feedback?: string) => Promise<void>
   /** Dismiss a pending permission (e.g. when aborting) */
   dismiss: (sessionId: string) => void
   /** Check if a specific permission is being resolved */
@@ -41,10 +41,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     })
   }, [])
 
-  const resolve = useCallback(async (sessionId: string, permissionId: string, optionId: string) => {
+  const resolve = useCallback(async (sessionId: string, permissionId: string, optionId: string, feedback?: string) => {
     setStore((draft) => { draft.resolving[permissionId] = true })
     try {
-      await workspace.client.resolvePermission(sessionId, permissionId, optionId)
+      await workspace.client.resolvePermission(sessionId, permissionId, optionId, feedback)
       setStore((draft) => {
         delete draft.pending[sessionId]
         delete draft.resolving[permissionId]

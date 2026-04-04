@@ -8,6 +8,7 @@ export interface SSECallbacks {
   onMessageQueued?: (event: MessageQueuedEvent) => void
   onMessageProcessing?: (event: MessageProcessingEvent) => void
   onPermissionRequest?: (event: PermissionRequest) => void
+  onPermissionResolved?: (event: { sessionId: string; requestId: string; decision: string }) => void
   onConnected: () => void
   onDisconnected: () => void
   onReconnecting?: () => void
@@ -76,6 +77,13 @@ export function createSSEManager() {
         if (data.permission) {
           callbacks.onPermissionRequest?.({ ...data.permission, sessionId: data.sessionId })
         }
+      } catch { /* skip */ }
+    })
+
+    es.addEventListener("permission:resolved", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        callbacks.onPermissionResolved?.(data)
       } catch { /* skip */ }
     })
 

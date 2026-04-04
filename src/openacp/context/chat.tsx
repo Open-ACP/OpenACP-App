@@ -139,7 +139,7 @@ interface ChatStore {
   scrollTrigger: number
 }
 
-export function ChatProvider({ children, onPermissionRequest }: { children: React.ReactNode; onPermissionRequest?: (req: PermissionRequest) => void }) {
+export function ChatProvider({ children, onPermissionRequest, onPermissionResolved }: { children: React.ReactNode; onPermissionRequest?: (req: PermissionRequest) => void; onPermissionResolved?: (event: { sessionId: string; requestId: string }) => void }) {
   const workspace = useWorkspace()
   const sessions = useSessions()
   const sseRef = useRef(createSSEManager())
@@ -572,6 +572,7 @@ export function ChatProvider({ children, onPermissionRequest }: { children: Reac
       onMessageQueued: handleMessageQueued,
       onMessageProcessing: handleMessageProcessing,
       onPermissionRequest: onPermissionRequest,
+      onPermissionResolved: onPermissionResolved,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
       onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),

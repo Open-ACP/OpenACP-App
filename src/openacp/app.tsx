@@ -36,7 +36,10 @@ function ChatArea() {
 function ChatWithPermissions() {
   const permissions = usePermissions()
   return (
-    <ChatProvider onPermissionRequest={permissions.addRequest}>
+    <ChatProvider
+      onPermissionRequest={permissions.addRequest}
+      onPermissionResolved={(e) => permissions.dismiss(e.sessionId)}
+    >
       <SidebarPanel />
       <ChatArea />
     </ChatProvider>

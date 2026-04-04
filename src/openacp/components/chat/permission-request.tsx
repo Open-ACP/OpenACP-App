@@ -52,15 +52,12 @@ export function PermissionRequestCard({ sessionId }: Props) {
     const text = feedback.trim()
     if (!text) return
     setFeedback("")
-    // Deny the permission so the agent can finish its current turn cleanly,
-    // then queue the feedback as the next prompt
+    // Deny permission with feedback — server will resolve the permission AND
+    // queue feedback as next prompt in one atomic request
     const deny = request!.options.find((o) => !o.isAllow)
-    const reqId = request!.id
-    const send = chat.sendPrompt // capture ref before component unmounts
     if (deny) {
-      await permissions.resolve(sessionId, reqId, deny.id)
+      await permissions.resolve(sessionId, request!.id, deny.id, text)
     }
-    await send(text)
   }
 
   return (

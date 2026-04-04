@@ -220,11 +220,13 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       }
     },
 
-    /** Resolve a permission request (approve/deny) */
-    async resolvePermission(sessionID: string, permissionId: string, optionId: string): Promise<void> {
+    /** Resolve a permission request (approve/deny), optionally with feedback text */
+    async resolvePermission(sessionID: string, permissionId: string, optionId: string, feedback?: string): Promise<void> {
+      const body: Record<string, string> = { permissionId, optionId }
+      if (feedback) body.feedback = feedback
       await api(`/sessions/${encodeURIComponent(sessionID)}/permission`, {
         method: "POST",
-        body: JSON.stringify({ permissionId, optionId }),
+        body: JSON.stringify(body),
       })
     },
 
