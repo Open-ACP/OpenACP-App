@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { usePermissions } from "../../context/permissions"
 import { useChat } from "../../context/chat"
+import { useWorkspace } from "../../context/workspace"
 
 interface Props {
   sessionId: string
@@ -9,6 +10,7 @@ interface Props {
 export function PermissionRequestCard({ sessionId }: Props) {
   const permissions = usePermissions()
   const chat = useChat()
+  const workspace = useWorkspace()
   const request = permissions.pending(sessionId)
   const [feedback, setFeedback] = useState("")
   const [highlighted, setHighlighted] = useState(0)
@@ -52,10 +54,11 @@ export function PermissionRequestCard({ sessionId }: Props) {
     const text = feedback.trim()
     if (!text) return
     setFeedback("")
-    // Dismiss the permission card, cancel current prompt, then send feedback as new prompt
+    // Dismiss the permission card, cancel via API (not chat.abort which blocks events),
+    // then send feedback as new prompt
     permissions.dismiss(sessionId)
-    chat.abort()
-    setTimeout(() => { chat.sendPrompt(text) }, 200)
+    workspace.client.cancelPrompt(sessionId).catch(() => {})
+    setTimeout(() => { chat.sendPrompt(text) }, 300)
   }
 
   return (
