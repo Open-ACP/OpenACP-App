@@ -50,7 +50,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const resolve = useCallback(async (sessionId: string, permissionId: string, optionId: string, feedback?: string) => {
     setStore((draft) => {
       draft.resolving[permissionId] = true
-      if (feedback) draft.feedback[sessionId] = feedback
+      if (feedback) {
+        draft.feedback[sessionId] = feedback
+      } else {
+        delete draft.feedback[sessionId]
+      }
     })
     try {
       await workspace.client.resolvePermission(sessionId, permissionId, optionId, feedback)
