@@ -238,7 +238,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   // ── History loading ─────────────────────────────────────────────────────
 
   async function loadHistory(sessionID: string) {
-    const hasInMemory = (store.messagesBySession[sessionID]?.length ?? 0) > 0
+    // Read current messages via draft to avoid stale closure
+    let hasInMemory = false
+    setStore((draft) => { hasInMemory = (draft.messagesBySession[sessionID]?.length ?? 0) > 0 })
 
     if (!hasInMemory) {
       const cached = await loadCachedMessages(sessionID)
@@ -252,10 +254,14 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
-        const current = store.messagesBySession[sessionID] ?? []
+        // Read current messages via draft to get latest in-memory state
+        let inFlight: Message[] = []
         const lastServerTurn = history.turns[history.turns.length - 1]
         const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
-        const inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
+        setStore((draft) => {
+          const current = draft.messagesBySession[sessionID] ?? []
+          inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
+        })
         setMessages(sessionID, [...serverMessages, ...inFlight])
         void cacheMessages(sessionID, serverMessages)
       }
