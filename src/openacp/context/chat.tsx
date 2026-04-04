@@ -254,16 +254,28 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
-        // Read current messages via draft to get latest in-memory state
-        let inFlight: Message[] = []
-        const lastServerTurn = history.turns[history.turns.length - 1]
-        const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
+        // Only use server history if it has richer data than local.
+        // Server may return turns with empty steps (history recorder bug),
+        // in which case local cache/in-memory data is more complete.
+        const serverAssistantBlocks = serverMessages
+          .filter((m) => m.role === "assistant")
+          .reduce((n, m) => n + m.blocks.length, 0)
+        let localCount = 0
         setStore((draft) => {
-          const current = draft.messagesBySession[sessionID] ?? []
-          inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
+          const local = draft.messagesBySession[sessionID] ?? []
+          localCount = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
         })
-        setMessages(sessionID, [...serverMessages, ...inFlight])
-        void cacheMessages(sessionID, serverMessages)
+        if (serverAssistantBlocks >= localCount) {
+          let inFlight: Message[] = []
+          const lastServerTurn = history.turns[history.turns.length - 1]
+          const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
+          setStore((draft) => {
+            const current = draft.messagesBySession[sessionID] ?? []
+            inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
+          })
+          setMessages(sessionID, [...serverMessages, ...inFlight])
+          void cacheMessages(sessionID, serverMessages)
+        }
       }
     } catch {
       // Server unavailable
