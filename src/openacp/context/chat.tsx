@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo } from "react"
 import { useImmer } from "use-immer"
+import { current } from "immer"
 import { useWorkspace } from "./workspace"
 import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
@@ -163,6 +164,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     scrollTrigger: 0,
   })
 
+  // Mirror of messagesBySession for reliable reads outside React batching
+  const messagesRef = useRef<Record<string, Message[]>>({})
+
   const abortedSessions = useRef(new Set<string>())
   const assistantMsgId = useRef(new Map<string, string>())
   const thinkingStartTime = useRef(new Map<string, number>())
@@ -189,10 +193,20 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       if (!draft.messagesBySession[sessionID]) draft.messagesBySession[sessionID] = []
       draft.messagesBySession[sessionID].push(msg)
     })
+    // Keep ref in sync
+    if (!messagesRef.current[sessionID]) messagesRef.current[sessionID] = []
+    messagesRef.current[sessionID] = [...(messagesRef.current[sessionID] || []), msg]
   }
 
   function setMessages(sessionID: string, msgs: Message[]) {
+    messagesRef.current[sessionID] = msgs
     setStore((draft) => { draft.messagesBySession[sessionID] = msgs })
+  }
+
+  // Sync ref after every store mutation — use current() to get plain objects from Immer draft
+  function syncRef(sessionID: string, draft: ChatStore) {
+    const msgs = draft.messagesBySession[sessionID]
+    messagesRef.current[sessionID] = msgs ? current(msgs) : []
   }
 
   function updateAssistantParts(sessionID: string, updater: (parts: MessagePart[]) => void) {
@@ -203,6 +217,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.parts)
+      syncRef(sessionID, draft)
     })
   }
 
@@ -214,6 +229,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.blocks)
+      syncRef(sessionID, draft)
     })
   }
 
@@ -238,15 +254,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   // ── History loading ─────────────────────────────────────────────────────
 
   async function loadHistory(sessionID: string) {
-    // Read current messages via draft to avoid stale closure
-    let hasInMemory = false
-    setStore((draft) => { hasInMemory = (draft.messagesBySession[sessionID]?.length ?? 0) > 0 })
+    const localMsgs = messagesRef.current[sessionID] ?? []
+    const hasInMemory = localMsgs.length > 0
 
     if (!hasInMemory) {
-      const cached = await loadCachedMessages(sessionID)
-      if (cached && cached.length > 0) {
-        setMessages(sessionID, cached)
-      }
+      try {
+        const cached = await loadCachedMessages(sessionID)
+        if (cached && cached.length > 0) {
+          setMessages(sessionID, cached)
+        }
+      } catch { /* cache unavailable */ }
     }
 
     setStore((draft) => { draft.loadingHistory = true })
@@ -254,31 +271,22 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
-        // Only use server history if it has richer data than local.
-        // Server may return turns with empty steps (history recorder bug),
-        // in which case local cache/in-memory data is more complete.
-        const serverAssistantBlocks = serverMessages
-          .filter((m) => m.role === "assistant")
-          .reduce((n, m) => n + m.blocks.length, 0)
-        let localCount = 0
-        setStore((draft) => {
-          const local = draft.messagesBySession[sessionID] ?? []
-          localCount = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
-        })
-        if (serverAssistantBlocks >= localCount) {
-          let inFlight: Message[] = []
-          const lastServerTurn = history.turns[history.turns.length - 1]
-          const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
-          setStore((draft) => {
-            const current = draft.messagesBySession[sessionID] ?? []
-            inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
-          })
+        const serverAstBlocks = serverMessages.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
+        const local = messagesRef.current[sessionID] ?? []
+        const localAstBlocks = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
+
+        if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
+          const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
+          const inFlight = local.filter((m) => m.createdAt > lastServerTime + 1000)
           setMessages(sessionID, [...serverMessages, ...inFlight])
           void cacheMessages(sessionID, serverMessages)
+        } else if (local.length === 0) {
+          setMessages(sessionID, serverMessages)
         }
+        // else: local data is richer, keep it
       }
     } catch {
-      // Server unavailable
+      // Server unavailable — local cache/in-memory used as fallback
     } finally {
       setStore((draft) => { draft.loadingHistory = false })
     }
@@ -562,8 +570,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         assistantMsgId.current.delete(sessionID)
         setStore((draft) => { draft.streaming = false })
         void sessions.refresh()
-        const msgs = store.messagesBySession[sessionID]
-        if (msgs) void cacheMessages(sessionID, msgs)
+        const msgs = messagesRef.current[sessionID]
+        if (msgs) void cacheMessages(sessionID, [...msgs])
         break
       }
     }
