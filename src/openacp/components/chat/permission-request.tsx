@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { usePermissions } from "../../context/permissions"
 import { useChat } from "../../context/chat"
-import { useWorkspace } from "../../context/workspace"
 
 interface Props {
   sessionId: string
@@ -10,7 +9,6 @@ interface Props {
 export function PermissionRequestCard({ sessionId }: Props) {
   const permissions = usePermissions()
   const chat = useChat()
-  const workspace = useWorkspace()
   const request = permissions.pending(sessionId)
   const [feedback, setFeedback] = useState("")
   const [highlighted, setHighlighted] = useState(0)
@@ -50,15 +48,19 @@ export function PermissionRequestCard({ sessionId }: Props) {
 
   const isResolving = permissions.resolving(request.id)
 
-  function handleFeedbackSubmit() {
+  async function handleFeedbackSubmit() {
     const text = feedback.trim()
     if (!text) return
     setFeedback("")
-    // Dismiss the permission card, cancel via API (not chat.abort which blocks events),
-    // then send feedback as new prompt
-    permissions.dismiss(sessionId)
-    workspace.client.cancelPrompt(sessionId).catch(() => {})
-    setTimeout(() => { chat.sendPrompt(text) }, 300)
+    // Deny the permission so the agent can finish its current turn cleanly,
+    // then queue the feedback as the next prompt
+    const deny = request!.options.find((o) => !o.isAllow)
+    const reqId = request!.id
+    const send = chat.sendPrompt // capture ref before component unmounts
+    if (deny) {
+      await permissions.resolve(sessionId, reqId, deny.id)
+    }
+    await send(text)
   }
 
   return (
