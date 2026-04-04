@@ -65,6 +65,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src/app"),
+      "src/lib/utils": path.resolve(__dirname, "src/lib/utils.ts"),
+      "src/openacp/components/ui": path.resolve(__dirname, "src/openacp/components/ui"),
     },
   },
   build: {

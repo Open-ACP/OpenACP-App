@@ -376,6 +376,15 @@
   --input: var(--border-base);
   --ring: var(--border-selected);
   --radius: 0.5rem;
+
+  --sidebar-background: var(--background-base);
+  --sidebar-foreground: var(--text-strong);
+  --sidebar-primary: var(--text-strong);
+  --sidebar-primary-foreground: var(--background-strong);
+  --sidebar-accent: var(--surface-raised-base);
+  --sidebar-accent-foreground: var(--text-strong);
+  --sidebar-border: var(--border-weak-base);
+  --sidebar-ring: var(--border-interactive-base);
 }
 
 /* ── Dark theme ────────────────────────────────────────────────────────────── */
@@ -661,6 +670,15 @@
     --input: var(--border-base);
     --ring: var(--border-selected);
     --radius: 0.5rem;
+
+    --sidebar-background: var(--background-base);
+    --sidebar-foreground: var(--text-strong);
+    --sidebar-primary: var(--text-strong);
+    --sidebar-primary-foreground: var(--background-strong);
+    --sidebar-accent: var(--surface-raised-base);
+    --sidebar-accent-foreground: var(--text-strong);
+    --sidebar-border: var(--border-weak-base);
+    --sidebar-ring: var(--border-interactive-base);
   }
 }
 
@@ -945,4 +963,13 @@
   --input: var(--border-base);
   --ring: var(--border-selected);
   --radius: 0.5rem;
+
+  --sidebar-background: var(--background-base);
+  --sidebar-foreground: var(--text-strong);
+  --sidebar-primary: var(--text-strong);
+  --sidebar-primary-foreground: var(--background-strong);
+  --sidebar-accent: var(--surface-raised-base);
+  --sidebar-accent-foreground: var(--text-strong);
+  --sidebar-border: var(--border-weak-base);
+  --sidebar-ring: var(--border-interactive-base);
 }

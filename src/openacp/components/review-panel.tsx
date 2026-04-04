@@ -3,6 +3,7 @@ import { structuredPatch } from "diff"
 import { ResizeHandle } from "./ui/resize-handle"
 import { useChat } from "../context/chat"
 import type { ToolCallPart, FileDiff as FileDiffData } from "../types"
+import { Button } from "./ui/button"
 
 const DEFAULT_WIDTH = 480
 const MIN_WIDTH = 320
@@ -33,7 +34,7 @@ function DiffStats({ before, after }: { before: string; after: string }) {
     return { add, del }
   }, [before, after])
   return (
-    <span className="flex items-center gap-1.5 text-12-regular font-mono">
+    <span className="flex items-center gap-1.5 text-sm leading-lg font-mono">
       {stats.add > 0 && <span style={{ color: "var(--syntax-diff-add, #2da44e)" }}>+{stats.add}</span>}
       {stats.del > 0 && <span style={{ color: "var(--syntax-diff-delete, #cf222e)" }}>-{stats.del}</span>}
     </span>
@@ -88,18 +89,18 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
       <ResizeHandle direction="horizontal" edge="start" size={panelWidth} min={MIN_WIDTH} max={MAX_WIDTH} onResize={setPanelWidth} />
       <div className="flex items-center justify-between px-3 h-11 border-b border-border-weaker-base flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-14-medium text-text-strong">Review</span>
-          {fileDiffs.length > 0 && <span className="text-12-regular text-text-weak">{fileDiffs.length} file{fileDiffs.length !== 1 ? "s" : ""}</span>}
+          <span className="text-base font-medium leading-lg text-text-strong">Review</span>
+          {fileDiffs.length > 0 && <span className="text-sm leading-lg text-text-weak">{fileDiffs.length} file{fileDiffs.length !== 1 ? "s" : ""}</span>}
         </div>
-        <button className="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors" onClick={onClose} title="Close">
+        <Button variant="ghost" size="icon-sm" className="text-icon-weak hover:text-icon-base" onClick={onClose} title="Close">
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-        </button>
+        </Button>
       </div>
       {fileDiffs.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="text-13-regular text-text-weak">No file changes yet</div>
-            <div className="text-12-regular text-text-weaker mt-1">Changes will appear as the agent edits files</div>
+            <div className="text-sm leading-lg text-text-weak">No file changes yet</div>
+            <div className="text-sm leading-lg text-text-weaker mt-1">Changes will appear as the agent edits files</div>
           </div>
         </div>
       ) : (
@@ -108,7 +109,7 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
             {fileDiffs.map((item) => {
               const isSelected = (selectedFile ?? fileDiffs[0]?.path) === item.path
               return (
-                <button key={item.path} className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-12-medium whitespace-nowrap transition-colors ${isSelected ? "bg-surface-raised-base text-text-strong" : "text-text-base hover:text-text-strong hover:bg-surface-raised-base-hover"}`} onClick={() => setSelectedFile(item.path)}>
+                <button key={item.path} className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium leading-lg whitespace-nowrap transition-colors ${isSelected ? "bg-surface-raised-base text-text-strong" : "text-text-base hover:text-text-strong hover:bg-surface-raised-base-hover"}`} onClick={() => setSelectedFile(item.path)}>
                   {fileName(item.path)}
                   <DiffStats before={item.diff.before ?? ""} after={item.diff.after} />
                 </button>

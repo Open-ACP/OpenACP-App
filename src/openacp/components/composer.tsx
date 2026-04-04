@@ -11,6 +11,7 @@ import {
   validateFileMime, fileToDataUrl, isImageMime,
   MAX_FILE_SIZE, MAX_ATTACHMENTS, ACCEPTED_FILE_TYPES,
 } from "../lib/file-utils"
+import { Button } from "./ui/button"
 
 let attachIdCounter = 0
 function nextAttachId() { return `att-${++attachIdCounter}` }
@@ -236,13 +237,15 @@ export function Composer() {
                       <FileIcon size={14} className="text-icon-weak flex-shrink-0" />
                     )}
                     <span className="text-[12px] text-text-base truncate max-w-[160px] leading-none">{att.fileName}</span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => removeAttachment(att.id)}
-                      className="size-4 flex items-center justify-center rounded-sm text-icon-weak hover:text-icon-strong hover:bg-surface-raised-base-hover transition-colors flex-shrink-0"
+                      className="size-4 flex-shrink-0 text-icon-weak hover:text-icon-strong"
                     >
                       <X size={10} weight="bold" />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -257,12 +260,12 @@ export function Composer() {
                 contentEditable="true"
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
-                className="select-text w-full pl-3 pr-2 pt-2 text-14-regular text-text-strong focus:outline-none whitespace-pre-wrap"
+                className="select-text w-full pl-3 pr-2 pt-2 text-base leading-xl text-text-strong focus:outline-none whitespace-pre-wrap"
                 style={{ paddingBottom: space }}
               />
               {!text.trim() && !attachments.length && (
                 <div
-                  className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-14-regular text-text-weak pointer-events-none whitespace-nowrap truncate"
+                  className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-base leading-xl text-text-weak pointer-events-none whitespace-nowrap truncate"
                   style={{ paddingBottom: space }}
                 >
                   Ask anything...
@@ -281,11 +284,12 @@ export function Composer() {
 
             <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
               <div className="flex items-center gap-1 pointer-events-auto">
-                <button
+                <Button
                   data-action="prompt-submit"
                   type="submit"
+                  size="icon-sm"
                   disabled={!text.trim() && !attachments.length && !chat.streaming()}
-                  className="size-8 flex items-center justify-center rounded-md bg-text-strong text-background-stronger disabled:opacity-40"
+                  className="bg-text-strong text-background-stronger hover:bg-text-strong/90"
                   onClick={chat.streaming() ? (e: React.MouseEvent) => { e.preventDefault(); chat.abort() } : undefined}
                 >
                   {chat.streaming() ? (
@@ -293,24 +297,26 @@ export function Composer() {
                   ) : (
                     <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M10 15.8337V4.16699M4.16699 10.0003L10 4.16699L15.8337 10.0003" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   )}
-                </button>
+                </Button>
               </div>
             </div>
 
             <div className="pointer-events-none absolute bottom-2 left-2">
               <div className="pointer-events-auto flex items-center gap-0.5">
-                <button
+                <Button
                   data-action="prompt-attach"
                   type="button"
-                  className="size-8 p-0 flex items-center justify-center rounded-md hover:bg-surface-raised-base-hover transition-colors"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Plus size={18} weight="bold" className="text-icon-weak" />
-                </button>
-                <button
+                </Button>
+                <Button
                   data-action="prompt-command"
                   type="button"
-                  className="size-8 p-0 flex items-center justify-center rounded-md hover:bg-surface-raised-base-hover transition-colors"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -319,7 +325,7 @@ export function Composer() {
                   }}
                 >
                   <Command size={18} weight="regular" className="text-icon-weak" />
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -362,7 +368,7 @@ export function Composer() {
         <div className="fixed inset-0 z-50 bg-background-base/80 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 border-dashed border-border-selected">
             <ImageIcon size={40} className="text-text-interactive-base" />
-            <span className="text-14-medium text-text-strong">Drop files to attach</span>
+            <span className="text-base font-medium leading-lg text-text-strong">Drop files to attach</span>
           </div>
         </div>
       )}

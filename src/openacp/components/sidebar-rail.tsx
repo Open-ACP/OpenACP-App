@@ -1,6 +1,7 @@
 import React from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { GearSix, Plus, Trash } from "@phosphor-icons/react"
+import { Button } from "./ui/button"
 
 const AVATAR_COLORS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 
@@ -46,7 +47,7 @@ export function SidebarRail(props: {
                   onClick={() => hasError && props.onReconnect ? props.onReconnect(dir) : props.onSwitchWorkspace(dir)}
                 >
                   <div
-                    className="size-full rounded-lg flex items-center justify-center text-12-medium"
+                    className="size-full rounded-lg flex items-center justify-center text-sm font-medium leading-lg"
                     style={{ background: colors.background, color: colors.foreground }}
                   >
                     {initial}
@@ -60,21 +61,23 @@ export function SidebarRail(props: {
           })}
 
           <div className="mt-1">
-            <button
-              className="size-8 rounded-md flex items-center justify-center hover:bg-surface-raised-base-hover transition-colors"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               title="Open workspace"
               onClick={props.onOpenFolder}
             >
               <Plus size={16} className="text-icon-weak" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       <div className="shrink-0 w-full pb-5 pt-3 flex flex-col items-center gap-2">
         {import.meta.env.DEV && (
-          <button
-            className="size-8 rounded-md flex items-center justify-center hover:bg-surface-raised-base-hover"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             title="[Dev] Reset OpenACP"
             onClick={async () => {
               await invoke('dev_reset_openacp')
@@ -82,11 +85,11 @@ export function SidebarRail(props: {
             }}
           >
             <Trash size={16} className="text-icon-weak" />
-          </button>
+          </Button>
         )}
-        <button className="size-8 rounded-md flex items-center justify-center hover:bg-surface-raised-base-hover" title="Settings">
+        <Button variant="ghost" size="icon-sm" title="Settings">
           <GearSix size={16} className="text-icon-weak" />
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -285,14 +285,14 @@ export function OpenACPApp() {
             {serverError ? (
               <div className="text-center flex flex-col items-center gap-4">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="text-16-medium text-text-strong">No Server Found</div>
-                  <div className="text-14-regular text-text-weak">Run <code className="px-1.5 py-0.5 rounded bg-surface-raised-base text-13-regular font-mono">openacp start</code> in your workspace</div>
-                  <div className="text-12-regular text-text-weak font-mono mt-1">{activeWorkspace?.directory}</div>
+                  <div className="text-lg font-medium leading-xl tracking-tight text-text-strong">No Server Found</div>
+                  <div className="text-base leading-xl text-text-weak">Run <code className="px-1.5 py-0.5 rounded bg-surface-raised-base text-sm leading-lg font-mono">openacp start</code> in your workspace</div>
+                  <div className="text-sm leading-lg text-text-weak font-mono mt-1">{activeWorkspace?.directory}</div>
                 </div>
-                <div className="flex items-center gap-2 text-12-regular text-text-weaker"><div className="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />Waiting for server...</div>
+                <div className="flex items-center gap-2 text-sm leading-lg text-text-weaker"><div className="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />Waiting for server...</div>
               </div>
             ) : (
-              <div className="text-14-regular text-text-weak">Connecting...</div>
+              <div className="text-base leading-xl text-text-weak">Connecting...</div>
             )}
           </div>
         )

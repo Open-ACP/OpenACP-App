@@ -4,6 +4,8 @@ import { useSessions } from "../context/sessions"
 import { useWorkspace } from "../context/workspace"
 import { showToast } from "../lib/toast"
 import type { ServerCommand } from "../types"
+import { Button } from "./ui/button"
+import { Input } from "./ui/input"
 
 const HIDDEN_COMMANDS = new Set([
   "tunnel", "tunnels", "usage", "summary", "archive", "clear",
@@ -187,10 +189,10 @@ export function CommandPalette(props: {
       {subPicker ? (
         <>
           <div className="px-3 py-2 border-b border-border-weaker-base flex items-center gap-2">
-            <button className="text-icon-weak hover:text-icon-base transition-colors" onClick={() => setSubPicker(null)}>
+            <Button variant="ghost" size="icon-xs" onClick={() => setSubPicker(null)}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M12.5 15.8337L6.66667 10.0003L12.5 4.16699" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
-            <span className="text-13-medium text-text-strong">{subPicker.title}</span>
+            </Button>
+            <span className="text-sm font-medium leading-lg text-text-strong">{subPicker.title}</span>
           </div>
           <div className="max-h-64 overflow-y-auto py-1">
             {subPicker.choices.map((choice, index) => (
@@ -209,10 +211,10 @@ export function CommandPalette(props: {
       ) : (
         <>
           <div className="px-3 py-2 border-b border-border-weaker-base">
-            <input ref={inputRef} type="text" placeholder="Filter actions..." className="w-full bg-transparent text-13-regular text-text-strong placeholder:text-text-weak focus:outline-none" value={query} onChange={(e) => { setQuery(e.target.value); setHighlighted(0) }} />
+            <Input ref={inputRef} type="text" placeholder="Filter actions..." className="bg-transparent text-sm leading-lg text-text-strong placeholder:text-text-weak border-none shadow-none focus-visible:ring-0 h-auto px-0 py-0" value={query} onChange={(e) => { setQuery(e.target.value); setHighlighted(0) }} />
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
-            {filtered.length === 0 && <div className="px-3 py-3 text-13-regular text-text-weak text-center">No actions found</div>}
+            {filtered.length === 0 && <div className="px-3 py-3 text-sm leading-lg text-text-weak text-center">No actions found</div>}
             {groups.map(([group, groupItems]) => (
               <div key={group}>
                 <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--text-weaker)" }}>{group}</div>
@@ -226,7 +228,7 @@ export function CommandPalette(props: {
                       onClick={() => !disabled && item.action()}
                       disabled={disabled}
                     >
-                      <span className="text-13-medium text-text-strong flex-1 min-w-0">{item.label}</span>
+                      <span className="text-sm font-medium leading-lg text-text-strong flex-1 min-w-0">{item.label}</span>
                       {item.description && <span className="text-text-weak truncate" style={{ fontSize: "11px" }}>{item.description}</span>}
                       {item.rightLabel && <span className="text-text-weak" style={{ fontSize: "11px" }}>{item.rightLabel}</span>}
                       {item.type === "sub-picker" && <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="text-icon-weaker"><path d="M7.5 4.16699L13.3333 10.0003L7.5 15.8337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}

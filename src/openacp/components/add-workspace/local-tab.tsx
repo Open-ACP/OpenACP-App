@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { discoverLocalInstances, type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
 import { CreateInstance } from './create-instance'
 import { invoke } from '@tauri-apps/api/core'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
 
 interface LocalTabProps { onAdd: (entry: WorkspaceEntry) => void; existingIds?: string[] }
 
@@ -55,7 +57,9 @@ export function LocalTab(props: LocalTabProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-15-semibold text-text-strong">{inst.name ?? inst.id}</span>
-                      {alreadyAdded && <span className="text-11-medium text-text-weaker bg-surface-raised-base px-2 py-0.5 rounded-full">Added</span>}
+                      {alreadyAdded && (
+                        <Badge variant="secondary" className="text-11-medium">Added</Badge>
+                      )}
                     </div>
                     <div className="space-y-0.5">
                       <p className="text-12-regular text-text-weak truncate"><span className="text-text-weaker">Folder </span>{inst.directory}</p>
@@ -66,9 +70,12 @@ export function LocalTab(props: LocalTabProps) {
                       )}
                     </div>
                   </div>
-                  <span className={`shrink-0 text-11-medium px-2 py-1 rounded-full mt-0.5 ${isRunning ? 'bg-green-500/15 text-green-500' : 'bg-surface-raised-base text-text-weaker'}`}>
+                  <Badge
+                    variant={isRunning ? "outline" : "secondary"}
+                    className={`shrink-0 text-11-medium mt-0.5 ${isRunning ? 'bg-green-500/15 text-green-500 border-transparent' : ''}`}
+                  >
                     {isRunning ? 'Active' : 'Inactive'}
-                  </span>
+                  </Badge>
                 </div>
               </button>
             )
@@ -77,10 +84,15 @@ export function LocalTab(props: LocalTabProps) {
       </div>
       <div className="border-t border-border-base pt-5">
         <p className="text-12-medium text-text-weaker uppercase tracking-wider mb-3">Open a folder</p>
-        <button type="button" onClick={handleBrowse} className="w-full px-4 py-3 rounded-xl border border-border-base text-14-medium text-text-base hover:bg-surface-raised-base-hover hover:border-border-hover transition-colors text-left flex items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleBrowse}
+          className="w-full px-4 py-3 rounded-xl text-14-medium text-text-base h-auto justify-start gap-3"
+        >
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className="text-text-weak shrink-0"><path d="M2.5 5.83333V15.8333H17.5V7.5H9.58333L7.5 5.83333H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <span>Choose a folder to open or create a workspace...</span>
-        </button>
+        </Button>
       </div>
       {browseResult && <BrowseResultView result={browseResult} instances={instances} onAdd={props.onAdd} onClose={() => setBrowseResult(null)} />}
     </div>
@@ -95,8 +107,14 @@ function BrowseResultView(props: { result: BrowseResult; instances: InstanceList
       <div className="p-4 bg-surface-raised-base rounded-xl border border-border-base space-y-3">
         <div><p className="text-14-medium text-text-strong mb-1">Workspace found</p><p className="text-13-regular text-text-weak">This folder is already set up as <strong className="text-text-base">{inst.name ?? inst.id}</strong>. Click Add to open it here.</p></div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => props.onAdd({ id: inst.id, name: inst.name ?? inst.id, directory: inst.directory, type: 'local' })} className="px-4 py-1.5 rounded-lg bg-accent-base text-white text-13-medium hover:opacity-90 transition-opacity">Add workspace</button>
-          <button type="button" onClick={props.onClose} className="text-13-regular text-text-weak hover:text-text-base transition-colors">Back</button>
+          <Button
+            type="button"
+            onClick={() => props.onAdd({ id: inst.id, name: inst.name ?? inst.id, directory: inst.directory, type: 'local' })}
+            className="px-4 py-1.5 text-13-medium h-auto"
+          >
+            Add workspace
+          </Button>
+          <Button type="button" variant="ghost" onClick={props.onClose} className="text-13-regular text-text-weak h-auto">Back</Button>
         </div>
       </div>
     )
@@ -107,7 +125,7 @@ function BrowseResultView(props: { result: BrowseResult; instances: InstanceList
         <div><p className="text-14-medium text-text-strong mb-1">Existing workspace detected</p><p className="text-13-regular text-text-weak">This folder already has an OpenACP workspace. Click Add to register it.</p></div>
         <div className="flex items-center gap-2">
           <RegisterExistingButton path={result.path} onAdd={props.onAdd} />
-          <button type="button" onClick={props.onClose} className="text-13-regular text-text-weak hover:text-text-base transition-colors">Back</button>
+          <Button type="button" variant="ghost" onClick={props.onClose} className="text-13-regular text-text-weak h-auto">Back</Button>
         </div>
       </div>
     )
@@ -128,7 +146,14 @@ function RegisterExistingButton(props: { path: string; onAdd: (e: WorkspaceEntry
   }
   return (
     <>
-      <button type="button" onClick={register} disabled={loading} className="px-4 py-1.5 rounded-lg bg-accent-base text-white text-13-medium hover:opacity-90 transition-opacity disabled:opacity-50">{loading ? 'Adding...' : 'Add workspace'}</button>
+      <Button
+        type="button"
+        onClick={register}
+        disabled={loading}
+        className="px-4 py-1.5 text-13-medium h-auto"
+      >
+        {loading ? 'Adding...' : 'Add workspace'}
+      </Button>
       {error && <p className="text-12-regular text-red-500">{error}</p>}
     </>
   )

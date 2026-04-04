@@ -8,6 +8,7 @@ import { MessageTurn } from "./message-turn"
 import { PermissionRequestCard } from "./permission-request"
 import { showToast } from "../../lib/toast"
 import type { Message } from "../../types"
+import { Button } from "../ui/button"
 
 function ChatHeader({ onOpenReview }: { onOpenReview?: () => void }) {
   const chat = useChat()
@@ -29,21 +30,23 @@ function ChatHeader({ onOpenReview }: { onOpenReview?: () => void }) {
         <span className="text-14-medium text-text-strong truncate block">{title}</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <button
-          className="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           title="Review changes"
+          className="text-icon-weak hover:text-icon-base"
           onClick={() => onOpenReview?.()}
         >
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
             <path d="M3.33 4.17h13.34M3.33 8.33h8.34M3.33 12.5h13.34M3.33 16.67h8.34" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
-        </button>
-        <button className="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors" title="Context">
+        </Button>
+        <Button variant="ghost" size="icon-sm" title="Context" className="text-icon-weak hover:text-icon-base">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.2" /></svg>
-        </button>
-        <button className="w-7 h-7 flex items-center justify-center rounded-md text-icon-weak hover:text-icon-base hover:bg-surface-raised-base-hover transition-colors" title="More options">
+        </Button>
+        <Button variant="ghost" size="icon-sm" title="More options" className="text-icon-weak hover:text-icon-base">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="4.5" cy="10" r="1.25" fill="currentColor" /><circle cx="10" cy="10" r="1.25" fill="currentColor" /><circle cx="15.5" cy="10" r="1.25" fill="currentColor" /></svg>
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -87,8 +90,9 @@ function EmptyState() {
           </div>
         </div>
         {!hasSession && (
-          <button
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border-base text-12-medium text-text-strong hover:bg-surface-raised-base-hover transition-colors active:scale-[0.98] disabled:opacity-50"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleNewSession}
             disabled={creating}
           >
@@ -100,7 +104,7 @@ function EmptyState() {
               </svg>
             )}
             {creating ? "Creating..." : "New Session"}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -111,15 +115,17 @@ function ScrollToBottomButton({ visible, onClick }: { visible: boolean; onClick:
   if (!visible) return null
   return (
     <div className="absolute bottom-4 left-1/2 z-10" style={{ transform: "translateX(-50%)" }}>
-      <button
-        className="flex items-center justify-center w-8 h-8 rounded-full border border-border-base text-text-base hover:text-text-strong transition-colors active:scale-95"
+      <Button
+        variant="outline"
+        size="icon-sm"
+        className="rounded-full text-text-base hover:text-text-strong"
         style={{ background: "var(--surface-stronger-non-alpha, var(--background-stronger))", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
         onClick={onClick}
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
           <path d="M5.83301 8.33366L9.99967 12.5003L14.1663 8.33366" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-      </button>
+      </Button>
     </div>
   )
 }

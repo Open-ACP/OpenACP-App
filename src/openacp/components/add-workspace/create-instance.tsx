@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { InstanceListEntry, WorkspaceEntry } from '../../api/workspace-store'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 interface CreateInstanceProps { path: string; existingInstances: InstanceListEntry[]; onAdd: (entry: WorkspaceEntry) => void; onClose: () => void }
 
@@ -40,10 +43,18 @@ export function CreateInstance(props: CreateInstanceProps) {
       {mode === 'clone' && (
         <div className="space-y-3">
           <label className="block"><span className="text-12-regular text-text-weak block mb-1">Clone from</span>
-            <select value={cloneFrom ?? ''} onChange={(e) => setCloneFrom(e.target.value || null)} className="w-full px-3 py-2 rounded-lg border border-border-base bg-surface-raised-base text-14-regular text-text-base">
-              <option value="">Select instance...</option>
-              {props.existingInstances.map((inst) => <option key={inst.id} value={inst.directory}>{inst.name ?? inst.id} ({inst.directory})</option>)}
-            </select>
+            <Select value={cloneFrom ?? ''} onValueChange={(v) => setCloneFrom(v || null)}>
+              <SelectTrigger className="w-full rounded-lg">
+                <SelectValue placeholder="Select instance..." />
+              </SelectTrigger>
+              <SelectContent>
+                {props.existingInstances.map((inst) => (
+                  <SelectItem key={inst.id} value={inst.directory}>
+                    {inst.name ?? inst.id} ({inst.directory})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <NameInput value={name} folderName={folderName} onInput={setName} />
           <ActionButtons onBack={() => setMode('choose')} onConfirm={handleCreate} disabled={!cloneFrom || loading} loading={loading} error={error} />
@@ -62,7 +73,13 @@ export function CreateInstance(props: CreateInstanceProps) {
 function NameInput(props: { value: string; folderName: string; onInput: (v: string) => void }) {
   return (
     <label className="block"><span className="text-12-regular text-text-weak block mb-1">Instance name</span>
-      <input type="text" value={props.value} placeholder={props.folderName} onChange={(e) => props.onInput(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-border-base bg-surface-raised-base text-14-regular text-text-base" />
+      <Input
+        type="text"
+        value={props.value}
+        placeholder={props.folderName}
+        onChange={(e) => props.onInput(e.target.value)}
+        className="w-full rounded-lg text-14-regular"
+      />
     </label>
   )
 }
@@ -72,8 +89,15 @@ function ActionButtons(props: { onBack: () => void; onConfirm: () => void; disab
     <>
       {props.error && <p className="text-12-regular text-red-500">{props.error}</p>}
       <div className="flex gap-2">
-        <button type="button" onClick={props.onBack} className="px-3 py-1 text-14-regular text-text-weak hover:text-text-base transition-colors">Back</button>
-        <button type="button" onClick={props.onConfirm} disabled={props.disabled} className="flex-1 px-3 py-1 rounded-lg bg-accent-base text-white text-14-medium disabled:opacity-50 transition-colors">{props.loading ? 'Creating...' : 'Create workspace'}</button>
+        <Button type="button" variant="ghost" onClick={props.onBack} className="px-3 py-1 text-14-regular text-text-weak h-auto">Back</Button>
+        <Button
+          type="button"
+          onClick={props.onConfirm}
+          disabled={props.disabled}
+          className="flex-1 px-3 py-1 text-14-medium h-auto"
+        >
+          {props.loading ? 'Creating...' : 'Create workspace'}
+        </Button>
       </div>
     </>
   )
