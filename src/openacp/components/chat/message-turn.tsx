@@ -8,6 +8,7 @@ import { PlanBlockView } from "./blocks/plan-block"
 import { ErrorBlockView } from "./blocks/error-block"
 import { ToolGroup } from "./blocks/tool-group"
 import { usePermissions } from "../../context/permissions"
+import { UsageBar } from "./usage-bar"
 import type { Message, MessageBlock, ToolBlock, TextBlock, ThinkingBlock, PlanBlock, ErrorBlock } from "../../types"
 
 interface MessageTurnProps {
@@ -164,6 +165,7 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
           )
         })}
       </div>
+      {!streaming && message.usage && <UsageBar usage={message.usage} />}
     </div>
   )
 })
