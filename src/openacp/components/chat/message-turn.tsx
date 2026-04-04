@@ -7,6 +7,7 @@ import { ToolBlockView } from "./blocks/tool-block"
 import { PlanBlockView } from "./blocks/plan-block"
 import { ErrorBlockView } from "./blocks/error-block"
 import { ToolGroup } from "./blocks/tool-group"
+import { usePermissions } from "../../context/permissions"
 import type { Message, MessageBlock, ToolBlock, TextBlock, ThinkingBlock, PlanBlock, ErrorBlock } from "../../types"
 
 interface MessageTurnProps {
@@ -90,9 +91,20 @@ function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
   return items
 }
 
+const REJECTION_PATTERNS = [
+  "user doesn't want to proceed",
+  "tool use was rejected",
+  "User refused permission",
+]
+
+function isToolRejected(block: MessageBlock): boolean {
+  if (block.type !== "tool" || !block.output) return false
+  return REJECTION_PATTERNS.some((p) => block.output!.includes(p))
+}
+
 function blockStatus(block: MessageBlock): StepStatus {
   if (block.type === "tool") {
-    if (block.status === "error") return "failure"
+    if (block.status === "error" || isToolRejected(block)) return "failure"
     if (block.status === "pending" || block.status === "running") return "progress"
     if (block.status === "completed") return "success"
   }
@@ -102,6 +114,8 @@ function blockStatus(block: MessageBlock): StepStatus {
 }
 
 export const MessageTurn = React.memo(function MessageTurn({ message, streaming }: MessageTurnProps) {
+  const permissions = usePermissions()
+  const feedbackReason = permissions.lastFeedback(message.sessionID)
   const blocks = useMemo(() => message.blocks ?? [], [message.blocks])
   const isEmpty = blocks.length === 0
   const renderItems = useMemo(() => groupBlocks(blocks), [blocks])
@@ -140,7 +154,7 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
               ) : block.type === "thinking" ? (
                 <ThinkingBlockView block={block as ThinkingBlock} />
               ) : block.type === "tool" ? (
-                <ToolBlockView block={block as ToolBlock} />
+                <ToolBlockView block={block as ToolBlock} feedbackReason={feedbackReason} />
               ) : block.type === "plan" ? (
                 <PlanBlockView block={block as PlanBlock} />
               ) : block.type === "error" ? (

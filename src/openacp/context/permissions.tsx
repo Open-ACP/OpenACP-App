@@ -14,6 +14,10 @@ interface PermissionsContext {
   dismiss: (sessionId: string) => void
   /** Check if a specific permission is being resolved */
   resolving: (permissionId: string) => boolean
+  /** Get the last feedback reason for a session (shown on rejected tool blocks) */
+  lastFeedback: (sessionId: string) => string | undefined
+  /** Clear last feedback for a session */
+  clearFeedback: (sessionId: string) => void
 }
 
 const Ctx = createContext<PermissionsContext | undefined>(undefined)
@@ -29,11 +33,13 @@ interface PermissionsStore {
   pending: Record<string, PermissionRequest>
   /** permissionId → currently resolving */
   resolving: Record<string, boolean>
+  /** sessionId → last feedback reason text */
+  feedback: Record<string, string>
 }
 
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const workspace = useWorkspace()
-  const [store, setStore] = useImmer<PermissionsStore>({ pending: {}, resolving: {} })
+  const [store, setStore] = useImmer<PermissionsStore>({ pending: {}, resolving: {}, feedback: {} })
 
   const addRequest = useCallback((request: PermissionRequest) => {
     setStore((draft) => {
@@ -42,7 +48,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   }, [])
 
   const resolve = useCallback(async (sessionId: string, permissionId: string, optionId: string, feedback?: string) => {
-    setStore((draft) => { draft.resolving[permissionId] = true })
+    setStore((draft) => {
+      draft.resolving[permissionId] = true
+      if (feedback) draft.feedback[sessionId] = feedback
+    })
     try {
       await workspace.client.resolvePermission(sessionId, permissionId, optionId, feedback)
       setStore((draft) => {
@@ -58,12 +67,18 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     setStore((draft) => { delete draft.pending[sessionId] })
   }, [])
 
+  const clearFeedback = useCallback((sessionId: string) => {
+    setStore((draft) => { delete draft.feedback[sessionId] })
+  }, [])
+
   const value: PermissionsContext = {
     pending: (sessionId) => store.pending[sessionId],
     addRequest,
     resolve,
     dismiss,
     resolving: (permissionId) => !!store.resolving[permissionId],
+    lastFeedback: (sessionId) => store.feedback[sessionId],
+    clearFeedback,
   }
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
