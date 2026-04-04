@@ -104,6 +104,14 @@ export interface FileAttachment {
   size: number
 }
 
+// ── Usage Info ──────────────────────────────────────────────────────────────
+
+export interface UsageInfo {
+  tokensUsed?: number
+  contextSize?: number
+  cost?: { amount: number; currency: string } | number
+}
+
 // ── Messages ────────────────────────────────────────────────────────────────
 
 export interface Message {
@@ -117,6 +125,8 @@ export interface Message {
   createdAt: number
   /** Set when message originated from an external adapter (e.g. "telegram", "discord") */
   sourceAdapterId?: string
+  /** Token usage and cost info for this assistant response */
+  usage?: UsageInfo
 }
 
 // ── Agents ──────────────────────────────────────────────────────────────────

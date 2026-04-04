@@ -8,7 +8,7 @@ import type {
   AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
   TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
   SessionHistory, HistoryTurn, HistoryStep,
-  MessageQueuedEvent, MessageProcessingEvent,
+  MessageQueuedEvent, MessageProcessingEvent, UsageInfo,
 } from "../types"
 import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
@@ -98,11 +98,21 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
     }
   }
 
-  return {
+  const msg: Message = {
     id, role: turn.role, sessionID: sessionId,
     parts, blocks,
     createdAt: new Date(turn.timestamp).getTime(),
   }
+
+  if (turn.usage) {
+    msg.usage = {
+      tokensUsed: turn.usage.tokensUsed,
+      contextSize: turn.usage.contextSize,
+      cost: turn.usage.cost as UsageInfo["cost"],
+    }
+  }
+
+  return msg
 }
 
 function stepToPart(step: HistoryStep): MessagePart | null {
@@ -514,6 +524,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               thinking.isStreaming = false
               thinking.durationMs = durationMs
             }
+          })
+        }
+        // Attach usage data to the current assistant message
+        const usageMsgId = assistantMsgId.current.get(sessionID)
+        if (usageMsgId) {
+          const usageInfo: UsageInfo = {
+            tokensUsed: evt.tokensUsed,
+            contextSize: evt.contextSize,
+            cost: (evt as any).cost,
+          }
+          setStore((draft) => {
+            const msgs = draft.messagesBySession[sessionID]
+            if (!msgs) return
+            const msg = msgs.find((m) => m.id === usageMsgId)
+            if (msg) msg.usage = usageInfo
           })
         }
         assistantMsgId.current.delete(sessionID)
