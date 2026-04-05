@@ -7,6 +7,7 @@ import markedKatex from "marked-katex-extension"
 import markedShiki from "marked-shiki"
 import { bundledLanguages, type BundledLanguage } from "shiki"
 import { getSharedHighlighter, registerCustomTheme, type ThemeRegistrationResolved } from "@pierre/diffs"
+import * as charStream from "../../lib/char-stream"
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 
@@ -120,48 +121,21 @@ function hashString(s: string): string {
 //
 // This avoids the two-layer raw/committed approach which caused height mismatches.
 
-// Cursor-controlled streaming: advance by 1-3 words per tick with random delay.
-const TICK_MIN = 5         // ms min delay
-const TICK_MAX = 15        // ms max delay
-const WORDS_MIN = 1        // min words per tick
-const WORDS_MAX = 3        // max words per tick
-
-function randomInt(min: number, max: number): number {
-  return min + Math.floor(Math.random() * (max - min + 1))
-}
-
-function advanceCursor(text: string, cursor: number): number {
-  const words = randomInt(WORDS_MIN, WORDS_MAX)
-  let pos = cursor
-  let counted = 0
-  // Skip leading whitespace
-  while (pos < text.length && /\s/.test(text[pos]!)) pos++
-  // Advance N words
-  while (pos < text.length && counted < words) {
-    // Consume non-whitespace (word)
-    while (pos < text.length && !/\s/.test(text[pos]!)) pos++
-    counted++
-    // Consume trailing whitespace (include with word)
-    while (pos < text.length && /\s/.test(text[pos]!)) pos++
-  }
-  return pos || Math.min(text.length, cursor + 1)
-}
 
 interface MarkdownProps {
   text: string
   cacheKey?: string
+  streamId?: string
   streaming?: boolean
   className?: string
 }
 
-export function Markdown({ text, cacheKey, streaming, className }: MarkdownProps) {
+export function Markdown({ text, cacheKey, streamId, streaming, className }: MarkdownProps) {
   const elRef = useRef<HTMLDivElement>(null)
   const renderingRef = useRef(false)
   const prevStreamingRef = useRef(streaming)
   const lastTextRef = useRef("")
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const textRef = useRef(text)
-  const cursorRef = useRef(0) // how many chars are "revealed" to user
 
   textRef.current = text
 
@@ -196,44 +170,20 @@ export function Markdown({ text, cacheKey, streaming, className }: MarkdownProps
     else apply(result)
   }
 
-  // Streaming: cursor-based tick loop
+  // Streaming: subscribe to CharStream for character-by-character display
   useEffect(() => {
-    if (!streaming) return
-
-    function tick() {
-      const fullText = textRef.current
-      if (cursorRef.current < fullText.length) {
-        cursorRef.current = advanceCursor(fullText, cursorRef.current)
-      }
-      renderMarkdown(fullText.slice(0, cursorRef.current), true)
-
-      if (streamingRef.current || cursorRef.current < textRef.current.length) {
-        timerRef.current = setTimeout(tick, randomInt(TICK_MIN, TICK_MAX))
-      }
-    }
-
-    const streamingRef = { current: true }
-    timerRef.current = setTimeout(tick, randomInt(TICK_MIN, TICK_MAX))
-
-    return () => {
-      streamingRef.current = false
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
-    }
-  }, [streaming])
+    if (!streaming || !streamId) return
+    const unsub = charStream.subscribeDisplay(streamId, (displayText) => {
+      renderMarkdown(displayText, true)
+    })
+    return unsub
+  }, [streaming, streamId])
 
   // When streaming ends: final full Shiki render
   useEffect(() => {
     if (prevStreamingRef.current && !streaming) {
       cache.delete(cacheKey || "md")
       lastTextRef.current = ""
-      cursorRef.current = 0 // reset cursor for next stream
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
       renderMarkdown(text, false)
     }
     prevStreamingRef.current = streaming
