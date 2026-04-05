@@ -131,7 +131,14 @@ function mapSessionFromSSE(s: any): Session {
     agent: s.agent || s.agentName || "",
     status: s.status || "active",
     workspace: s.workspace || "",
+    channelId: s.channelId || "",
     createdAt: s.createdAt || new Date().toISOString(),
     lastActiveAt: s.lastActiveAt ?? null,
+    dangerousMode: s.dangerousMode ?? false,
+    queueDepth: s.queueDepth ?? 0,
+    promptRunning: s.promptRunning ?? false,
+    capabilities: s.capabilities ?? null,
+    configOptions: s.configOptions,
+    isLive: s.isLive ?? ["active", "initializing"].includes(s.status || "active"),
   }
 }

@@ -29,11 +29,11 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await workspace.client.listSessions()
       setSessions(
-        result
-          .filter((s: Session) => s.status === "active" || s.status === "initializing")
-          .sort((a: Session, b: Session) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          )
+        result.sort((a: Session, b: Session) => {
+          const aTime = new Date(a.lastActiveAt ?? a.createdAt).getTime()
+          const bTime = new Date(b.lastActiveAt ?? b.createdAt).getTime()
+          return bTime - aTime
+        })
       )
     } catch {
       setSessions([])

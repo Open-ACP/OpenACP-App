@@ -115,16 +115,18 @@ function NewSessionButton() {
 }
 
 function SessionItem({ session, active, streaming, onClick, onDelete }: {
-  session: { id: string; name: string; agent: string; status: string }
+  session: { id: string; name: string; agent: string; status: string; isLive: boolean }
   active: boolean
   streaming: boolean
   onClick: () => void
   onDelete: () => void
 }) {
+  const isHistorical = !session.isLive
+
   return (
     <div
       data-session-id={session.id}
-      className={`group/session relative w-full min-w-0 rounded-md cursor-default pl-2 pr-3 transition-colors hover:bg-surface-raised-base-hover`}
+      className={`group/session relative w-full min-w-0 rounded-md cursor-default pl-2 pr-3 transition-colors hover:bg-surface-raised-base-hover ${isHistorical ? "opacity-60" : ""}`}
     >
       <div className="flex min-w-0 items-center gap-1">
         <div className="min-w-0 flex-1">
@@ -135,6 +137,8 @@ function SessionItem({ session, active, streaming, onClick, onDelete }: {
             <div className="shrink-0 size-6 flex items-center justify-center">
               {streaming ? (
                 <Spinner className="size-[15px] text-text-weak" />
+              ) : isHistorical ? (
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill="currentColor" className="text-icon-weak" /></svg>
               ) : (
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 10H15" stroke="currentColor" strokeLinecap="round" className="text-icon-weak" /></svg>
               )}
@@ -145,7 +149,7 @@ function SessionItem({ session, active, streaming, onClick, onDelete }: {
         <div className="shrink-0 overflow-hidden transition-[width,opacity] w-0 opacity-0 pointer-events-none group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto">
           <button
             className="size-6 flex items-center justify-center rounded-md hover:bg-surface-raised-base-hover"
-            title="Archive"
+            title={isHistorical ? "Remove" : "Archive"}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete() }}
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M3.33 6.67h13.34M5 6.67V15.83a1.67 1.67 0 001.67 1.67h6.66A1.67 1.67 0 0015 15.83V6.67M7.5 3.33h5" stroke="currentColor" strokeLinecap="round" className="text-icon-weak" /></svg>

@@ -4,8 +4,15 @@ export interface Session {
   agent: string
   status: "initializing" | "active" | "finished" | "cancelled" | "error"
   workspace: string
+  channelId: string
   createdAt: string
   lastActiveAt?: string | null
+  dangerousMode: boolean
+  queueDepth: number
+  promptRunning: boolean
+  capabilities: unknown | null
+  configOptions?: unknown[]
+  isLive: boolean
 }
 
 // ── Message Parts ───────────────────────────────────────────────────────────
