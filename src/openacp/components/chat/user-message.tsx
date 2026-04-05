@@ -62,7 +62,7 @@ export const UserMessage = memo(function UserMessage({ message }: { message: Mes
     <div
       data-component="oac-user-message"
       className="rounded-md border border-border shadow-sm"
-      style={{ padding: "8px 12px", backgroundColor: "var(--surface-raised-stronger-non-alpha, var(--background-stronger))" }}
+      style={{ padding: "8px 12px", backgroundColor: "var(--surface-raised-stronger-non-alpha, var(--card))" }}
     >
       {message.sourceAdapterId ? (
         <div className="flex items-center gap-1 mb-1.5">

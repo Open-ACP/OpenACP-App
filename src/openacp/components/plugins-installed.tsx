@@ -50,7 +50,7 @@ export function InstalledTab({ workspace }: { workspace: WorkspaceCtx }) {
 
   return (
     <div className="p-4 flex flex-col gap-2">
-      {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} /></div>}
+      {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /></div>}
       {error && (
         <div className="text-red-500 text-base leading-xl text-center py-8">
           Failed to load plugins.{" "}

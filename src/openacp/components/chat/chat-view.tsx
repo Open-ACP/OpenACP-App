@@ -97,7 +97,7 @@ function EmptyState() {
             disabled={creating}
           >
             {creating ? (
-              <div className="w-3.5 h-3.5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} />
+              <div className="w-3.5 h-3.5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} />
             ) : (
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
                 <path d="M10 4.16699V15.8337M4.16699 10.0003H15.8337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -119,7 +119,7 @@ function ScrollToBottomButton({ visible, onClick }: { visible: boolean; onClick:
         variant="outline"
         size="icon-sm"
         className="rounded-full text-foreground-weak hover:text-foreground"
-        style={{ background: "var(--surface-stronger-non-alpha, var(--background-stronger))", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+        style={{ background: "var(--surface-stronger-non-alpha, var(--card))", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
         onClick={onClick}
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none">

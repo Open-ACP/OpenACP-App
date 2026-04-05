@@ -53,7 +53,7 @@ export const UsageBar = React.memo(function UsageBar({ usage }: UsageBarProps) {
       style={{
         fontSize: 11,
         lineHeight: "16px",
-        color: "var(--text-weaker)",
+        color: "var(--foreground-weaker)",
         paddingTop: 4,
         paddingLeft: 30,
         userSelect: "none",

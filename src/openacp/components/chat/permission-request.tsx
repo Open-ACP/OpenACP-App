@@ -67,8 +67,8 @@ export function PermissionRequestCard({ sessionId }: Props) {
       tabIndex={-1}
       className="my-3 mx-0 rounded-lg overflow-hidden focus:outline-none"
       style={{
-        background: "var(--surface-raised-base)",
-        border: "1px solid var(--border-base)",
+        background: "var(--secondary)",
+        border: "1px solid var(--border)",
       }}
     >
       {/* Title */}
@@ -98,7 +98,7 @@ export function PermissionRequestCard({ sessionId }: Props) {
             >
               <span
                 className="text-12-regular shrink-0"
-                style={{ color: "var(--text-weak)", width: "14px" }}
+                style={{ color: "var(--muted-foreground)", width: "14px" }}
               >
                 {idx + 1}
               </span>
@@ -135,13 +135,13 @@ export function PermissionRequestCard({ sessionId }: Props) {
 
       {/* Hint */}
       <div className="px-3.5 pb-2.5">
-        <span className="text-11-regular" style={{ color: "var(--text-weaker)" }}>
+        <span className="text-11-regular" style={{ color: "var(--foreground-weaker)" }}>
           Esc to cancel
         </span>
         {isResolving && (
           <span
             className="inline-block w-3 h-3 border-2 rounded-full oac-spinner ml-2 align-middle"
-            style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }}
           />
         )}
       </div>

@@ -224,7 +224,7 @@ export function Composer() {
         <DockShellForm
           onSubmit={handleSubmit}
           className="group/prompt-input focus-within:shadow-xs-border"
-          style={isBypass ? { borderColor: "var(--surface-critical-strong)", borderWidth: "1.5px" } : undefined}
+          style={isBypass ? { borderColor: "var(--destructive)", borderWidth: "1.5px" } : undefined}
         >
           <div
             className="relative"

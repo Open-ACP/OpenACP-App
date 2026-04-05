@@ -74,7 +74,7 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
           <div className="flex items-center gap-2 text-sm leading-lg text-muted-foreground">
             {pollTimedOut
               ? <span>Install not detected. <Button variant="link" className="p-0 h-auto text-sm leading-lg text-foreground-weak" onClick={() => { setPollTimedOut(false); refetch() }}>Refresh</Button></span>
-              : <><div className="w-4 h-4 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} /><span>Waiting for install...</span></>
+              : <><div className="w-4 h-4 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /><span>Waiting for install...</span></>
             }
           </div>
         </div>
@@ -86,7 +86,7 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
         onChange={(e) => setSearch(e.target.value)}
         className="w-full text-base leading-xl"
       />
-      {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} /></div>}
+      {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /></div>}
       {error && (
         <div className="text-red-500 text-base leading-xl text-center py-8 flex flex-col items-center gap-2">
           <span>Marketplace unavailable</span>

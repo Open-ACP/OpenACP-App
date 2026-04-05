@@ -217,7 +217,7 @@ export function CommandPalette(props: {
             {filtered.length === 0 && <div className="px-3 py-3 text-sm leading-lg text-muted-foreground text-center">No actions found</div>}
             {groups.map(([group, groupItems]) => (
               <div key={group}>
-                <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--text-weaker)" }}>{group}</div>
+                <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--foreground-weaker)" }}>{group}</div>
                 {groupItems.map((item) => {
                   const globalIdx = filtered.indexOf(item)
                   const disabled = item.enabled === false

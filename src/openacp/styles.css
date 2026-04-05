@@ -38,7 +38,7 @@
 /* ── User message ────────────────────────────────────────────────────────── */
 
 [data-component="oac-user-message"] {
-  background-color: var(--surface-stronger-non-alpha, var(--background-stronger));
+  background-color: var(--surface-stronger-non-alpha, var(--card));
 }
 
 /* ── Copy button ─────────────────────────────────────────────────────────── */
@@ -61,7 +61,7 @@
 
 .oac-copy-btn:hover {
   color: var(--icon-base);
-  background-color: var(--surface-raised-base-hover);
+  background-color: var(--accent);
 }
 
 .oac-copy-btn:active {

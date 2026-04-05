@@ -38,7 +38,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
       >
         <span>{icon}</span>
         <span style={{ fontWeight: "500" }}>{label}</span>
-        <span style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--text-weak)" }}>
+        <span style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--muted-foreground)" }}>
           {isRejected ? block.title : block.title}
         </span>
         {isRejected && (
@@ -64,7 +64,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
           <div className="oac-tool-card-body">
             <div className="flex items-center gap-1.5 text-12-regular" style={{ color: "var(--text-critical-base, #dc2626)" }}>
               <span style={{ fontWeight: 500 }}>Reason:</span>
-              <span style={{ color: "var(--text-base)" }}>{reason}</span>
+              <span style={{ color: "var(--foreground-weak)" }}>{reason}</span>
             </div>
           </div>
         </div>

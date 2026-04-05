@@ -19,7 +19,7 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block }: Thin
 
   if (!hasContent) {
     return (
-      <div style={{ fontStyle: "italic", fontSize: "12px", color: "var(--text-weak)" }}>
+      <div style={{ fontStyle: "italic", fontSize: "12px", color: "var(--muted-foreground)" }}>
         {summaryText}
       </div>
     )

@@ -323,18 +323,18 @@
   --icon-diff-delete-base: #ed4831;
   --icon-diff-delete-hover: #ca2d17;
   --icon-diff-modified-base: #ff8c00;
-  --syntax-comment: var(--text-weak);
-  --syntax-regexp: var(--text-base);
+  --syntax-comment: var(--muted-foreground);
+  --syntax-regexp: var(--foreground-weak);
   --syntax-string: #006656;
-  --syntax-keyword: var(--text-weak);
+  --syntax-keyword: var(--muted-foreground);
   --syntax-primitive: #fb4804;
-  --syntax-operator: var(--text-base);
-  --syntax-variable: var(--text-strong);
+  --syntax-operator: var(--foreground-weak);
+  --syntax-variable: var(--foreground);
   --syntax-property: #ed6dc8;
   --syntax-type: #596600;
   --syntax-constant: #007b80;
-  --syntax-punctuation: var(--text-base);
-  --syntax-object: var(--text-strong);
+  --syntax-punctuation: var(--foreground-weak);
+  --syntax-object: var(--foreground);
   --syntax-success: #2dba26;
   --syntax-warning: #efa72e;
   --syntax-critical: #ed4831;
@@ -407,23 +407,6 @@
   --sidebar-border: var(--border-weak);
   --sidebar-ring: var(--border-interactive-base);
 
-  /* ── Backward-compat aliases (legacy → shadcn, removed in Phase 3) ── */
-  --background-base: var(--background);
-  --background-stronger: var(--card);
-  --text-strong: var(--foreground);
-  --text-base: var(--foreground-weak);
-  --text-weak: var(--muted-foreground);
-  --text-weaker: var(--foreground-weaker);
-  --text-invert-strong: var(--primary-foreground);
-  --text-stronger: var(--foreground);
-  --button-primary-base: var(--primary);
-  --surface-raised-base: var(--secondary);
-  --surface-weak: var(--muted);
-  --surface-raised-base-hover: var(--accent);
-  --surface-critical-strong: var(--destructive);
-  --border-base: var(--border);
-  --border-selected: var(--ring);
-  --border-weak-base: var(--border-weak);
 }
 
 /* ── Dark theme ────────────────────────────────────────────────────────────── */
@@ -641,18 +624,18 @@
     --icon-diff-delete-base: #fc533a;
     --icon-diff-delete-hover: #f54f36;
     --icon-diff-modified-base: #ffba92;
-    --syntax-comment: var(--text-weak);
-    --syntax-regexp: var(--text-base);
+    --syntax-comment: var(--muted-foreground);
+    --syntax-regexp: var(--foreground-weak);
     --syntax-string: #00ceb9;
-    --syntax-keyword: var(--text-weak);
+    --syntax-keyword: var(--muted-foreground);
     --syntax-primitive: #ffba92;
-    --syntax-operator: var(--text-weak);
-    --syntax-variable: var(--text-strong);
+    --syntax-operator: var(--muted-foreground);
+    --syntax-variable: var(--foreground);
     --syntax-property: #ff9ae2;
     --syntax-type: #ecf58c;
     --syntax-constant: #93e9f6;
-    --syntax-punctuation: var(--text-weak);
-    --syntax-object: var(--text-strong);
+    --syntax-punctuation: var(--muted-foreground);
+    --syntax-object: var(--foreground);
     --syntax-success: #35c02d;
     --syntax-warning: #f5b238;
     --syntax-critical: #f54f36;
@@ -725,23 +708,6 @@
     --sidebar-border: var(--border-weak);
     --sidebar-ring: var(--border-interactive-base);
 
-    /* ── Backward-compat aliases (legacy → shadcn, removed in Phase 3) */
-    --background-base: var(--background);
-    --background-stronger: var(--card);
-    --text-strong: var(--foreground);
-    --text-base: var(--foreground-weak);
-    --text-weak: var(--muted-foreground);
-    --text-weaker: var(--foreground-weaker);
-    --text-invert-strong: var(--primary-foreground);
-    --text-stronger: var(--foreground);
-    --button-primary-base: var(--primary);
-    --surface-raised-base: var(--secondary);
-    --surface-weak: var(--muted);
-    --surface-raised-base-hover: var(--accent);
-    --surface-critical-strong: var(--destructive);
-    --border-base: var(--border);
-    --border-selected: var(--ring);
-    --border-weak-base: var(--border-weak);
   }
 }
 
@@ -958,18 +924,18 @@
   --icon-diff-delete-base: #fc533a;
   --icon-diff-delete-hover: #f54f36;
   --icon-diff-modified-base: #ffba92;
-  --syntax-comment: var(--text-weak);
-  --syntax-regexp: var(--text-base);
+  --syntax-comment: var(--muted-foreground);
+  --syntax-regexp: var(--foreground-weak);
   --syntax-string: #00ceb9;
-  --syntax-keyword: var(--text-weak);
+  --syntax-keyword: var(--muted-foreground);
   --syntax-primitive: #ffba92;
-  --syntax-operator: var(--text-weak);
-  --syntax-variable: var(--text-strong);
+  --syntax-operator: var(--muted-foreground);
+  --syntax-variable: var(--foreground);
   --syntax-property: #ff9ae2;
   --syntax-type: #ecf58c;
   --syntax-constant: #93e9f6;
-  --syntax-punctuation: var(--text-weak);
-  --syntax-object: var(--text-strong);
+  --syntax-punctuation: var(--muted-foreground);
+  --syntax-object: var(--foreground);
   --syntax-success: #35c02d;
   --syntax-warning: #f5b238;
   --syntax-critical: #f54f36;
