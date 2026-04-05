@@ -7,8 +7,11 @@ target/
 .env.*
 src-tauri/gen/
 .worktrees/
-.claude/conversations/
+.claude/
+.agents/
+.kiro/
 /.superpowers
+skills-lock.json
 docs/design/DECISIONS-LOG.md
 docs/design/WORKFLOW-LOG.md
 docs/design/pencil/generated-*.png
