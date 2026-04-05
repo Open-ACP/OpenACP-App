@@ -21,6 +21,7 @@ export function SidebarRail(props: {
   onSwitchWorkspace: (dir: string) => void
   onReconnect?: (dir: string) => void
   onOpenFolder: () => void
+  onOpenSettings?: () => void
 }) {
   const dirName = (dir: string) => dir.split("/").pop() || "Workspace"
 
@@ -84,7 +85,11 @@ export function SidebarRail(props: {
             <Trash size={16} className="text-icon-weak" />
           </button>
         )}
-        <button className="size-8 rounded-md flex items-center justify-center hover:bg-surface-raised-base-hover" title="Settings">
+        <button
+          className="size-8 rounded-md flex items-center justify-center hover:bg-surface-raised-base-hover"
+          title="Settings"
+          onClick={props.onOpenSettings}
+        >
           <GearSix size={16} className="text-icon-weak" />
         </button>
       </div>

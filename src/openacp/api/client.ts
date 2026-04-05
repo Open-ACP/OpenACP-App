@@ -101,6 +101,14 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       }
     },
 
+    /** Switch the agent for an active session */
+    async switchAgent(sessionId: string, agentName: string): Promise<{ ok: boolean; resumed?: boolean }> {
+      return api<{ ok: boolean; resumed?: boolean }>(`/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ agentName }),
+      })
+    },
+
     /** List sessions for this workspace */
     async listSessions(): Promise<Session[]> {
       const res = await api<{ sessions: any[] }>("/sessions")
@@ -109,7 +117,7 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
 
     /** Create a new session */
     async createSession(opts?: { workspace?: string; agent?: string }): Promise<Session> {
-      const body: Record<string, string> = {}
+      const body: Record<string, string> = { channel: "sse" }
       if (opts?.workspace) body.workspace = opts.workspace
       if (opts?.agent) body.agent = opts.agent
       const res = await api<any>("/sessions", {
