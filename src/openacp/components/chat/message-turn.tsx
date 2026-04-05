@@ -168,4 +168,9 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
       {!streaming && message.usage && <UsageBar usage={message.usage} />}
     </div>
   )
+}, (prev, next) => {
+  // Always re-render if streaming (this is the active message)
+  if (next.streaming) return false
+  // Otherwise only re-render if message or streaming flag changed
+  return prev.message === next.message && prev.streaming === next.streaming
 })

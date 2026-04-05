@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Plus, Command, X, File as FileIcon, Image as ImageIcon } from "@phosphor-icons/react"
 import { DockShellForm, DockTray } from "./ui/dock-surface"
 import { useChat } from "../context/chat"
+import { useSessions } from "../context/sessions"
 import { AgentSelector } from "./agent-selector"
 import { CommandPalette } from "./command-palette"
 import { ConfigSelector } from "./config-selector"
@@ -17,9 +18,20 @@ function nextAttachId() { return `att-${++attachIdCounter}` }
 
 export function Composer() {
   const chat = useChat()
+  const sessions = useSessions()
   const [text, setText] = useState("")
   const [agent, setAgent] = useState<string>()
   const [isBypass, setIsBypass] = useState(false)
+
+  // Sync agent from active session (e.g. on reload or session switch)
+  useEffect(() => {
+    const sessionId = chat.activeSession()
+    if (!sessionId) return
+    const session = sessions.list().find((s) => s.id === sessionId)
+    if (session?.agent && session.agent !== agent) {
+      setAgent(session.agent)
+    }
+  }, [chat.activeSession(), sessions.list()])
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteFilter, setPaletteFilter] = useState<string | undefined>()
   const [configVersion, setConfigVersion] = useState(0)
@@ -341,7 +353,15 @@ export function Composer() {
 
         <DockTray attach="top">
           <div className="px-1.75 pt-5.5 pb-2 flex items-center gap-1.5 min-w-0">
-            <AgentSelector current={agent} onSelect={setAgent} />
+            <AgentSelector
+              current={agent}
+              sessionID={chat.activeSession()}
+              onSelect={setAgent}
+              onSwitched={() => setConfigVersion((v) => v + 1)}
+              onInstallAgent={() => {
+                window.dispatchEvent(new CustomEvent("open-settings", { detail: { page: "agents" } }))
+              }}
+            />
             <ConfigSelector category="model" sessionID={chat.activeSession()} refreshKey={configVersion} />
             <div className="flex-1" />
             <ConfigSelector

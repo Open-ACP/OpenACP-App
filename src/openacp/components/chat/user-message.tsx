@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react"
+import React, { memo, useMemo, useState } from "react"
 import { File as FileIcon } from "@phosphor-icons/react"
 import type { Message, TextBlock, TextPart } from "../../types"
 import { isImageMime } from "../../lib/file-utils"
@@ -54,7 +54,7 @@ function adapterLabel(id: string): string {
   return map[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 }
 
-export function UserMessage({ message }: { message: Message }) {
+export const UserMessage = memo(function UserMessage({ message }: { message: Message }) {
   const timeStr = useMemo(() => formatTime(message.createdAt), [message.createdAt])
   const text = useMemo(() => getUserText(message), [message])
 
@@ -92,4 +92,4 @@ export function UserMessage({ message }: { message: Message }) {
       </div>
     </div>
   )
-}
+})

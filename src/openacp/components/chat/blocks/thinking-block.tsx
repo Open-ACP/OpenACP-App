@@ -1,11 +1,11 @@
-import React from "react"
+import React, { memo } from "react"
 import type { ThinkingBlock } from "../../../types"
 
 interface ThinkingBlockProps {
   block: ThinkingBlock
 }
 
-export function ThinkingBlockView({ block }: ThinkingBlockProps) {
+export const ThinkingBlockView = memo(function ThinkingBlockView({ block }: ThinkingBlockProps) {
   const summaryText = (() => {
     if (block.isStreaming) return "Thinking..."
     if (block.durationMs !== null) {
@@ -36,4 +36,4 @@ export function ThinkingBlockView({ block }: ThinkingBlockProps) {
       </div>
     </details>
   )
-}
+})

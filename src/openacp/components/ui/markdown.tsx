@@ -110,6 +110,42 @@ function hashString(s: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
+//
+// Streaming strategy (single-layer):
+//   - Text prop changes arrive from store flush (every rAF ~16ms)
+//   - During streaming, we throttle markdown parse+morphdom to every PARSE_INTERVAL
+//   - Between parses the DOM stays as-is (no flicker, no layout jump)
+//   - When streaming ends, final full render with Shiki highlighting
+//   - morphdom handles efficient DOM diffing — only changed nodes update
+//
+// This avoids the two-layer raw/committed approach which caused height mismatches.
+
+// Cursor-controlled streaming: advance by 1-3 words per tick with random delay.
+const TICK_MIN = 5         // ms min delay
+const TICK_MAX = 15        // ms max delay
+const WORDS_MIN = 1        // min words per tick
+const WORDS_MAX = 3        // max words per tick
+
+function randomInt(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function advanceCursor(text: string, cursor: number): number {
+  const words = randomInt(WORDS_MIN, WORDS_MAX)
+  let pos = cursor
+  let counted = 0
+  // Skip leading whitespace
+  while (pos < text.length && /\s/.test(text[pos]!)) pos++
+  // Advance N words
+  while (pos < text.length && counted < words) {
+    // Consume non-whitespace (word)
+    while (pos < text.length && !/\s/.test(text[pos]!)) pos++
+    counted++
+    // Consume trailing whitespace (include with word)
+    while (pos < text.length && /\s/.test(text[pos]!)) pos++
+  }
+  return pos || Math.min(text.length, cursor + 1)
+}
 
 interface MarkdownProps {
   text: string
@@ -122,18 +158,91 @@ export function Markdown({ text, cacheKey, streaming, className }: MarkdownProps
   const elRef = useRef<HTMLDivElement>(null)
   const renderingRef = useRef(false)
   const prevStreamingRef = useRef(streaming)
+  const lastTextRef = useRef("")
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const textRef = useRef(text)
+  const cursorRef = useRef(0) // how many chars are "revealed" to user
 
-  // When streaming ends, invalidate cache to force full Shiki re-render
+  textRef.current = text
+
+  function renderMarkdown(mdText: string, isStreaming: boolean) {
+    if (renderingRef.current || !elRef.current) return
+    if (mdText === lastTextRef.current) return
+
+    renderingRef.current = true
+    lastTextRef.current = mdText
+
+    const parser = isStreaming ? getFastParser() : getFullParser()
+    const result = parser.parse(mdText)
+
+    function apply(html: string) {
+      renderingRef.current = false
+      const safe = sanitize(html)
+      const key = cacheKey || "md"
+
+      if (!isStreaming) {
+        if (cache.size >= MAX_CACHE) {
+          const first = cache.keys().next().value
+          if (first) cache.delete(first)
+        }
+        cache.set(key, { hash: hashString(mdText), html: safe })
+      }
+      if (elRef.current) {
+        morphdom(elRef.current, `<div data-component="markdown">${safe}</div>`, { childrenOnly: true })
+      }
+    }
+
+    if (result instanceof Promise) result.then(apply)
+    else apply(result)
+  }
+
+  // Streaming: cursor-based tick loop
+  useEffect(() => {
+    if (!streaming) return
+
+    function tick() {
+      const fullText = textRef.current
+      if (cursorRef.current < fullText.length) {
+        cursorRef.current = advanceCursor(fullText, cursorRef.current)
+      }
+      renderMarkdown(fullText.slice(0, cursorRef.current), true)
+
+      if (streamingRef.current || cursorRef.current < textRef.current.length) {
+        timerRef.current = setTimeout(tick, randomInt(TICK_MIN, TICK_MAX))
+      }
+    }
+
+    const streamingRef = { current: true }
+    timerRef.current = setTimeout(tick, randomInt(TICK_MIN, TICK_MAX))
+
+    return () => {
+      streamingRef.current = false
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [streaming])
+
+  // When streaming ends: final full Shiki render
   useEffect(() => {
     if (prevStreamingRef.current && !streaming) {
       cache.delete(cacheKey || "md")
+      lastTextRef.current = ""
+      cursorRef.current = 0 // reset cursor for next stream
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      renderMarkdown(text, false)
     }
     prevStreamingRef.current = streaming
-  }, [streaming, cacheKey])
+  }, [streaming, text, cacheKey])
 
+  // Non-streaming: render on text change
   useEffect(() => {
+    if (streaming) return
     if (!elRef.current || !text) return
-    if (renderingRef.current) return
 
     const key = cacheKey || "md"
     const hash = hashString(text)
@@ -146,25 +255,7 @@ export function Markdown({ text, cacheKey, streaming, className }: MarkdownProps
       return
     }
 
-    renderingRef.current = true
-    // Fast parser during streaming (no Shiki), full parser when done
-    const parser = streaming ? getFastParser() : getFullParser()
-    const result = parser.parse(text)
-
-    function apply(html: string) {
-      renderingRef.current = false
-      const safe = sanitize(html)
-      if (!streaming) {
-        if (cache.size >= MAX_CACHE) { const first = cache.keys().next().value; if (first) cache.delete(first) }
-        cache.set(key, { hash, html: safe })
-      }
-      if (elRef.current) {
-        morphdom(elRef.current, `<div data-component="markdown">${safe}</div>`, { childrenOnly: true })
-      }
-    }
-
-    if (result instanceof Promise) result.then(apply)
-    else apply(result)
+    renderMarkdown(text, false)
   }, [text, cacheKey, streaming])
 
   return (

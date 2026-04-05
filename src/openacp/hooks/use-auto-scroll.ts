@@ -9,7 +9,7 @@ interface UseAutoScrollOptions {
 }
 
 export function useAutoScroll(options: UseAutoScrollOptions) {
-  const { working, bottomThreshold = 20 } = options
+  const { working, bottomThreshold = 120 } = options
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [userScrolled, setUserScrolled] = useState(false)
@@ -30,7 +30,10 @@ export function useAutoScroll(options: UseAutoScrollOptions) {
 
   const forceScrollToBottom = useCallback(() => {
     setUserScrolled(false)
-    requestAnimationFrame(scrollToBottom)
+    // Double rAF ensures the DOM has painted before scrolling
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToBottom)
+    })
   }, [scrollToBottom])
 
   const resume = useCallback(() => {
@@ -38,18 +41,18 @@ export function useAutoScroll(options: UseAutoScrollOptions) {
     scrollToBottom()
   }, [scrollToBottom])
 
+  // Always track scroll position, not just during streaming
   const handleScroll = useCallback(() => {
     if (skipNextScrollRef.current) {
       skipNextScrollRef.current = false
       return
     }
-    if (!working) return
     if (!isNearBottom()) {
       setUserScrolled(true)
     } else {
       setUserScrolled(false)
     }
-  }, [working, isNearBottom])
+  }, [isNearBottom])
 
   const handleInteraction = useCallback(() => {
     // no-op, just provides a ref callback

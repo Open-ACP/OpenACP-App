@@ -1,4 +1,4 @@
-import React from "react"
+import React, { memo } from "react"
 import type { PlanBlock, PlanEntry } from "../../../types"
 
 interface PlanBlockProps {
@@ -28,7 +28,7 @@ function PlanIcon({ status }: { status: PlanEntry["status"] }) {
   }
 }
 
-export function PlanBlockView({ block }: PlanBlockProps) {
+export const PlanBlockView = memo(function PlanBlockView({ block }: PlanBlockProps) {
   return (
     <div>
       <div className="oac-plan-header">Update Todos</div>
@@ -43,4 +43,4 @@ export function PlanBlockView({ block }: PlanBlockProps) {
       ))}
     </div>
   )
-}
+})

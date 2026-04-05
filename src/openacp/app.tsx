@@ -12,7 +12,9 @@ import { AddWorkspaceModal } from "./components/add-workspace/index"
 import { loadWorkspaces, saveWorkspaces, discoverLocalInstances, type WorkspaceEntry } from "./api/workspace-store"
 import { getKeychainToken } from "./api/keychain"
 import { ReviewPanel } from "./components/review-panel"
+import { SettingsPanel, type SettingsPage } from "./components/settings/settings-panel"
 import { showToast } from "./lib/toast"
+import { getAllSettings, applyTheme, applyFontSize } from "./lib/settings-store"
 import type { ServerInfo } from "./types"
 
 function ChatArea() {
@@ -58,6 +60,8 @@ export function OpenACPApp() {
 
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
   const [addWorkspaceDefaultTab, setAddWorkspaceDefaultTab] = useState<'local' | 'remote'>('local')
+  const [showSettings, setShowSettings] = useState(false)
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>("general")
 
   const retryRef = useRef<ReturnType<typeof setInterval>>()
   const retryCountRef = useRef(0)
@@ -109,6 +113,26 @@ export function OpenACPApp() {
   useEffect(() => {
     if (ready && workspaces.length > 0) void saveWorkspaces(workspaces)
   }, [workspaces, ready])
+
+  // Apply saved settings on mount
+  useEffect(() => {
+    void getAllSettings().then((settings) => {
+      applyTheme(settings.theme)
+      applyFontSize(settings.fontSize)
+    })
+  }, [])
+
+  // Listen for open-settings custom event (e.g. from Composer "Install agent...")
+  useEffect(() => {
+    function handleOpenSettings(e: Event) {
+      const detail = (e as CustomEvent).detail
+      if (detail?.page) setSettingsPage(detail.page)
+      else setSettingsPage("general")
+      setShowSettings(true)
+    }
+    window.addEventListener("open-settings", handleOpenSettings)
+    return () => window.removeEventListener("open-settings", handleOpenSettings)
+  }, [])
 
   function addWorkspace(entry: WorkspaceEntry): boolean {
     const existing = workspaces.find((w) => w.id === entry.id)
@@ -261,6 +285,7 @@ export function OpenACPApp() {
         onSwitchWorkspace={(dir) => { const match = workspaces.find((w) => w.directory === dir || w.id === dir); if (match) switchInstance(match.id) }}
         onReconnect={(dir) => { const match = workspaces.find((w) => w.directory === dir || w.id === dir); if (match) switchInstance(match.id); openAddWorkspaceModal('remote') }}
         onOpenFolder={() => openAddWorkspaceModal('local')}
+        onOpenSettings={() => { setSettingsPage("general"); setShowSettings(true) }}
       />
 
       {hasInstance ? (
@@ -274,11 +299,21 @@ export function OpenACPApp() {
               setWorkspaces(prev => prev.map(w => w.id === active ? { ...w, expiresAt, refreshDeadline } : w))
             }}
           >
-            <SessionsProvider>
-              <PermissionsProvider>
-                <ChatWithPermissions />
-              </PermissionsProvider>
-            </SessionsProvider>
+            {showSettings ? (
+              <SettingsPanel
+                onClose={() => setShowSettings(false)}
+                workspacePath={activeWorkspace?.directory ?? ""}
+                serverUrl={server?.url ?? null}
+                serverConnected={isConnected}
+                initialPage={settingsPage}
+              />
+            ) : (
+              <SessionsProvider>
+                <PermissionsProvider>
+                  <ChatWithPermissions />
+                </PermissionsProvider>
+              </SessionsProvider>
+            )}
           </WorkspaceProvider>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-background-stronger">

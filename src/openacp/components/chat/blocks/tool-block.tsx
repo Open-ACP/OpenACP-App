@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"
+import React, { memo, useState, useMemo } from "react"
 import { TextShimmer } from "../../ui/text-shimmer"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
@@ -19,7 +19,7 @@ interface ToolBlockProps {
   feedbackReason?: string
 }
 
-export function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
+export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
   const [expanded, setExpanded] = useState(true)
   const isPending = block.status === "pending" || block.status === "running"
   const isRejected = isRejectionOutput(block.output)
@@ -92,4 +92,4 @@ export function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
       )}
     </div>
   )
-}
+})

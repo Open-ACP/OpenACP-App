@@ -1,0 +1,57 @@
+import { load } from "@tauri-apps/plugin-store"
+
+const STORE_NAME = "settings.json"
+
+export interface AppSettings {
+  theme: "dark" | "light" | "system"
+  fontSize: "small" | "medium" | "large"
+  language: string
+}
+
+const defaults: AppSettings = {
+  theme: "dark",
+  fontSize: "medium",
+  language: "en",
+}
+
+let store: Awaited<ReturnType<typeof load>> | null = null
+
+async function getStore() {
+  if (!store) store = await load(STORE_NAME, { autoSave: true })
+  return store
+}
+
+export async function getSetting<K extends keyof AppSettings>(key: K): Promise<AppSettings[K]> {
+  const s = await getStore()
+  return ((await s.get(key)) as AppSettings[K]) ?? defaults[key]
+}
+
+export async function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): Promise<void> {
+  const s = await getStore()
+  await s.set(key, value)
+}
+
+export async function getAllSettings(): Promise<AppSettings> {
+  const s = await getStore()
+  const theme = ((await s.get("theme")) as AppSettings["theme"]) ?? defaults.theme
+  const fontSize = ((await s.get("fontSize")) as AppSettings["fontSize"]) ?? defaults.fontSize
+  const language = ((await s.get("language")) as AppSettings["language"]) ?? defaults.language
+  return { theme, fontSize, language }
+}
+
+/** Apply theme to document element */
+export function applyTheme(theme: AppSettings["theme"]) {
+  const root = document.documentElement
+  if (theme === "system") {
+    root.removeAttribute("data-theme")
+  } else {
+    root.setAttribute("data-theme", theme)
+  }
+}
+
+/** Apply font size scaling to document element */
+export function applyFontSize(fontSize: AppSettings["fontSize"]) {
+  const root = document.documentElement
+  root.removeAttribute("data-font-size")
+  root.setAttribute("data-font-size", fontSize)
+}

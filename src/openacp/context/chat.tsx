@@ -288,7 +288,10 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     } catch {
       // Server unavailable — local cache/in-memory used as fallback
     } finally {
-      setStore((draft) => { draft.loadingHistory = false })
+      setStore((draft) => {
+        draft.loadingHistory = false
+        draft.scrollTrigger++
+      })
     }
   }
 
@@ -349,62 +352,98 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   function flushBuffers() {
     flushScheduled.current = false
 
-    for (const [sessionID, text] of textBuffer.current) {
-      ensureAssistantMessage(sessionID)
+    const pendingText = new Map(textBuffer.current)
+    const pendingThought = new Map(thoughtBuffer.current)
+    textBuffer.current.clear()
+    thoughtBuffer.current.clear()
+
+    if (pendingText.size === 0 && pendingThought.size === 0) return
+
+    // Ensure assistant messages exist before the batched update
+    for (const sessionID of pendingText.keys()) ensureAssistantMessage(sessionID)
+    for (const sessionID of pendingThought.keys()) ensureAssistantMessage(sessionID)
+
+    // Collect thinking duration info before entering the draft
+    const thinkingDurations = new Map<string, number>()
+    for (const sessionID of pendingText.keys()) {
       const thinkStart = thinkingStartTime.current.get(sessionID)
       if (thinkStart) {
-        const durationMs = Date.now() - thinkStart
+        thinkingDurations.set(sessionID, Date.now() - thinkStart)
         thinkingStartTime.current.delete(sessionID)
-        updateAssistantBlocks(sessionID, (blocks) => {
-          const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+      }
+    }
+
+    // Single setStore call for ALL text and thought buffer updates
+    setStore((draft) => {
+      // Apply text buffer updates
+      for (const [sessionID, text] of pendingText) {
+        const msgId = assistantMsgId.current.get(sessionID)
+        if (!msgId) continue
+        const msgs = draft.messagesBySession[sessionID]
+        if (!msgs) continue
+        const msg = msgs.find((m) => m.id === msgId)
+        if (!msg) continue
+
+        // Close thinking block if transitioning to text
+        const thinkDuration = thinkingDurations.get(sessionID)
+        if (thinkDuration != null) {
+          const thinking = [...msg.blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
           if (thinking) {
             thinking.isStreaming = false
-            thinking.durationMs = durationMs
+            thinking.durationMs = thinkDuration
           }
-        })
-      }
-      updateAssistantParts(sessionID, (parts) => {
-        const last = parts[parts.length - 1]
-        if (last?.type === "text") {
-          last.content += text
-        } else {
-          parts.push({ id: nextPartId(), type: "text", content: text })
         }
-      })
-      updateAssistantBlocks(sessionID, (blocks) => {
-        const last = blocks[blocks.length - 1]
-        if (last?.type === "text") {
-          (last as TextBlock).content += text
-        } else {
-          blocks.push({ type: "text", id: nextPartId(), content: text })
-        }
-      })
-    }
-    textBuffer.current.clear()
 
-    for (const [sessionID, text] of thoughtBuffer.current) {
-      ensureAssistantMessage(sessionID)
-      updateAssistantParts(sessionID, (parts) => {
-        const existing = [...parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
-        if (existing) {
-          existing.content += text
+        // Update parts
+        const lastPart = msg.parts[msg.parts.length - 1]
+        if (lastPart?.type === "text") {
+          lastPart.content += text
         } else {
-          parts.push({ id: nextPartId(), type: "thinking", content: text })
+          msg.parts.push({ id: nextPartId(), type: "text", content: text })
         }
-      })
-      updateAssistantBlocks(sessionID, (blocks) => {
-        const existing = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
-        if (existing) {
-          existing.content += text
+
+        // Update blocks
+        const lastBlock = msg.blocks[msg.blocks.length - 1]
+        if (lastBlock?.type === "text") {
+          (lastBlock as TextBlock).content += text
+        } else {
+          msg.blocks.push({ type: "text", id: nextPartId(), content: text })
+        }
+
+        syncRef(sessionID, draft)
+      }
+
+      // Apply thought buffer updates
+      for (const [sessionID, text] of pendingThought) {
+        const msgId = assistantMsgId.current.get(sessionID)
+        if (!msgId) continue
+        const msgs = draft.messagesBySession[sessionID]
+        if (!msgs) continue
+        const msg = msgs.find((m) => m.id === msgId)
+        if (!msg) continue
+
+        // Update parts
+        const existingPart = [...msg.parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
+        if (existingPart) {
+          existingPart.content += text
+        } else {
+          msg.parts.push({ id: nextPartId(), type: "thinking", content: text })
+        }
+
+        // Update blocks
+        const existingBlock = [...msg.blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+        if (existingBlock) {
+          existingBlock.content += text
         } else {
           if (!thinkingStartTime.current.has(sessionID)) {
             thinkingStartTime.current.set(sessionID, Date.now())
           }
-          blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
+          msg.blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
         }
-      })
-    }
-    thoughtBuffer.current.clear()
+
+        syncRef(sessionID, draft)
+      }
+    })
   }
 
   // ── SSE event handling ──────────────────────────────────────────────────
@@ -626,7 +665,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       onPermissionResolved: onPermissionResolved,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
-      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),
+      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected'; d.streaming = false }),
     })
   }, [workspace.directory, workspace.client.eventsUrl])
 
@@ -654,7 +693,10 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       id: astMsgId, role: "assistant", sessionID,
       parts: [], blocks: [], createdAt: Date.now(), parentID: userMsgId,
     })
-    setStore((draft) => { draft.streaming = true })
+    setStore((draft) => {
+      draft.streaming = true
+      draft.scrollTrigger++
+    })
 
     connect()
 
