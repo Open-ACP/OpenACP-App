@@ -341,7 +341,15 @@ export function Composer() {
 
         <DockTray attach="top">
           <div className="px-1.75 pt-5.5 pb-2 flex items-center gap-1.5 min-w-0">
-            <AgentSelector current={agent} onSelect={setAgent} />
+            <AgentSelector
+              current={agent}
+              sessionID={chat.activeSession()}
+              onSelect={setAgent}
+              onSwitched={() => setConfigVersion((v) => v + 1)}
+              onInstallAgent={() => {
+                window.dispatchEvent(new CustomEvent("open-settings", { detail: { page: "agents" } }))
+              }}
+            />
             <ConfigSelector category="model" sessionID={chat.activeSession()} refreshKey={configVersion} />
             <div className="flex-1" />
             <ConfigSelector

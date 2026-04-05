@@ -236,10 +236,13 @@ pub async fn run_openacp_setup(
 /// Runs `openacp agents list --json` and returns the raw JSON string.
 #[allow(dead_code)]
 #[tauri::command]
-pub async fn run_openacp_agents_list(_app: tauri::AppHandle) -> Result<String, String> {
+pub async fn run_openacp_agents_list(_app: tauri::AppHandle, workspace_dir: Option<String>) -> Result<String, String> {
     tracing::info!("run_openacp_agents_list: running `openacp agents list --json`");
 
     let (mut cmd, _bin) = openacp_command()?;
+    if let Some(ref dir) = workspace_dir {
+        cmd.args(["--dir", dir]);
+    }
     let output = cmd.args(["agents", "list", "--json"])
         .output()
         .await
@@ -268,6 +271,7 @@ pub async fn run_openacp_agents_list(_app: tauri::AppHandle) -> Result<String, S
 pub async fn run_openacp_agent_install(
     app: tauri::AppHandle,
     agent_key: String,
+    workspace_dir: Option<String>,
 ) -> Result<(), String> {
     use tauri_plugin_shell::process::CommandEvent;
 
@@ -278,6 +282,9 @@ pub async fn run_openacp_agent_install(
         .command(bin.to_string_lossy().to_string());
     if let Some(ref extra) = extra_path {
         shell_cmd = shell_cmd.env("PATH", prepend_path(extra));
+    }
+    if let Some(ref dir) = workspace_dir {
+        shell_cmd = shell_cmd.args(["--dir", dir]);
     }
     let (mut rx, _child) = shell_cmd
         .args(["agents", "install", &agent_key])

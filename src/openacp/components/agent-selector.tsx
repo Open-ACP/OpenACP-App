@@ -1,21 +1,31 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
+import { Plus } from "@phosphor-icons/react"
 import { useWorkspace } from "../context/workspace"
 
 export function AgentSelector(props: {
   current?: string
+  sessionID?: string
   onSelect: (agent: string) => void
+  onSwitched?: () => void
+  onInstallAgent?: () => void
 }) {
   const workspace = useWorkspace()
   const [open, setOpen] = useState(false)
   const [agents, setAgents] = useState<any[]>([])
   const [search, setSearch] = useState("")
+  const [switching, setSwitching] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const fetchAgents = useCallback(() => {
     workspace.client.agents().then((r: any) => setAgents(r.agents || [])).catch(() => setAgents([]))
   }, [workspace.client])
+
+  useEffect(() => { fetchAgents() }, [fetchAgents])
+
+  // Re-fetch when popover opens
+  useEffect(() => { if (open) fetchAgents() }, [open])
 
   // Auto-select first agent
   useEffect(() => {
@@ -37,7 +47,29 @@ export function AgentSelector(props: {
     return () => document.removeEventListener("mousedown", handle)
   }, [open])
 
+  async function handleSelect(agentName: string) {
+    if (agentName === props.current) { setOpen(false); return }
+
+    // Only call server switch if user explicitly picks a different agent on an active session
+    const shouldSwitch = props.sessionID && props.current && agentName !== props.current
+    props.onSelect(agentName)
+
+    if (shouldSwitch) {
+      setSwitching(true)
+      try {
+        await workspace.client.switchAgent(props.sessionID, agentName)
+        props.onSwitched?.()
+      } catch (e) {
+        console.error("Failed to switch agent", e)
+      } finally {
+        setSwitching(false)
+      }
+    }
+    setOpen(false)
+  }
+
   const currentName = (() => {
+    if (switching) return "Switching..."
     if (!props.current) return "Select Agent"
     const agent = agents.find((a) => a.name === props.current)
     return agent?.displayName || agent?.name || props.current
@@ -50,8 +82,9 @@ export function AgentSelector(props: {
   return (
     <div ref={rootRef} className="relative">
       <button
-        className="min-w-0 max-w-[320px] text-12-regular text-text-base capitalize flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface-raised-base-hover"
+        className="min-w-0 max-w-[320px] text-12-regular text-text-base capitalize flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface-raised-base-hover disabled:opacity-50"
         onClick={() => setOpen(!open)}
+        disabled={switching}
       >
         <span className="truncate">{currentName}</span>
         <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M5.83 8.33L10 12.5l4.17-4.17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -82,12 +115,25 @@ export function AgentSelector(props: {
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-12-regular hover:bg-surface-raised-base-hover ${
                   agent.name === props.current ? "text-text-strong" : "text-text-base"
                 }`}
-                onClick={() => { props.onSelect(agent.name); setOpen(false) }}
+                onClick={() => handleSelect(agent.name)}
               >
                 <span className="truncate capitalize">{agent.displayName || agent.name}</span>
+                {agent.name === props.current && (
+                  <span className="ml-auto text-text-interactive-base text-10-regular shrink-0">&#10003;</span>
+                )}
               </button>
             ))}
           </div>
+          {/* Install agent button */}
+          {props.onInstallAgent && (
+            <button
+              className="w-full flex items-center gap-2 px-2 py-1.5 mt-1 rounded text-left text-12-regular text-text-weak hover:text-text-base hover:bg-surface-raised-base-hover border-t border-border-weaker-base pt-2"
+              onClick={() => { props.onInstallAgent?.(); setOpen(false) }}
+            >
+              <Plus size={14} weight="bold" />
+              <span>Install agent...</span>
+            </button>
+          )}
         </div>,
         document.body
       )}
