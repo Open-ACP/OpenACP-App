@@ -112,14 +112,13 @@ function hashString(s: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 //
-// Streaming strategy (single-layer):
-//   - Text prop changes arrive from store flush (every rAF ~16ms)
-//   - During streaming, we throttle markdown parse+morphdom to every PARSE_INTERVAL
-//   - Between parses the DOM stays as-is (no flicker, no layout jump)
-//   - When streaming ends, final full render with Shiki highlighting
-//   - morphdom handles efficient DOM diffing — only changed nodes update
-//
-// This avoids the two-layer raw/committed approach which caused height mismatches.
+// Streaming strategy (CharStream-driven):
+//   - During streaming, display text is driven by CharStream (subscribeDisplay)
+//     which drains chars from a global rAF loop at 80–200 chars/frame.
+//   - The Immer store update (via startTransition) runs independently for persistence.
+//   - morphdom handles efficient DOM diffing — only changed nodes update.
+//   - When streaming ends, a final full render fires with Shiki syntax highlighting.
+//   - Non-streaming renders use cache + Shiki from the start.
 
 
 interface MarkdownProps {
