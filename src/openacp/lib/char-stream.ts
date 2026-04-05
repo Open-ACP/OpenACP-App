@@ -14,6 +14,10 @@ type Stream = {
   listeners: Set<(displayText: string) => void>
 }
 
+const DRAIN_BASE_CHARS = 80 // chars revealed per frame at normal pace
+const DRAIN_FAST_CHARS = 200 // chars revealed per frame when buffer is lagging
+const DRAIN_LAG_THRESHOLD = 300 // lag (chars) that triggers fast drain mode
+
 const streams = new Map<string, Stream>()
 let rafScheduled = false
 
@@ -25,7 +29,7 @@ function drain() {
     const lag = stream.buffer.length - stream.cursor
     if (lag === 0) continue
 
-    const charsThisFrame = lag > 300 ? 200 : 80
+    const charsThisFrame = lag > DRAIN_LAG_THRESHOLD ? DRAIN_FAST_CHARS : DRAIN_BASE_CHARS
     stream.cursor = Math.min(stream.cursor + charsThisFrame, stream.buffer.length)
     const displayText = stream.buffer.slice(0, stream.cursor)
     for (const cb of stream.listeners) cb(displayText)
