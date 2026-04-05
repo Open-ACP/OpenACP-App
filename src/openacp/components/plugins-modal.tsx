@@ -4,6 +4,7 @@ import { MarketplaceTab } from "./plugins-marketplace"
 import { useWorkspace } from "../context/workspace"
 import { Dialog, DialogContent } from "./ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs"
+import { Button } from "./ui/button"
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -19,7 +20,7 @@ export function PluginsModal(props: Props) {
       >
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold leading-xl tracking-tight text-foreground">Plugins</h2>
-          <button type="button" className="text-muted-foreground hover:text-foreground-weak text-xl leading-none transition-colors" aria-label="Close" onClick={props.onClose}>&times;</button>
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground-weak" aria-label="Close" onClick={props.onClose}>&times;</Button>
         </div>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "installed" | "marketplace")} className="flex flex-col flex-1 min-h-0 gap-0">
           <TabsList variant="line" className="shrink-0 border-b border-border px-4 w-full justify-start h-auto rounded-none p-0">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
+import { Button } from "../ui/button"
 
 interface AgentEntry {
   key: string
@@ -168,26 +169,30 @@ function AgentRow(props: {
       </div>
       {agent.installed ? (
         onUninstall ? (
-          <button
-            className="text-sm-medium shrink-0 rounded-md border border-border px-3 py-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-accent disabled:opacity-50"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
             disabled={uninstalling}
             onClick={onUninstall}
           >
             {uninstalling ? "Removing..." : "Uninstall"}
-          </button>
+          </Button>
         ) : (
           <span className="text-2xs-regular text-foreground-weaker shrink-0 px-2 py-0.5 rounded bg-secondary">
             installed
           </span>
         )
       ) : onInstall ? (
-        <button
-          className="text-sm-medium shrink-0 rounded-md border border-border px-3 py-1 text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
           disabled={installing}
           onClick={onInstall}
         >
           {installing ? "Installing..." : "Install"}
-        </button>
+        </Button>
       ) : null}
     </div>
   )

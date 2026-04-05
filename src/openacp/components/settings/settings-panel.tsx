@@ -1,5 +1,6 @@
 import React, { useState } from "react"
 import { ArrowLeft } from "@phosphor-icons/react"
+import { Button } from "../ui/button"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsAppearance } from "./settings-appearance"
 import { SettingsServer } from "./settings-server"
@@ -30,13 +31,15 @@ export function SettingsPanel(props: {
       {/* Settings sidebar nav */}
       <div className="w-[200px] shrink-0 border-r border-border-weak/50 bg-background flex flex-col">
         <div className="shrink-0 px-3 pt-4 pb-2 flex items-center gap-2">
-          <button
-            className="size-7 rounded-md flex items-center justify-center hover:bg-accent transition-colors"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
             onClick={props.onClose}
             title="Back"
           >
             <ArrowLeft size={16} className="text-muted-foreground" />
-          </button>
+          </Button>
           <span className="text-md-medium text-foreground">Settings</span>
         </div>
 

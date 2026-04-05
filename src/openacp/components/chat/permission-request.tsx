@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { usePermissions } from "../../context/permissions"
 import { useChat } from "../../context/chat"
+import { Button } from "../ui/button"
 
 interface Props {
   sessionId: string
@@ -83,12 +84,13 @@ export function PermissionRequestCard({ sessionId }: Props) {
         {request.options.map((opt, idx) => {
           const isFirst = idx === 0
           return (
-            <button
+            <Button
               key={opt.id}
+              variant="ghost"
               disabled={isResolving}
               onClick={() => permissions.resolve(sessionId, request.id, opt.id)}
               onMouseEnter={() => setHighlighted(idx)}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left transition-colors disabled:opacity-50"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 h-auto justify-start text-left"
               style={{
                 background: highlighted === idx
                   ? "var(--surface-interactive-subtle, rgba(100,116,139,0.25))"
@@ -103,7 +105,7 @@ export function PermissionRequestCard({ sessionId }: Props) {
                 {idx + 1}
               </span>
               <span className="text-sm-regular text-foreground">{opt.label}</span>
-            </button>
+            </Button>
           )
         })}
       </div>

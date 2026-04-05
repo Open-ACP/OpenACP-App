@@ -5,7 +5,8 @@
 - Last updated: 2026-04-06
 
 ## In Progress
-- Color token migration Phase 3 — remove legacy backward-compat aliases from theme.css (~600 lines to trim)
+- Audit + restructure styles/ directory (currently messy: duplicate files, unclear boundaries)
+- ds-demo page polish (typography page color fix verified, more component demos)
 
 ## Completed
 - Setup moi truong dev (Node.js, pnpm, Rust, Tauri)
@@ -20,7 +21,11 @@
 - CLAUDE.md updated: React 19, shadcn/ui, git workflow, design reference
 - DESIGN.md full rewrite with current architecture
 - PR #3 review fixes: dead deps, unused components, dead CSS, icons, "use client"
-- Color token migration Phase 1+2: shadcn tokens as source of truth, 27 components migrated
+- Color token migration (all 3 phases complete): shadcn tokens as source of truth, legacy aliases removed
+- Typography system refactor: semantic naming (sm/md/lg/xl), rem-based scale, Tailwind @theme
+- Font-size scaling fix: body instead of html root (preserve rem=16px)
+- Design system demo page: ds-demo.html with 18 entries
 
 ## Blockers
 - No test framework yet (Vitest + React Testing Library)
+- styles/ directory needs restructuring (duplicate files, unclear boundaries between tailwind/ and root)

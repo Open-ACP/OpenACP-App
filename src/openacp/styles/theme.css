@@ -5,8 +5,8 @@
 
 :root {
   --font-family-sans:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+    "SF Pro", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   --font-family-sans--font-feature-settings: normal;
   --font-family-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
@@ -986,7 +986,7 @@
 /* Applied on app container (not html root) to preserve rem = 16px for Tailwind */
 
 [data-font-size="small"] {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 [data-font-size="medium"] {

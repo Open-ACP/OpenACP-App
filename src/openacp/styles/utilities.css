@@ -32,3 +32,13 @@
   @apply font-sans font-medium leading-xl tracking-tightest;
   font-size: var(--text-xl);
 }
+
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  & {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

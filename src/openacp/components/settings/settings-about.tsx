@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import { Button } from "../ui/button"
 
 const APP_VERSION = __APP_VERSION__
 const GITHUB_URL = "https://github.com/Open-ACP/OpenACP-App"
@@ -60,13 +61,14 @@ export function SettingsAbout() {
       </SettingRow>
 
       <SettingRow label="Updates" description="Check if a newer version is available">
-        <button
-          className="h-8 rounded-md border border-border bg-background px-3 text-sm-medium text-foreground-weak hover:bg-accent transition-colors disabled:opacity-50"
+        <Button
+          variant="outline"
+          size="sm"
           disabled={checking}
           onClick={() => void handleCheckForUpdates()}
         >
           {checking ? "Checking..." : "Check for updates"}
-        </button>
+        </Button>
       </SettingRow>
     </div>
   )

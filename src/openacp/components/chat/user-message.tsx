@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react"
 import { File as FileIcon } from "@phosphor-icons/react"
+import { Button } from "../ui/button"
 import type { Message, TextBlock, TextPart } from "../../types"
 import { isImageMime } from "../../lib/file-utils"
 
@@ -22,7 +23,7 @@ function CopyButton({ text }: { text: string }) {
   }
 
   return (
-    <button className="oac-copy-btn" onClick={handleCopy} title={copied ? "Copied" : "Copy"}>
+    <Button variant="ghost" size="icon-xs" className="oac-copy-btn" onClick={handleCopy} title={copied ? "Copied" : "Copy"}>
       {copied ? (
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
           <path d="M5 11.9657L8.37838 14.7529L15 5.83398" stroke="currentColor" strokeLinecap="square"/>
@@ -32,7 +33,7 @@ function CopyButton({ text }: { text: string }) {
           <path d="M6.2513 6.24935V2.91602H17.0846V13.7493H13.7513M13.7513 6.24935V17.0827H2.91797V6.24935H13.7513Z" stroke="currentColor" strokeLinecap="round"/>
         </svg>
       )}
-    </button>
+    </Button>
   )
 }
 

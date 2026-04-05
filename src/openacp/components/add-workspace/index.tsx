@@ -4,6 +4,7 @@ import { RemoteTab } from './remote-tab'
 import type { WorkspaceEntry } from '../../api/workspace-store'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
+import { Button } from '../ui/button'
 
 interface AddWorkspaceModalProps {
   onAdd: (entry: WorkspaceEntry) => void
@@ -20,7 +21,7 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
       <DialogContent className="bg-background-weak w-full max-w-lg rounded-xl p-0 overflow-hidden gap-0" showCloseButton={false}>
         <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b border-border gap-0">
           <DialogTitle className="text-16-semibold text-foreground">Add Workspace</DialogTitle>
-          <button type="button" onClick={props.onClose} className="text-muted-foreground hover:text-foreground-weak text-xl leading-none transition-colors">&times;</button>
+          <Button variant="ghost" size="icon" onClick={props.onClose} className="text-muted-foreground hover:text-foreground-weak" aria-label="Close">&times;</Button>
         </DialogHeader>
         <Tabs value={tab} onValueChange={(v) => setTab(v as 'local' | 'remote')} className="gap-0">
           <TabsList variant="line" className="w-full justify-start px-0 border-b border-border rounded-none h-auto">
