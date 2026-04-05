@@ -131,15 +131,19 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
 
   const autoScroll = useAutoScroll({
     working: chat.streaming(),
-    bottomThreshold: 20,
+    bottomThreshold: 120,
   })
 
-  // Force scroll to bottom when switching sessions
+  // Force scroll to bottom when switching sessions — use double rAF + setTimeout fallback
+  // to ensure messages are rendered before scrolling
   useEffect(() => {
     autoScroll.forceScrollToBottom()
+    // Fallback: setTimeout ensures scroll fires after React commit + paint
+    const timer = setTimeout(() => autoScroll.forceScrollToBottom(), 80)
+    return () => clearTimeout(timer)
   }, [chat.activeSession()])
 
-  // Scroll to bottom when a cross-adapter message arrives (message:queued)
+  // Scroll to bottom when scrollTrigger fires (user sends message, cross-adapter message, history loaded)
   useEffect(() => {
     if (chat.scrollTrigger() > 0) autoScroll.forceScrollToBottom()
   }, [chat.scrollTrigger()])
@@ -194,9 +198,7 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
                     }
                     return (
                       <div key={group.user.id} style={{ marginTop: gi === 0 ? "0px" : "28px" }}>
-                        <div className="oac-sticky-user" style={{ position: "sticky", top: 0, zIndex: 2, paddingBottom: 12 }}>
-                          <UserMessage message={group.user} />
-                        </div>
+                        <UserMessage message={group.user} />
                         {group.assistants.map((msg, ai) => (
                           <div key={msg.id} style={{ marginTop: "20px" }}>
                             <MessageTurn
