@@ -2793,6 +2793,7 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-store",
  "tauri-plugin-window-state",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "tracing-subscriber",
