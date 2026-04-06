@@ -1,4 +1,5 @@
-import React, { useMemo } from "react"
+import React, { useMemo, useState, useCallback } from "react"
+import { Copy, Check } from "@phosphor-icons/react"
 import { TextShimmer } from "../ui/text-shimmer"
 import { TimelineStep, type StepStatus } from "./timeline-step"
 import { TextBlockView } from "./blocks/text-block"
@@ -114,12 +115,47 @@ function blockStatus(block: MessageBlock): StepStatus {
   return "default"
 }
 
+function MessageFooter({ usage, textContent }: { usage?: import("../../types").UsageInfo; textContent?: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(() => {
+    if (!textContent) return
+    navigator.clipboard.writeText(textContent).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }, [textContent])
+
+  return (
+    <div className="flex items-center gap-3 mt-2" style={{ paddingLeft: 30 }}>
+      {usage && <UsageBar usage={usage} />}
+      {textContent && (
+        <button
+          type="button"
+          className="flex items-center justify-center size-[18px] rounded hover:bg-accent transition-colors"
+          title="Copy message"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <Check size={12} style={{ color: 'var(--icon-weak)' }} />
+          ) : (
+            <Copy size={12} style={{ color: 'var(--icon-weak)' }} />
+          )}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export const MessageTurn = React.memo(function MessageTurn({ message, streaming }: MessageTurnProps) {
   const permissions = usePermissions()
   const feedbackReason = permissions.lastFeedback(message.sessionID)
   const blocks = useMemo(() => message.blocks ?? [], [message.blocks])
   const isEmpty = blocks.length === 0
   const renderItems = useMemo(() => groupBlocks(blocks), [blocks])
+  const textContent = useMemo(() =>
+    blocks.filter((b): b is TextBlock => b.type === "text").map(b => b.content).join("\n").trim(),
+    [blocks]
+  )
 
   if (isEmpty) {
     if (streaming) {
@@ -164,7 +200,9 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
           )
         })}
       </div>
-      {!streaming && message.usage && <UsageBar usage={message.usage} />}
+      {!streaming && (message.usage || textContent) && (
+        <MessageFooter usage={message.usage} textContent={textContent} />
+      )}
     </div>
   )
 }, (prev, next) => {

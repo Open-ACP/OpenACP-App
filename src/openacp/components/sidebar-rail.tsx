@@ -33,8 +33,11 @@ function ContextMenu(props: {
   x: number
   y: number
   workspace: WorkspaceItem
+  isConnected: boolean
   onCopyPath: () => void
   onReconnect: () => void
+  onStart: () => void
+  onStop: () => void
   onRemove: () => void
   onClose: () => void
 }) {
@@ -69,12 +72,29 @@ function ContextMenu(props: {
           Copy path
         </button>
       )}
-      <button
-        className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
-        onClick={() => { props.onReconnect(); props.onClose() }}
-      >
-        Reconnect
-      </button>
+      {props.isConnected ? (
+        <button
+          className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+          onClick={() => { props.onStop(); props.onClose() }}
+        >
+          Stop server
+        </button>
+      ) : (
+        <>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            onClick={() => { props.onStart(); props.onClose() }}
+          >
+            Start server
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            onClick={() => { props.onReconnect(); props.onClose() }}
+          >
+            Reconnect
+          </button>
+        </>
+      )}
       <div className="my-1 border-t border-border-weak" />
       <button
         className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent transition-colors"
@@ -188,6 +208,7 @@ export function SidebarRail(props: {
             x={contextMenu.x}
             y={contextMenu.y}
             workspace={ws}
+            isConnected={props.connectedIds?.has(ws.id) ?? false}
             onCopyPath={async () => {
               try {
                 await navigator.clipboard.writeText(ws.directory)
@@ -195,7 +216,27 @@ export function SidebarRail(props: {
               } catch { /* fallback */ }
             }}
             onReconnect={() => props.onSwitchWorkspace(contextMenu.id)}
-            onRemove={() => props.onRemoveWorkspace?.(contextMenu.id)}
+            onStart={async () => {
+              try {
+                showToast({ description: "Starting server..." })
+                await invoke<string>('invoke_cli', { args: ['start', '--dir', ws.directory, '--daemon'] })
+                showToast({ description: "Server started", variant: "success" })
+                props.onSwitchWorkspace(contextMenu.id)
+              } catch (e: any) {
+                showToast({ description: typeof e === 'string' ? e : 'Failed to start server', variant: "error" })
+              }
+            }}
+            onStop={async () => {
+              try {
+                await invoke<string>('invoke_cli', { args: ['stop', '--dir', ws.directory] })
+                showToast({ description: "Server stopped" })
+              } catch { /* best-effort */ }
+            }}
+            onRemove={() => {
+              // Stop server before removing
+              invoke<string>('invoke_cli', { args: ['stop', '--dir', ws.directory] }).catch(() => {})
+              props.onRemoveWorkspace?.(contextMenu.id)
+            }}
             onClose={() => setContextMenu(null)}
           />
         )

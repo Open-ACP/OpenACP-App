@@ -23,7 +23,8 @@ const NOISE_TOOLS = new Set(["glob", "grep", "ls"])
 export function resolveKind(name: string, evtKind?: string, displayKind?: string): string {
   if (displayKind) return displayKind
   if (evtKind) return evtKind
-  return KIND_MAP[name.toLowerCase()] ?? "other"
+  const base = name.split(/[\s(/]/)[0].toLowerCase()
+  return KIND_MAP[base] ?? "other"
 }
 
 export function kindIcon(kind: string): string {
@@ -40,26 +41,34 @@ export function buildTitle(
 ): string {
   if (displayTitle) return displayTitle
   if (displaySummary) return displaySummary
-  if (!input) return name
 
-  const filePath = input.file_path ?? input.filePath ?? input.path
-  if (typeof filePath === "string" && filePath) return filePath
+  // Extract title from input fields first
+  if (input) {
+    const filePath = input.file_path ?? input.filePath ?? input.path
+    if (typeof filePath === "string" && filePath) return filePath
 
-  if (kind === "execute") {
-    const cmd = input.command ?? input.cmd
-    if (typeof cmd === "string") return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
+    if (kind === "execute") {
+      const cmd = input.command ?? input.cmd
+      if (typeof cmd === "string") return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
+    }
+    if (kind === "search") {
+      const pattern = input.pattern ?? input.query
+      if (typeof pattern === "string") return `"${pattern}"`
+    }
+    if (kind === "agent") {
+      const desc = input.description
+      if (typeof desc === "string") return desc.length > 60 ? desc.slice(0, 57) + "..." : desc
+    }
+    if (kind === "web") {
+      const url = input.url ?? input.query
+      if (typeof url === "string" && url !== "undefined") return url.length > 60 ? url.slice(0, 57) + "..." : url
+    }
   }
-  if (kind === "search") {
-    const pattern = input.pattern ?? input.query
-    if (typeof pattern === "string") return `"${pattern}"`
-  }
-  if (kind === "agent") {
-    const desc = input.description
-    if (typeof desc === "string") return desc.length > 60 ? desc.slice(0, 57) + "..." : desc
-  }
-  if (kind === "web") {
-    const url = input.url ?? input.query
-    if (typeof url === "string" && url !== "undefined") return url.length > 60 ? url.slice(0, 57) + "..." : url
+
+  // Fallback: if name contains description (e.g. "Read package.json"), strip the tool prefix
+  const base = name.split(/[\s(/]/)[0].toLowerCase()
+  if (KIND_MAP[base] && name.length > base.length + 1) {
+    return name.slice(base.length).trim()
   }
   return name
 }

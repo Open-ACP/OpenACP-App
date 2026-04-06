@@ -448,14 +448,28 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           msg.parts.push({ id: nextPartId(), type: "thinking", content: text })
         }
 
-        // Update blocks
-        const existingBlock = [...msg.blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
-        if (existingBlock) {
-          existingBlock.content += text
+        // Update blocks — append to existing thinking if no tool/text block intervened
+        const lastThinkingIdx = msg.blocks.findLastIndex((b) => b.type === "thinking")
+        const hasInterveningBlock = lastThinkingIdx >= 0 &&
+          msg.blocks.slice(lastThinkingIdx + 1).some((b) => b.type === "tool" || b.type === "text")
+
+        if (lastThinkingIdx >= 0 && !hasInterveningBlock) {
+          const existing = msg.blocks[lastThinkingIdx] as ThinkingBlock
+          existing.content += text
+          existing.isStreaming = true
         } else {
-          if (!thinkingStartTime.current.has(sessionID)) {
-            thinkingStartTime.current.set(sessionID, Date.now())
+          // Close previous thinking if any
+          if (lastThinkingIdx >= 0) {
+            const prev = msg.blocks[lastThinkingIdx] as ThinkingBlock
+            if (prev.isStreaming) {
+              prev.isStreaming = false
+              const thinkStart = thinkingStartTime.current.get(sessionID)
+              if (thinkStart) {
+                prev.durationMs = Date.now() - thinkStart
+              }
+            }
           }
+          thinkingStartTime.current.set(sessionID, Date.now())
           msg.blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
         }
 
@@ -559,8 +573,15 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
               existing.output = typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2)
             }
             if (evt.name) existing.name = evt.name
-            if (evt.displayTitle) existing.title = evt.displayTitle
             if (evt.displayKind) existing.kind = evt.displayKind
+            // Rebuild title when input or name updates
+            if (evt.rawInput || evt.name || evt.displayTitle) {
+              const kind = resolveKind(existing.name, evt.kind, evt.displayKind ?? existing.kind)
+              existing.kind = kind
+              existing.title = buildTitle(existing.name, kind, existing.input, evt.displayTitle, evt.displaySummary)
+              existing.description = extractDescription(existing.input, existing.title)
+              existing.command = extractCommand(kind, existing.input)
+            }
             const meta = evt.meta as Record<string, any> | undefined
             if (meta?.diffStats) {
               existing.diffStats = meta.diffStats as { added: number; removed: number }

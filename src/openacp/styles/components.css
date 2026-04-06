@@ -729,15 +729,31 @@
 }
 
 .oac-thinking-content {
-  color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: 1.5;
   margin-top: 6px;
-  padding: 8px;
+  padding: 6px 10px;
   border-left: 2px solid var(--border-weak);
   border-radius: 0 4px 4px 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  opacity: 0.7;
+}
+
+.oac-thinking-content [data-component="markdown"] {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.oac-thinking-content [data-component="markdown"] p {
+  margin: 0.25em 0;
+  line-height: 1.5;
+}
+
+.oac-thinking-content [data-component="markdown"] pre {
+  font-size: 11px;
+  margin: 0.5em 0;
+  padding: 6px 8px;
+}
+
+.oac-thinking-content [data-component="markdown"] code:not(pre code) {
+  font-size: 11px;
 }
 
 /* ── Tool IN/OUT card ───────────────────────────────────────────────────── */
