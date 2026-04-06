@@ -87,48 +87,78 @@ jobs:
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           echo "Version: $VERSION"
-          # Version format is YYYY.MMDD.N (e.g. 2026.406.1)
+
           node -e "
             const fs = require('fs');
             const v = '$VERSION';
-            // WiX3 MSI requires Major ≤ 255 and Minor ≤ 255.
-            // YYYY.MMDD.N exceeds both limits (e.g. major=2026, minor=406).
-            // Encode as YY.MM.(DD*100+N):
-            //   2026.406.1 → 26.4.601  (year=26, month=4, day*100+patch=601)
-            //   2026.1205.2 → 26.12.502
-            // All components stay within WiX limits (≤255 for major/minor, ≤65535 for patch).
             const parts = v.split('.');
-            const year = parseInt(parts[0]) % 100;
-            const mmdd = parts[1];
-            const month = parseInt(mmdd.slice(0, -2));   // leading digits = month
-            const day   = parseInt(mmdd.slice(-2));      // last 2 digits = day
-            const patch = parseInt(parts[2]);
-            const wixVersion = year + '.' + month + '.' + (day * 100 + patch);
+            const yyyy = parseInt(parts[0]);
+            const mdd = parts[1];
+            const n = parseInt(parts[2] || '1');
+
+            // WiX MSI: major ≤ 255, minor ≤ 255, build ≤ 65535.
+            // YYYY.MDD.N → YY.M.(DD * 100 + N)
+            // e.g. 2026.403.1 → 26.4.301, 2026.1231.5 → 26.12.3105
+            const yy = yyyy % 100;
+            const m = parseInt(mdd.length <= 3 ? mdd.slice(0, -2) : mdd.slice(0, -2));
+            const dd = parseInt(mdd.slice(-2));
+            const wixVersion = yy + '.' + m + '.' + (dd * 100 + n);
+
             // package.json
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             pkg.version = v;
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            // tauri.conf.json — set WiX version override for Windows MSI
+
+            // tauri.conf.json — set WiX version override
             const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
-            conf.version = v;
             if (!conf.bundle) conf.bundle = {};
             if (!conf.bundle.windows) conf.bundle.windows = {};
             if (!conf.bundle.windows.wix) conf.bundle.windows.wix = {};
             conf.bundle.windows.wix.version = wixVersion;
             fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+
             // Cargo.toml
             let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
             cargo = cargo.replace(/^version = \".*\"/m, 'version = \"' + v + '\"');
             fs.writeFileSync('src-tauri/Cargo.toml', cargo);
-            console.log('Version:', v, '| WiX:', wixVersion);
+
+            console.log('App version:', v, '| WiX:', wixVersion);
           "
 
+      # ── macOS Code Signing & Notarization ──
+      # Optional: skip if APPLE_CERTIFICATE secret is not set.
+      # To enable, set these GitHub secrets:
+      #   APPLE_CERTIFICATE          — Base64-encoded .p12 certificate
+      #   APPLE_CERTIFICATE_PASSWORD — Password for the .p12 file
+      #   APPLE_ID                   — Apple Developer email
+      #   APPLE_PASSWORD             — App-specific password (NOT account password)
+      #   APPLE_TEAM_ID              — Apple Developer Team ID
+      - name: Import Apple certificate
+        if: startsWith(matrix.platform, 'macos') && env.APPLE_CERTIFICATE != ''
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      # ── Build ──
+      # Updater signing: set TAURI_SIGNING_PRIVATE_KEY + PASSWORD secrets.
+      # macOS notarization: set APPLE_* secrets above — tauri-action handles it automatically.
+      # Windows code signing: not yet configured — add AZURE_* or similar secrets when ready.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS notarization (ignored if secrets are empty)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}

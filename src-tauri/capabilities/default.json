@@ -16,6 +16,7 @@
     "dialog:default",
     "clipboard-manager:allow-read-image",
     "deep-link:default",
+    "updater:default",
     {
       "identifier": "http:default",
       "allow": [

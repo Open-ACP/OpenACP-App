@@ -23,6 +23,8 @@ import {
   type SettingsPage,
 } from "./components/settings/settings-dialog";
 import { SetupModal } from "./components/add-workspace/setup-modal";
+import { UpdateNotification } from "./components/update-notification";
+import { useAppUpdater } from "./hooks/use-app-updater";
 import { showToast } from "./lib/toast";
 import { Toaster } from "./components/ui/toaster";
 import {
@@ -84,6 +86,8 @@ export function OpenACPApp() {
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("general");
   const [pluginsOpen, setPluginsOpen] = useState(false);
   const [setupInfo, setSetupInfo] = useState<{ path: string; instanceId: string } | null>(null);
+
+  const updater = useAppUpdater();
 
   const retryRef = useRef<ReturnType<typeof setInterval>>();
   const retryCountRef = useRef(0);
@@ -533,6 +537,16 @@ export function OpenACPApp() {
         serverConnected={!!server}
         initialPage={settingsPage}
       />
+      {updater.available && updater.version && (
+        <UpdateNotification
+          version={updater.version}
+          downloading={updater.downloading}
+          progress={updater.progress}
+          error={updater.error}
+          onUpdate={updater.downloadAndInstall}
+          onDismiss={updater.dismiss}
+        />
+      )}
       <Toaster />
     </div>
   );

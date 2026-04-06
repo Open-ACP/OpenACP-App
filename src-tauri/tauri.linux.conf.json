@@ -1,0 +1,13 @@
+{
+  "app": {
+    "windows": [
+      {
+        "transparent": false,
+        "decorations": true
+      }
+    ]
+  },
+  "bundle": {
+    "targets": ["deb", "appimage"]
+  }
+}

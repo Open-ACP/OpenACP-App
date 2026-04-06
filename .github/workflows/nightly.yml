@@ -1,0 +1,135 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: "0 19 * * 1-5"  # 2AM GMT+7 (7PM UTC), Mon-Fri
+  workflow_dispatch:          # Manual trigger — always builds, skips commit check
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  PNPM_VERSION: 9
+
+jobs:
+  # ── Gate: skip if no new commits (cron only, manual always builds) ──
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Check for recent commits
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual trigger — always build."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          RECENT=$(git log --since="24 hours ago" --oneline origin/develop | head -1)
+          if [[ -z "$RECENT" ]]; then
+            echo "No new commits in the last 24 hours. Skipping."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New commits found: $RECENT"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ── Build matrix (only if check passes) ──
+  nightly:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust_target: aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            rust_target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+            rust_target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            args: ""
+            rust_target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set nightly version
+        shell: bash
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          VERSION="${LATEST_TAG#v}"
+          NIGHTLY_VERSION="${VERSION}-nightly.$(date +%Y%m%d)"
+          echo "Nightly version: $NIGHTLY_VERSION"
+
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NIGHTLY_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          sed -i.bak "s/^version = \".*\"/version = \"0.0.0\"/" src-tauri/Cargo.toml
+          rm -f src-tauri/Cargo.toml.bak
+
+      - name: Switch to nightly channel
+        shell: bash
+        run: ./scripts/set-channel.sh nightly
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ matrix.platform }}-${{ matrix.rust_target }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.AppImage
+          retention-days: 14
+          if-no-files-found: error
