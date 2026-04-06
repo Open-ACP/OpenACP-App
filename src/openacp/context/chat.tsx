@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo } from "react"
 import { useImmer } from "use-immer"
+import { current } from "immer"
 import { useWorkspace } from "./workspace"
 import { useSessions } from "./sessions"
 import { createSSEManager } from "../api/sse"
@@ -8,17 +9,22 @@ import type {
   AgentEvent, Message, MessagePart, MessageBlock, TextPart, ThinkingPart, ToolCallPart, FileDiff,
   TextBlock, ThinkingBlock, ToolBlock, PlanBlock, ErrorBlock, PlanEntry,
   SessionHistory, HistoryTurn, HistoryStep,
+  MessageQueuedEvent, MessageProcessingEvent, PermissionRequest, UsageInfo,
 } from "../types"
 import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
 } from "../components/chat/block-utils"
+import * as charStream from "../lib/char-stream"
 
 interface ChatContext {
   messages: () => Message[]
   streaming: () => boolean
+  /** Session ID that is currently streaming (may differ from activeSession for cross-adapter turns) */
+  streamingSession: () => string | undefined
   loadingHistory: () => boolean
   sseStatus: () => 'connected' | 'reconnecting' | 'disconnected'
   activeSession: () => string | undefined
+  scrollTrigger: () => number
   setActiveSession: (id: string) => void
   sendPrompt: (text: string, attachments?: import("../types").FileAttachment[]) => Promise<boolean>
   abort: () => void
@@ -96,11 +102,25 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
     }
   }
 
-  return {
+  const msg: Message = {
     id, role: turn.role, sessionID: sessionId,
     parts, blocks,
     createdAt: new Date(turn.timestamp).getTime(),
   }
+
+  if (turn.usage) {
+    msg.usage = {
+      tokensUsed: turn.usage.tokensUsed,
+      contextSize: turn.usage.contextSize,
+      cost: turn.usage.cost as UsageInfo["cost"],
+    }
+  }
+
+  if (turn.sourceAdapterId) {
+    msg.sourceAdapterId = turn.sourceAdapterId
+  }
+
+  return msg
 }
 
 function stepToPart(step: HistoryStep): MessagePart | null {
@@ -132,11 +152,14 @@ interface ChatStore {
   messagesBySession: Record<string, Message[]>
   activeSession: string | undefined
   streaming: boolean
+  /** Which session is currently streaming (can be different from activeSession) */
+  streamingSession: string | undefined
   loadingHistory: boolean
   sseStatus: 'connected' | 'reconnecting' | 'disconnected'
+  scrollTrigger: number
 }
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+export function ChatProvider({ children, onPermissionRequest, onPermissionResolved }: { children: React.ReactNode; onPermissionRequest?: (req: PermissionRequest) => void; onPermissionResolved?: (event: { sessionId: string; requestId: string }) => void }) {
   const workspace = useWorkspace()
   const sessions = useSessions()
   const sseRef = useRef(createSSEManager())
@@ -145,13 +168,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     messagesBySession: {},
     activeSession: undefined,
     streaming: false,
+    streamingSession: undefined,
     loadingHistory: false,
     sseStatus: 'disconnected',
+    scrollTrigger: 0,
   })
+
+  // Mirror of messagesBySession for reliable reads outside React batching
+  const messagesRef = useRef<Record<string, Message[]>>({})
 
   const abortedSessions = useRef(new Set<string>())
   const assistantMsgId = useRef(new Map<string, string>())
   const thinkingStartTime = useRef(new Map<string, number>())
+  // Maps turnId → userMsgId for cross-adapter messages (message:queued → message:processing pairing)
+  const turnIdToUserMsgId = useRef(new Map<string, string>())
+  // Track whether we had a disconnect so we can reload history on reconnect
+  const hadDisconnect = useRef(false)
   const msgCounter = useRef(0)
   const partCounter = useRef(0)
   const sendingRef = useRef(false)
@@ -173,10 +205,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (!draft.messagesBySession[sessionID]) draft.messagesBySession[sessionID] = []
       draft.messagesBySession[sessionID].push(msg)
     })
+    // Keep ref in sync
+    if (!messagesRef.current[sessionID]) messagesRef.current[sessionID] = []
+    messagesRef.current[sessionID] = [...(messagesRef.current[sessionID] || []), msg]
   }
 
   function setMessages(sessionID: string, msgs: Message[]) {
+    messagesRef.current[sessionID] = msgs
     setStore((draft) => { draft.messagesBySession[sessionID] = msgs })
+  }
+
+  // Sync ref after every store mutation — use current() to get plain objects from Immer draft
+  function syncRef(sessionID: string, draft: ChatStore) {
+    const msgs = draft.messagesBySession[sessionID]
+    messagesRef.current[sessionID] = msgs ? current(msgs) : []
   }
 
   function updateAssistantParts(sessionID: string, updater: (parts: MessagePart[]) => void) {
@@ -187,6 +229,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.parts)
+      syncRef(sessionID, draft)
     })
   }
 
@@ -198,6 +241,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (!msgs) return
       const msg = msgs.find((m) => m.id === msgId)
       if (msg) updater(msg.blocks)
+      syncRef(sessionID, draft)
     })
   }
 
@@ -211,7 +255,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       id: msgId, role: "assistant", sessionID,
       parts: [], blocks: [], createdAt: Date.now(), parentID: parentId,
     })
-    setStore((draft) => { draft.streaming = true })
+    setStore((draft) => { draft.streaming = true; draft.streamingSession = sessionID })
     return msgId
   }
 
@@ -222,13 +266,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // ── History loading ─────────────────────────────────────────────────────
 
   async function loadHistory(sessionID: string) {
-    const hasInMemory = (store.messagesBySession[sessionID]?.length ?? 0) > 0
+    const localMsgs = messagesRef.current[sessionID] ?? []
+    const hasInMemory = localMsgs.length > 0
 
     if (!hasInMemory) {
-      const cached = await loadCachedMessages(sessionID)
-      if (cached && cached.length > 0) {
-        setMessages(sessionID, cached)
-      }
+      try {
+        const cached = await loadCachedMessages(sessionID)
+        if (cached && cached.length > 0) {
+          setMessages(sessionID, cached)
+        }
+      } catch { /* cache unavailable */ }
     }
 
     setStore((draft) => { draft.loadingHistory = true })
@@ -236,17 +283,33 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
-        const current = store.messagesBySession[sessionID] ?? []
-        const lastServerTurn = history.turns[history.turns.length - 1]
-        const lastServerTime = new Date(lastServerTurn.timestamp).getTime()
-        const inFlight = current.filter((m) => m.createdAt > lastServerTime + 1000)
-        setMessages(sessionID, [...serverMessages, ...inFlight])
-        void cacheMessages(sessionID, serverMessages)
+        const serverAstBlocks = serverMessages.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
+        const local = messagesRef.current[sessionID] ?? []
+        const localAstBlocks = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
+
+        if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
+          const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
+          // Use lastServerTime without a large buffer so rapid consecutive turns are preserved.
+          // The streaming assistant message (if any) is always included explicitly.
+          const streamingMsgId = assistantMsgId.current.get(sessionID)
+          const inFlight = local.filter((m) =>
+            m.createdAt > lastServerTime ||
+            (streamingMsgId != null && m.id === streamingMsgId)
+          )
+          setMessages(sessionID, [...serverMessages, ...inFlight])
+          void cacheMessages(sessionID, serverMessages)
+        } else if (local.length === 0) {
+          setMessages(sessionID, serverMessages)
+        }
+        // else: local data is richer, keep it
       }
     } catch {
-      // Server unavailable
+      // Server unavailable — local cache/in-memory used as fallback
     } finally {
-      setStore((draft) => { draft.loadingHistory = false })
+      setStore((draft) => {
+        draft.loadingHistory = false
+        draft.scrollTrigger++
+      })
     }
   }
 
@@ -307,62 +370,112 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   function flushBuffers() {
     flushScheduled.current = false
 
-    for (const [sessionID, text] of textBuffer.current) {
-      ensureAssistantMessage(sessionID)
+    const pendingText = new Map(textBuffer.current)
+    const pendingThought = new Map(thoughtBuffer.current)
+    textBuffer.current.clear()
+    thoughtBuffer.current.clear()
+
+    if (pendingText.size === 0 && pendingThought.size === 0) return
+
+    // Ensure assistant messages exist before the batched update
+    for (const sessionID of pendingText.keys()) ensureAssistantMessage(sessionID)
+    for (const sessionID of pendingThought.keys()) ensureAssistantMessage(sessionID)
+
+    // Collect thinking duration info before entering the draft
+    const thinkingDurations = new Map<string, number>()
+    for (const sessionID of pendingText.keys()) {
       const thinkStart = thinkingStartTime.current.get(sessionID)
       if (thinkStart) {
-        const durationMs = Date.now() - thinkStart
+        thinkingDurations.set(sessionID, Date.now() - thinkStart)
         thinkingStartTime.current.delete(sessionID)
-        updateAssistantBlocks(sessionID, (blocks) => {
-          const thinking = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+      }
+    }
+
+    // Single setStore call for ALL text and thought buffer updates
+    setStore((draft) => {
+      // Apply text buffer updates
+      for (const [sessionID, text] of pendingText) {
+        const msgId = assistantMsgId.current.get(sessionID)
+        if (!msgId) continue
+        const msgs = draft.messagesBySession[sessionID]
+        if (!msgs) continue
+        const msg = msgs.find((m) => m.id === msgId)
+        if (!msg) continue
+
+        // Close thinking block if transitioning to text
+        const thinkDuration = thinkingDurations.get(sessionID)
+        if (thinkDuration != null) {
+          const thinking = [...msg.blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
           if (thinking) {
             thinking.isStreaming = false
-            thinking.durationMs = durationMs
+            thinking.durationMs = thinkDuration
           }
-        })
-      }
-      updateAssistantParts(sessionID, (parts) => {
-        const last = parts[parts.length - 1]
-        if (last?.type === "text") {
-          last.content += text
-        } else {
-          parts.push({ id: nextPartId(), type: "text", content: text })
         }
-      })
-      updateAssistantBlocks(sessionID, (blocks) => {
-        const last = blocks[blocks.length - 1]
-        if (last?.type === "text") {
-          (last as TextBlock).content += text
-        } else {
-          blocks.push({ type: "text", id: nextPartId(), content: text })
-        }
-      })
-    }
-    textBuffer.current.clear()
 
-    for (const [sessionID, text] of thoughtBuffer.current) {
-      ensureAssistantMessage(sessionID)
-      updateAssistantParts(sessionID, (parts) => {
-        const existing = [...parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
-        if (existing) {
-          existing.content += text
+        // Update parts
+        const lastPart = msg.parts[msg.parts.length - 1]
+        if (lastPart?.type === "text") {
+          lastPart.content += text
         } else {
-          parts.push({ id: nextPartId(), type: "thinking", content: text })
+          msg.parts.push({ id: nextPartId(), type: "text", content: text })
         }
-      })
-      updateAssistantBlocks(sessionID, (blocks) => {
-        const existing = [...blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
-        if (existing) {
-          existing.content += text
+
+        // Update blocks
+        const lastBlock = msg.blocks[msg.blocks.length - 1]
+        if (lastBlock?.type === "text") {
+          (lastBlock as TextBlock).content += text
         } else {
-          if (!thinkingStartTime.current.has(sessionID)) {
-            thinkingStartTime.current.set(sessionID, Date.now())
+          msg.blocks.push({ type: "text", id: nextPartId(), content: text })
+        }
+
+        syncRef(sessionID, draft)
+      }
+
+      // Apply thought buffer updates
+      for (const [sessionID, text] of pendingThought) {
+        const msgId = assistantMsgId.current.get(sessionID)
+        if (!msgId) continue
+        const msgs = draft.messagesBySession[sessionID]
+        if (!msgs) continue
+        const msg = msgs.find((m) => m.id === msgId)
+        if (!msg) continue
+
+        // Update parts
+        const existingPart = [...msg.parts].reverse().find((p): p is ThinkingPart => p.type === "thinking")
+        if (existingPart) {
+          existingPart.content += text
+        } else {
+          msg.parts.push({ id: nextPartId(), type: "thinking", content: text })
+        }
+
+        // Update blocks — append to existing thinking if no tool/text block intervened
+        const lastThinkingIdx = msg.blocks.findLastIndex((b) => b.type === "thinking")
+        const hasInterveningBlock = lastThinkingIdx >= 0 &&
+          msg.blocks.slice(lastThinkingIdx + 1).some((b) => b.type === "tool" || b.type === "text")
+
+        if (lastThinkingIdx >= 0 && !hasInterveningBlock) {
+          const existing = msg.blocks[lastThinkingIdx] as ThinkingBlock
+          existing.content += text
+          existing.isStreaming = true
+        } else {
+          // Close previous thinking if any
+          if (lastThinkingIdx >= 0) {
+            const prev = msg.blocks[lastThinkingIdx] as ThinkingBlock
+            if (prev.isStreaming) {
+              prev.isStreaming = false
+              const thinkStart = thinkingStartTime.current.get(sessionID)
+              if (thinkStart) {
+                prev.durationMs = Date.now() - thinkStart
+              }
+            }
           }
-          blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
+          thinkingStartTime.current.set(sessionID, Date.now())
+          msg.blocks.push({ type: "thinking", id: nextPartId(), content: text, durationMs: null, isStreaming: true })
         }
-      })
-    }
-    thoughtBuffer.current.clear()
+
+        syncRef(sessionID, draft)
+      }
+    })
   }
 
   // ── SSE event handling ──────────────────────────────────────────────────
@@ -377,12 +490,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     switch (evt.type) {
       case "text": {
         ensureAssistantMessage(sessionID)
+        charStream.pushChars(`${sessionID}:text`, evt.content)
         textBuffer.current.set(sessionID, (textBuffer.current.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
       }
       case "thought": {
         ensureAssistantMessage(sessionID)
+        charStream.pushChars(`${sessionID}:thought`, evt.content)
         if (!thinkingStartTime.current.has(sessionID)) {
           thinkingStartTime.current.set(sessionID, Date.now())
         }
@@ -458,8 +573,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               existing.output = typeof evt.rawOutput === "string" ? evt.rawOutput : JSON.stringify(evt.rawOutput, null, 2)
             }
             if (evt.name) existing.name = evt.name
-            if (evt.displayTitle) existing.title = evt.displayTitle
             if (evt.displayKind) existing.kind = evt.displayKind
+            // Rebuild title when input or name updates
+            if (evt.rawInput || evt.name || evt.displayTitle) {
+              const kind = resolveKind(existing.name, evt.kind, evt.displayKind ?? existing.kind)
+              existing.kind = kind
+              existing.title = buildTitle(existing.name, kind, existing.input, evt.displayTitle, evt.displaySummary)
+              existing.description = extractDescription(existing.input, existing.title)
+              existing.command = extractCommand(kind, existing.input)
+            }
             const meta = evt.meta as Record<string, any> | undefined
             if (meta?.diffStats) {
               existing.diffStats = meta.diffStats as { added: number; removed: number }
@@ -485,6 +607,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
       case "error": {
         flushBuffers()
+        charStream.flush(`${sessionID}:text`)
+        charStream.flush(`${sessionID}:thought`)
+        charStream.clearStream(`${sessionID}:text`)
+        charStream.clearStream(`${sessionID}:thought`)
         ensureAssistantMessage(sessionID)
         updateAssistantParts(sessionID, (parts) => {
           parts.push({ id: nextPartId(), type: "text", content: `\n\n**Error:** ${evt.content}` })
@@ -493,11 +619,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           blocks.push({ type: "error", id: nextPartId(), content: evt.content })
         })
         assistantMsgId.current.delete(sessionID)
-        setStore((draft) => { draft.streaming = false })
+        setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
         break
       }
       case "usage": {
         flushBuffers()
+        charStream.flush(`${sessionID}:text`)
+        charStream.flush(`${sessionID}:thought`)
+        charStream.clearStream(`${sessionID}:text`)
+        charStream.clearStream(`${sessionID}:thought`)
         const thinkStart2 = thinkingStartTime.current.get(sessionID)
         if (thinkStart2) {
           const durationMs = Date.now() - thinkStart2
@@ -510,14 +640,73 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             }
           })
         }
+        // Attach usage data to the current assistant message
+        const usageMsgId = assistantMsgId.current.get(sessionID)
+        if (usageMsgId) {
+          const usageInfo: UsageInfo = {
+            tokensUsed: evt.tokensUsed,
+            contextSize: evt.contextSize,
+            cost: (evt as any).cost,
+          }
+          setStore((draft) => {
+            const msgs = draft.messagesBySession[sessionID]
+            if (!msgs) return
+            const msg = msgs.find((m) => m.id === usageMsgId)
+            if (msg) msg.usage = usageInfo
+          })
+        }
         assistantMsgId.current.delete(sessionID)
-        setStore((draft) => { draft.streaming = false })
+        setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
         void sessions.refresh()
-        const msgs = store.messagesBySession[sessionID]
-        if (msgs) void cacheMessages(sessionID, msgs)
+        const msgs = messagesRef.current[sessionID]
+        if (msgs) void cacheMessages(sessionID, [...msgs])
         break
       }
     }
+  }
+
+  function handleMessageQueued(ev: MessageQueuedEvent) {
+    const userMsgId = nextId("usr-ext")
+    turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
+    const userMsg: Message = {
+      id: userMsgId,
+      role: "user",
+      sessionID: ev.sessionId,
+      parts: [{ id: nextPartId(), type: "text", content: ev.text }],
+      blocks: [{ type: "text", id: nextPartId(), content: ev.text }],
+      createdAt: new Date(ev.timestamp).getTime(),
+      sourceAdapterId: ev.sourceAdapterId,
+    }
+    setStore((draft) => {
+      if (!draft.messagesBySession[ev.sessionId]) draft.messagesBySession[ev.sessionId] = []
+      draft.messagesBySession[ev.sessionId].push(userMsg)
+      // Sort by createdAt so the message lands in correct chronological position
+      // (it may arrive while a previous AI turn is still streaming)
+      draft.messagesBySession[ev.sessionId].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      draft.scrollTrigger++
+    })
+    // Sync ref so loadHistory's inFlight calculation includes this message
+    if (!messagesRef.current[ev.sessionId]) messagesRef.current[ev.sessionId] = []
+    messagesRef.current[ev.sessionId] = [
+      ...(messagesRef.current[ev.sessionId] || []),
+      userMsg,
+    ].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+  }
+
+  function handleMessageProcessing(ev: MessageProcessingEvent) {
+    const userMsgId = turnIdToUserMsgId.current.get(ev.turnId)
+    const astMsgId = nextId("ast-ext")
+    assistantMsgId.current.set(ev.sessionId, astMsgId)
+    addMessage(ev.sessionId, {
+      id: astMsgId,
+      role: "assistant",
+      sessionID: ev.sessionId,
+      parts: [],
+      blocks: [],
+      createdAt: new Date(ev.timestamp).getTime(),
+      parentID: userMsgId,
+    })
+    setStore((draft) => { draft.streaming = true; draft.streamingSession = ev.sessionId })
   }
 
   const connect = useCallback(() => {
@@ -526,9 +715,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       onSessionCreated: (s) => sessions.upsert(s),
       onSessionUpdated: (s) => sessions.upsert(s),
       onSessionDeleted: (id) => sessions.delete(id),
+      onMessageQueued: handleMessageQueued,
+      onMessageProcessing: handleMessageProcessing,
+      onPermissionRequest: onPermissionRequest,
+      onPermissionResolved: onPermissionResolved,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
-      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected' }),
+      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected'; d.streaming = false; d.streamingSession = undefined }),
     })
   }, [workspace.directory, workspace.client.eventsUrl])
 
@@ -556,7 +749,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       id: astMsgId, role: "assistant", sessionID,
       parts: [], blocks: [], createdAt: Date.now(), parentID: userMsgId,
     })
-    setStore((draft) => { draft.streaming = true })
+    setStore((draft) => {
+      draft.streaming = true
+      draft.scrollTrigger++
+    })
 
     connect()
 
@@ -597,8 +793,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const sessionID = store.activeSession
     if (!sessionID) return
     abortedSessions.current.add(sessionID)
+    charStream.flush(`${sessionID}:text`)
+    charStream.flush(`${sessionID}:thought`)
+    charStream.clearStream(`${sessionID}:text`)
+    charStream.clearStream(`${sessionID}:thought`)
     assistantMsgId.current.delete(sessionID)
-    setStore((draft) => { draft.streaming = false })
+    setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
     // Tell server to actually cancel the agent's prompt
     workspace.client.cancelPrompt(sessionID).catch(() => {})
     setTimeout(() => abortedSessions.current.delete(sessionID), 5000)
@@ -610,12 +810,39 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     return () => sseRef.current.disconnectAll()
   }, [connect])
 
+  // Track disconnections so we can reload history after reconnect
+  useEffect(() => {
+    if (store.sseStatus !== 'connected') {
+      hadDisconnect.current = true
+    }
+  }, [store.sseStatus])
+
+  // Auto-reconnect when SSE permanently disconnects (2s delay to avoid thrashing)
+  useEffect(() => {
+    if (store.sseStatus === 'disconnected') {
+      const timer = setTimeout(() => connect(), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [store.sseStatus, connect])
+
+  // Reload active session history after SSE reconnects to recover any missed cross-adapter events
+  useEffect(() => {
+    if (store.sseStatus === 'connected' && hadDisconnect.current) {
+      hadDisconnect.current = false
+      if (store.activeSession) {
+        void loadHistory(store.activeSession)
+      }
+    }
+  }, [store.sseStatus, store.activeSession])
+
   const value = useMemo((): ChatContext => ({
     messages: () => store.messagesBySession[store.activeSession || ""] || [],
     streaming: () => store.streaming,
+    streamingSession: () => store.streamingSession,
     loadingHistory: () => store.loadingHistory,
     sseStatus: () => store.sseStatus,
     activeSession: () => store.activeSession,
+    scrollTrigger: () => store.scrollTrigger,
     setActiveSession,
     sendPrompt,
     abort,

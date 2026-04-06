@@ -60,15 +60,26 @@ export const Ghostty = class {};`
   }
 }
 
+const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "package.json"), "utf-8"))
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [openacpResolver(), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src/app"),
+      "src/lib/utils": path.resolve(__dirname, "src/lib/utils.ts"),
+      "src/openacp/components/ui": path.resolve(__dirname, "src/openacp/components/ui"),
     },
   },
   build: {
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        "ds-demo": path.resolve(__dirname, "ds-demo.html"),
+      },
       external: [
         "ghostty-web",
       ],

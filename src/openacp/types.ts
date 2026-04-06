@@ -4,8 +4,15 @@ export interface Session {
   agent: string
   status: "initializing" | "active" | "finished" | "cancelled" | "error"
   workspace: string
+  channelId: string
   createdAt: string
   lastActiveAt?: string | null
+  dangerousMode: boolean
+  queueDepth: number
+  promptRunning: boolean
+  capabilities: unknown | null
+  configOptions?: unknown[]
+  isLive: boolean
 }
 
 // ── Message Parts ───────────────────────────────────────────────────────────
@@ -104,6 +111,14 @@ export interface FileAttachment {
   size: number
 }
 
+// ── Usage Info ──────────────────────────────────────────────────────────────
+
+export interface UsageInfo {
+  tokensUsed?: number
+  contextSize?: number
+  cost?: { amount: number; currency: string } | number
+}
+
 // ── Messages ────────────────────────────────────────────────────────────────
 
 export interface Message {
@@ -115,6 +130,10 @@ export interface Message {
   blocks: MessageBlock[]
   attachments?: FileAttachment[]
   createdAt: number
+  /** Set when message originated from an external adapter (e.g. "telegram", "discord") */
+  sourceAdapterId?: string
+  /** Token usage and cost info for this assistant response */
+  usage?: UsageInfo
 }
 
 // ── Agents ──────────────────────────────────────────────────────────────────
@@ -180,6 +199,7 @@ export interface HistoryTurn {
   steps?: HistoryStep[]
   usage?: { tokensUsed?: number; contextSize?: number; cost?: unknown }
   stopReason?: string
+  sourceAdapterId?: string
 }
 
 export type HistoryStep =
@@ -236,6 +256,40 @@ export type AgentEventPayload =
   | { type: "commands_update"; [key: string]: unknown }
   | { type: "plan"; entries?: unknown[] }
   | { type: "resource_link"; uri: string; name?: string; [key: string]: unknown }
+
+// ── Cross-Adapter Input Events ───────────────────────────────────────────────
+
+export interface MessageQueuedEvent {
+  sessionId: string
+  turnId: string
+  text: string
+  sourceAdapterId: string
+  attachments?: unknown[]
+  timestamp: string
+  queueDepth: number
+}
+
+export interface MessageProcessingEvent {
+  sessionId: string
+  turnId: string
+  sourceAdapterId: string
+  timestamp: string
+}
+
+// ── Permission Request ──────────────────────────────────────────────────────
+
+export interface PermissionOption {
+  id: string
+  label: string
+  isAllow: boolean
+}
+
+export interface PermissionRequest {
+  id: string
+  sessionId: string
+  description: string
+  options: PermissionOption[]
+}
 
 // ─── Plugin types ──────────────────────────────────────────────────────────
 

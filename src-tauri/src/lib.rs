@@ -127,12 +127,16 @@ async fn invoke_cli(args: Vec<String>, _app: tauri::AppHandle) -> Result<String,
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(if stderr.is_empty() {
-            format!("CLI exited with status: {}", output.status)
-        } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let msg = if !stderr.is_empty() {
             stderr
-        })
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("CLI exited with status: {}", output.status)
+        };
+        Err(msg)
     }
 }
 

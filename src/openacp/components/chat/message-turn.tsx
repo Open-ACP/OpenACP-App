@@ -1,4 +1,5 @@
-import React, { useMemo } from "react"
+import React, { useMemo, useState, useCallback } from "react"
+import { Copy, Check } from "@phosphor-icons/react"
 import { TextShimmer } from "../ui/text-shimmer"
 import { TimelineStep, type StepStatus } from "./timeline-step"
 import { TextBlockView } from "./blocks/text-block"
@@ -7,6 +8,8 @@ import { ToolBlockView } from "./blocks/tool-block"
 import { PlanBlockView } from "./blocks/plan-block"
 import { ErrorBlockView } from "./blocks/error-block"
 import { ToolGroup } from "./blocks/tool-group"
+import { usePermissions } from "../../context/permissions"
+import { UsageBar } from "./usage-bar"
 import type { Message, MessageBlock, ToolBlock, TextBlock, ThinkingBlock, PlanBlock, ErrorBlock } from "../../types"
 
 interface MessageTurnProps {
@@ -90,9 +93,20 @@ function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
   return items
 }
 
+const REJECTION_PATTERNS = [
+  "user doesn't want to proceed",
+  "tool use was rejected",
+  "User refused permission",
+]
+
+function isToolRejected(block: MessageBlock): boolean {
+  if (block.type !== "tool" || !block.output) return false
+  return REJECTION_PATTERNS.some((p) => block.output!.includes(p))
+}
+
 function blockStatus(block: MessageBlock): StepStatus {
   if (block.type === "tool") {
-    if (block.status === "error") return "failure"
+    if (block.status === "error" || isToolRejected(block)) return "failure"
     if (block.status === "pending" || block.status === "running") return "progress"
     if (block.status === "completed") return "success"
   }
@@ -101,10 +115,47 @@ function blockStatus(block: MessageBlock): StepStatus {
   return "default"
 }
 
+function MessageFooter({ usage, textContent }: { usage?: import("../../types").UsageInfo; textContent?: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(() => {
+    if (!textContent) return
+    navigator.clipboard.writeText(textContent).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }, [textContent])
+
+  return (
+    <div className="flex items-center gap-3 mt-2" style={{ paddingLeft: 30 }}>
+      {usage && <UsageBar usage={usage} />}
+      {textContent && (
+        <button
+          type="button"
+          className="flex items-center justify-center size-[18px] rounded hover:bg-accent transition-colors"
+          title="Copy message"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <Check size={12} style={{ color: 'var(--icon-weak)' }} />
+          ) : (
+            <Copy size={12} style={{ color: 'var(--icon-weak)' }} />
+          )}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export const MessageTurn = React.memo(function MessageTurn({ message, streaming }: MessageTurnProps) {
+  const permissions = usePermissions()
+  const feedbackReason = permissions.lastFeedback(message.sessionID)
   const blocks = useMemo(() => message.blocks ?? [], [message.blocks])
   const isEmpty = blocks.length === 0
   const renderItems = useMemo(() => groupBlocks(blocks), [blocks])
+  const textContent = useMemo(() =>
+    blocks.filter((b): b is TextBlock => b.type === "text").map(b => b.content).join("\n").trim(),
+    [blocks]
+  )
 
   if (isEmpty) {
     if (streaming) {
@@ -112,7 +163,7 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
         <div data-component="oac-assistant-message" className="px-1">
           <div className="oac-timeline">
             <div className="oac-step oac-step--progress">
-              <TextShimmer text="Thinking" active className="text-14-regular text-text-weak" style={{ fontStyle: "italic" }} />
+              <TextShimmer text="Thinking" active className="text-md-regular text-muted-foreground" style={{ fontStyle: "italic" }} />
             </div>
           </div>
         </div>
@@ -132,15 +183,14 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
           }
           const blockItem = item as { kind: "block"; block: MessageBlock; index: number }
           const block = blockItem.block
-          const isLastBlock = blockItem.index === blocks.length - 1
           return (
             <TimelineStep key={block.type === "tool" ? block.id : `b-${idx}`} status={blockStatus(block)} isFirst={isFirst} isLast={isLast}>
               {block.type === "text" ? (
-                <TextBlockView block={block as TextBlock} streaming={streaming && isLastBlock} />
+                <TextBlockView block={block as TextBlock} streaming={streaming && isLast} sessionID={message.sessionID} />
               ) : block.type === "thinking" ? (
-                <ThinkingBlockView block={block as ThinkingBlock} />
+                <ThinkingBlockView block={block as ThinkingBlock} sessionID={message.sessionID} />
               ) : block.type === "tool" ? (
-                <ToolBlockView block={block as ToolBlock} />
+                <ToolBlockView block={block as ToolBlock} feedbackReason={feedbackReason} />
               ) : block.type === "plan" ? (
                 <PlanBlockView block={block as PlanBlock} />
               ) : block.type === "error" ? (
@@ -150,6 +200,14 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
           )
         })}
       </div>
+      {!streaming && (message.usage || textContent) && (
+        <MessageFooter usage={message.usage} textContent={textContent} />
+      )}
     </div>
   )
+}, (prev, next) => {
+  // Always re-render if streaming (this is the active message)
+  if (next.streaming) return false
+  // Otherwise only re-render if message or streaming flag changed
+  return prev.message === next.message && prev.streaming === next.streaming
 })

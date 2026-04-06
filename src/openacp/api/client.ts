@@ -101,6 +101,14 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       }
     },
 
+    /** Switch the agent for an active session */
+    async switchAgent(sessionId: string, agentName: string): Promise<{ ok: boolean; resumed?: boolean }> {
+      return api<{ ok: boolean; resumed?: boolean }>(`/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ agentName }),
+      })
+    },
+
     /** List sessions for this workspace */
     async listSessions(): Promise<Session[]> {
       const res = await api<{ sessions: any[] }>("/sessions")
@@ -109,7 +117,7 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
 
     /** Create a new session */
     async createSession(opts?: { workspace?: string; agent?: string }): Promise<Session> {
-      const body: Record<string, string> = {}
+      const body: Record<string, string> = { channel: "sse" }
       if (opts?.workspace) body.workspace = opts.workspace
       if (opts?.agent) body.agent = opts.agent
       const res = await api<any>("/sessions", {
@@ -220,6 +228,16 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       }
     },
 
+    /** Resolve a permission request (approve/deny), optionally with feedback text */
+    async resolvePermission(sessionID: string, permissionId: string, optionId: string, feedback?: string): Promise<void> {
+      const body: Record<string, string> = { permissionId, optionId }
+      if (feedback) body.feedback = feedback
+      await api(`/sessions/${encodeURIComponent(sessionID)}/permission`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      })
+    },
+
     /** Set client overrides (bypass permissions, etc.) */
     async setClientOverrides(sessionID: string, overrides: { bypassPermissions?: boolean }): Promise<void> {
       await api(`/sessions/${encodeURIComponent(sessionID)}/config/overrides`, {
@@ -280,8 +298,15 @@ function mapSession(s: any): Session {
     agent: s.agent || s.agentName || "",
     status: s.status || "active",
     workspace: s.workspace || "",
+    channelId: s.channelId || "",
     createdAt: s.createdAt || new Date().toISOString(),
     lastActiveAt: s.lastActiveAt ?? null,
+    dangerousMode: s.dangerousMode ?? false,
+    queueDepth: s.queueDepth ?? 0,
+    promptRunning: s.promptRunning ?? false,
+    capabilities: s.capabilities ?? null,
+    configOptions: s.configOptions,
+    isLive: s.isLive ?? ["active", "initializing"].includes(s.status || "active"),
   }
 }
 

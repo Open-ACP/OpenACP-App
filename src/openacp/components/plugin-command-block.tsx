@@ -15,10 +15,10 @@ export function CommandBlock({ label, command }: { label: string; command: strin
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-12-regular text-text-weak">{label}</span>
-      <div className="flex items-center gap-2 bg-background-stronger rounded px-3 py-2">
-        <code className="text-12-regular text-text-strong flex-1 font-mono">{command}</code>
-        <button className="text-12-regular text-text-weak hover:text-text-base transition-colors shrink-0" onClick={copy}>{copied ? "Copied!" : "Copy"}</button>
+      <span className="text-sm-regular text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2 bg-card rounded px-3 py-2">
+        <code className="text-sm-regular text-foreground flex-1 font-mono">{command}</code>
+        <button className="text-sm-regular text-muted-foreground hover:text-foreground-weak transition-colors shrink-0" onClick={copy}>{copied ? "Copied!" : "Copy"}</button>
       </div>
     </div>
   )

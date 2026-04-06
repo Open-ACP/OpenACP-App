@@ -1,25 +1,42 @@
-import React, { useState, useEffect, useRef, useCallback } from "react"
-import { WorkspaceProvider, resolveWorkspaceServer } from "./context/workspace"
-import { SessionsProvider } from "./context/sessions"
-import { ChatProvider, useChat } from "./context/chat"
-import { SidebarPanel } from "./components/sidebar"
-import { SidebarRail } from "./components/sidebar-rail"
-import { ChatView } from "./components/chat"
-import { Composer } from "./components/composer"
-import { WelcomeScreen } from "./components/welcome"
-import { AddWorkspaceModal } from "./components/add-workspace/index"
-import { loadWorkspaces, saveWorkspaces, discoverLocalInstances, type WorkspaceEntry } from "./api/workspace-store"
-import { getKeychainToken } from "./api/keychain"
-import { ReviewPanel } from "./components/review-panel"
-import { showToast } from "./lib/toast"
-import type { ServerInfo } from "./types"
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { WorkspaceProvider, resolveWorkspaceServer } from "./context/workspace";
+import { SessionsProvider } from "./context/sessions";
+import { ChatProvider, useChat } from "./context/chat";
+import { PermissionsProvider, usePermissions } from "./context/permissions";
+import { SidebarPanel } from "./components/sidebar";
+import { SidebarRail } from "./components/sidebar-rail";
+import { ChatView } from "./components/chat";
+import { Composer } from "./components/composer";
+import { WelcomeScreen } from "./components/welcome";
+import { AddWorkspaceModal } from "./components/add-workspace/index";
+import {
+  loadWorkspaces,
+  saveWorkspaces,
+  discoverLocalInstances,
+  type WorkspaceEntry,
+} from "./api/workspace-store";
+import { getKeychainToken } from "./api/keychain";
+import { ReviewPanel } from "./components/review-panel";
+import { PluginsModal } from "./components/plugins-modal";
+import {
+  SettingsDialog,
+  type SettingsPage,
+} from "./components/settings/settings-dialog";
+import { showToast } from "./lib/toast";
+import { Toaster } from "./components/ui/toaster";
+import {
+  getAllSettings,
+  applyTheme,
+  applyFontSize,
+} from "./lib/settings-store";
+import type { ServerInfo } from "./types";
 
 function ChatArea() {
-  const chat = useChat()
-  const [reviewOpen, setReviewOpen] = useState(false)
+  const chat = useChat();
+  const [reviewOpen, setReviewOpen] = useState(false);
   return (
     <div className="flex flex-1 min-h-0 h-full min-w-0">
-      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-background-stronger min-w-0">
+      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-card min-w-0 border-l border-t border-border-weak">
         <ChatView onOpenReview={() => setReviewOpen(true)} />
         {chat.activeSession() && <Composer />}
       </div>
@@ -29,224 +46,391 @@ function ChatArea() {
         </div>
       )}
     </div>
-  )
+  );
+}
+
+function ChatWithPermissions() {
+  const permissions = usePermissions();
+  return (
+    <ChatProvider
+      onPermissionRequest={permissions.addRequest}
+      onPermissionResolved={(e) => permissions.dismiss(e.sessionId)}
+    >
+      <SidebarPanel />
+      <ChatArea />
+    </ChatProvider>
+  );
 }
 
 export function OpenACPApp() {
-  const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([])
-  const [active, setActive] = useState<string | null>(null)
-  const [ready, setReady] = useState(false)
+  const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
+  const [active, setActive] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
-  const [server, setServer] = useState<ServerInfo | null>(null)
-  const [serverLoading, setServerLoading] = useState(false)
-  const [serverError, setServerError] = useState(false)
-  const [errorWorkspaceIds, setErrorWorkspaceIds] = useState<Set<string>>(new Set())
+  const [server, setServer] = useState<ServerInfo | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState(false);
+  const [errorWorkspaceIds, setErrorWorkspaceIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [connectedWorkspaceIds, setConnectedWorkspaceIds] = useState<Set<string>>(new Set());
 
-  const [showAddWorkspace, setShowAddWorkspace] = useState(false)
-  const [addWorkspaceDefaultTab, setAddWorkspaceDefaultTab] = useState<'local' | 'remote'>('local')
+  const [showAddWorkspace, setShowAddWorkspace] = useState(false);
+  const [addWorkspaceDefaultTab, setAddWorkspaceDefaultTab] = useState<
+    "local" | "remote"
+  >("local");
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>("general");
+  const [pluginsOpen, setPluginsOpen] = useState(false);
 
-  const retryRef = useRef<ReturnType<typeof setInterval>>()
-  const retryCountRef = useRef(0)
+  const retryRef = useRef<ReturnType<typeof setInterval>>();
+  const retryCountRef = useRef(0);
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  const findWorkspace = useCallback((id: string) => workspaces.find((w) => w.id === id), [workspaces])
+  const findWorkspace = useCallback(
+    (id: string) => workspaces.find((w) => w.id === id),
+    [workspaces],
+  );
 
   // ── Workspace info refresh ──────────────────────────────────────────────
 
   async function refreshWorkspaceInfo(id: string) {
-    const entry = workspaces.find(w => w.id === id)
-    if (!entry) return
+    const entry = workspaces.find((w) => w.id === id);
+    if (!entry) return;
     try {
-      if (entry.type === 'local') {
-        const list = await discoverLocalInstances()
-        const found = list.find(i => i.id === id)
-        if (found && (found.name !== entry.name || found.directory !== entry.directory)) {
-          setWorkspaces(prev => prev.map(w => w.id === id ? { ...w, name: found.name ?? w.name, directory: found.directory } : w))
+      if (entry.type === "local") {
+        const list = await discoverLocalInstances();
+        const found = list.find((i) => i.id === id);
+        if (
+          found &&
+          (found.name !== entry.name || found.directory !== entry.directory)
+        ) {
+          setWorkspaces((prev) =>
+            prev.map((w) =>
+              w.id === id
+                ? {
+                    ...w,
+                    name: found.name ?? w.name,
+                    directory: found.directory,
+                  }
+                : w,
+            ),
+          );
         }
-      } else if (entry.type === 'remote' && entry.host) {
-        const token = await getKeychainToken(id)
-        if (!token) return
-        const res = await fetch(`${entry.host}/api/v1/workspace`, { headers: { Authorization: `Bearer ${token}` } })
-        if (!res.ok) return
-        const ws = await res.json() as { name?: string; directory?: string }
+      } else if (entry.type === "remote" && entry.host) {
+        const token = await getKeychainToken(id);
+        if (!token) return;
+        const res = await fetch(`${entry.host}/api/v1/workspace`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const ws = (await res.json()) as { name?: string; directory?: string };
         if (ws.name !== entry.name || ws.directory !== entry.directory) {
-          setWorkspaces(prev => prev.map(w => w.id === id ? { ...w, name: ws.name ?? w.name, directory: ws.directory ?? w.directory } : w))
+          setWorkspaces((prev) =>
+            prev.map((w) =>
+              w.id === id
+                ? {
+                    ...w,
+                    name: ws.name ?? w.name,
+                    directory: ws.directory ?? w.directory,
+                  }
+                : w,
+            ),
+          );
         }
       }
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
   }
 
   // ── Load workspaces on mount ─────────────────────────────────────────────
 
   useEffect(() => {
     void loadWorkspaces().then(async (entries) => {
-      const discovered = await discoverLocalInstances()
-      const discoveredIds = new Set(discovered.map((d) => d.id))
-      const valid = entries.filter((e) => e.type === "remote" || discoveredIds.has(e.id))
-      if (valid.length > 0) setWorkspaces(valid)
-      const lastId = valid.length > 0 ? valid[valid.length - 1].id : null
-      if (lastId) setActive(lastId)
-      setReady(true)
-    })
-  }, [])
+      const discovered = await discoverLocalInstances();
+      const discoveredIds = new Set(discovered.map((d) => d.id));
+      const valid = entries.filter(
+        (e) => e.type === "remote" || discoveredIds.has(e.id),
+      );
+      if (valid.length > 0) setWorkspaces(valid);
+      const lastId = valid.length > 0 ? valid[valid.length - 1].id : null;
+      if (lastId) setActive(lastId);
+      setReady(true);
+    });
+  }, []);
 
   // Persist workspaces
   useEffect(() => {
-    if (ready && workspaces.length > 0) void saveWorkspaces(workspaces)
-  }, [workspaces, ready])
+    if (ready && workspaces.length > 0) void saveWorkspaces(workspaces);
+  }, [workspaces, ready]);
+
+  // Apply saved settings on mount
+  useEffect(() => {
+    void getAllSettings().then((settings) => {
+      applyTheme(settings.theme);
+      applyFontSize(settings.fontSize);
+    });
+  }, []);
+
+  // Listen for open-settings custom event (e.g. from Composer "Install agent...")
+  useEffect(() => {
+    function handleOpenSettings(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.page) setSettingsPage(detail.page);
+      else setSettingsPage("general");
+      setShowSettings(true);
+    }
+    window.addEventListener("open-settings", handleOpenSettings);
+    return () =>
+      window.removeEventListener("open-settings", handleOpenSettings);
+  }, []);
 
   function addWorkspace(entry: WorkspaceEntry): boolean {
-    const existing = workspaces.find((w) => w.id === entry.id)
+    const existing = workspaces.find((w) => w.id === entry.id);
     if (existing) {
-      setWorkspaces(prev => prev.map(w => w.id === entry.id ? { ...w, ...entry } : w))
-      setActive(entry.id)
-      return false
+      setWorkspaces((prev) =>
+        prev.map((w) => (w.id === entry.id ? { ...w, ...entry } : w)),
+      );
+      setActive(entry.id);
+      return false;
     }
-    setWorkspaces(prev => [...prev, entry])
-    setActive(entry.id)
-    return true
+    setWorkspaces((prev) => [...prev, entry]);
+    setActive(entry.id);
+    return true;
   }
 
   function addInstance(instanceId: string) {
-    const existing = findWorkspace(instanceId)
-    if (existing) { setActive(instanceId); return }
-    addWorkspace({ id: instanceId, name: instanceId, directory: "", type: "local" })
+    const existing = findWorkspace(instanceId);
+    if (existing) {
+      setActive(instanceId);
+      return;
+    }
+    addWorkspace({
+      id: instanceId,
+      name: instanceId,
+      directory: "",
+      type: "local",
+    });
   }
 
-  function switchInstance(instanceId: string) { setActive(instanceId) }
+  function switchInstance(instanceId: string) {
+    setActive(instanceId);
+  }
 
   function removeInstance(instanceId: string) {
-    setWorkspaces(prev => prev.filter((w) => w.id !== instanceId))
-    if (active === instanceId) setActive(workspaces.find(w => w.id !== instanceId)?.id ?? null)
-    setErrorWorkspaceIds(prev => { const next = new Set(prev); next.delete(instanceId); return next })
+    setWorkspaces((prev) => prev.filter((w) => w.id !== instanceId));
+    if (active === instanceId)
+      setActive(workspaces.find((w) => w.id !== instanceId)?.id ?? null);
+    setErrorWorkspaceIds((prev) => {
+      const next = new Set(prev);
+      next.delete(instanceId);
+      return next;
+    });
   }
 
   // ── Server connection ───────────────────────────────────────────────────
 
-  const resolveServer = useCallback(async (instanceId: string): Promise<ServerInfo | null> => {
-    setServerLoading(true); setServerError(false)
-    try {
-      const entry = findWorkspace(instanceId)
-      let info: ServerInfo | null = null
-      if (!entry || entry.type === "local") {
-        info = await resolveWorkspaceServer(instanceId)
-      } else {
-        const jwt = await getKeychainToken(entry.id)
-        if (!jwt) { setServerLoading(false); setServerError(true); return null }
-        info = { url: entry.host ?? '', token: jwt }
-      }
-      if (info) {
-        try {
-          const res = await fetch(`${info.url}/api/v1/system/health`)
-          if (res.ok) {
-            setServerLoading(false); setServerError(false)
-            setErrorWorkspaceIds(prev => { const next = new Set(prev); next.delete(instanceId); return next })
-            retryCountRef.current = 0
-            void refreshWorkspaceInfo(instanceId)
-            return info
+  const resolveServer = useCallback(
+    async (instanceId: string): Promise<ServerInfo | null> => {
+      setServerLoading(true);
+      setServerError(false);
+      try {
+        const entry = findWorkspace(instanceId);
+        let info: ServerInfo | null = null;
+        if (!entry || entry.type === "local") {
+          info = await resolveWorkspaceServer(instanceId);
+        } else {
+          const jwt = await getKeychainToken(entry.id);
+          if (!jwt) {
+            setServerLoading(false);
+            setServerError(true);
+            return null;
           }
-        } catch {}
+          info = { url: entry.host ?? "", token: jwt };
+        }
+        if (info) {
+          try {
+            const res = await fetch(`${info.url}/api/v1/system/health`, {
+              headers: info.token ? { Authorization: `Bearer ${info.token}` } : {},
+            });
+            if (res.ok) {
+              setServerLoading(false);
+              setServerError(false);
+              setErrorWorkspaceIds((prev) => {
+                const next = new Set(prev);
+                next.delete(instanceId);
+                return next;
+              });
+              setConnectedWorkspaceIds((prev) => new Set([...prev, instanceId]));
+              retryCountRef.current = 0;
+              void refreshWorkspaceInfo(instanceId);
+              return info;
+            }
+          } catch { /* health check failed */ }
+        }
+        setServerLoading(false);
+        setServerError(true);
+        setErrorWorkspaceIds((prev) => new Set([...prev, instanceId]));
+        setConnectedWorkspaceIds((prev) => { const next = new Set(prev); next.delete(instanceId); return next });
+        return null;
+      } catch {
+        setServerLoading(false);
+        setServerError(true);
+        setErrorWorkspaceIds((prev) => new Set([...prev, instanceId]));
+        setConnectedWorkspaceIds((prev) => { const next = new Set(prev); next.delete(instanceId); return next });
+        return null;
       }
-      setServerLoading(false); setServerError(true)
-      setErrorWorkspaceIds(prev => new Set([...prev, instanceId]))
-      return null
-    } catch {
-      setServerLoading(false); setServerError(true)
-      setErrorWorkspaceIds(prev => new Set([...prev, instanceId]))
-      return null
-    }
-  }, [findWorkspace, workspaces])
+    },
+    [findWorkspace, workspaces],
+  );
 
   const stopRetry = useCallback(() => {
-    if (retryRef.current) { clearInterval(retryRef.current); retryRef.current = undefined }
-  }, [])
+    if (retryRef.current) {
+      clearInterval(retryRef.current);
+      retryRef.current = undefined;
+    }
+  }, []);
 
-  const startRetry = useCallback((instanceId: string) => {
-    stopRetry()
-    const interval = Math.min(3000 + retryCountRef.current * 1000, 10000)
-    retryRef.current = setInterval(async () => {
-      retryCountRef.current++
-      const info = await resolveServer(instanceId)
-      if (info) { setServer(info); stopRetry() }
-    }, interval)
-  }, [stopRetry, resolveServer])
+  const startRetry = useCallback(
+    (instanceId: string) => {
+      stopRetry();
+      const interval = Math.min(3000 + retryCountRef.current * 1000, 10000);
+      retryRef.current = setInterval(async () => {
+        retryCountRef.current++;
+        const info = await resolveServer(instanceId);
+        if (info) {
+          setServer(info);
+          stopRetry();
+        }
+      }, interval);
+    },
+    [stopRetry, resolveServer],
+  );
+
+  // Keep refs to avoid stale closures while only re-running on active change
+  const resolveServerRef = useRef(resolveServer);
+  const startRetryRef = useRef(startRetry);
+  const stopRetryRef = useRef(stopRetry);
+  resolveServerRef.current = resolveServer;
+  startRetryRef.current = startRetry;
+  stopRetryRef.current = stopRetry;
 
   // React to active workspace changes
   useEffect(() => {
-    stopRetry(); setServer(null)
-    if (!active) return
-    let cancelled = false
-    void resolveServer(active).then((info) => {
-      if (cancelled) return
-      if (info) setServer(info); else startRetry(active)
-    })
-    return () => { cancelled = true; stopRetry() }
-  }, [active])
+    stopRetryRef.current();
+    setServer(null);
+    if (!active) return;
+    let cancelled = false;
+    void resolveServerRef.current(active).then((info) => {
+      if (cancelled) return;
+      if (info) setServer(info);
+      else startRetryRef.current(active);
+    });
+    return () => {
+      cancelled = true;
+      stopRetryRef.current();
+    };
+  }, [active]);
 
   // Visibility change
   useEffect(() => {
     const handleVisibility = async () => {
       if (document.visibilityState === "visible" && active && !server) {
-        const info = await resolveServer(active)
-        if (info) { setServer(info); stopRetry() }
+        const info = await resolveServer(active);
+        if (info) {
+          setServer(info);
+          stopRetry();
+        }
       }
-    }
-    document.addEventListener("visibilitychange", handleVisibility)
-    return () => document.removeEventListener("visibilitychange", handleVisibility)
-  }, [active, server, resolveServer, stopRetry])
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, [active, server, resolveServer, stopRetry]);
 
   // ── Add workspace modal ─────────────────────────────────────────────────
 
   async function handleAddWorkspace(entry: WorkspaceEntry) {
-    const isNew = addWorkspace(entry)
-    setShowAddWorkspace(false)
+    const isNew = addWorkspace(entry);
+    setShowAddWorkspace(false);
     if (!isNew && active === entry.id) {
-      stopRetry(); setServer(null)
-      const info = await resolveServer(entry.id)
-      if (info) setServer(info); else startRetry(entry.id)
+      stopRetry();
+      setServer(null);
+      const info = await resolveServer(entry.id);
+      if (info) setServer(info);
+      else startRetry(entry.id);
     }
-    showToast({ description: isNew ? `Workspace "${entry.name}" added.` : `Workspace "${entry.name}" already exists -- info updated.`, variant: "success" })
+    showToast({
+      description: isNew
+        ? `Workspace "${entry.name}" added.`
+        : `Workspace "${entry.name}" already exists -- info updated.`,
+      variant: "success",
+    });
   }
 
-  function openAddWorkspaceModal(defaultTab: 'local' | 'remote' = 'local') {
-    stopRetry(); setAddWorkspaceDefaultTab(defaultTab); setShowAddWorkspace(true)
+  function openAddWorkspaceModal(defaultTab: "local" | "remote" = "local") {
+    stopRetry();
+    setAddWorkspaceDefaultTab(defaultTab);
+    setShowAddWorkspace(true);
   }
 
   function closeAddWorkspaceModal() {
-    setShowAddWorkspace(false)
-    if (active && !server) startRetry(active)
+    setShowAddWorkspace(false);
+    if (active && !server) startRetry(active);
   }
 
   async function openFolderPicker() {
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog")
-      const selected = await open({ directory: true, multiple: false })
-      if (!selected || typeof selected !== "string") return
-      const existingMatch = workspaces.find((w) => w.directory === selected)
-      if (existingMatch) { switchInstance(existingMatch.id); return }
-      const discovered = await discoverLocalInstances()
-      const match = discovered.find((info) => info.directory === selected)
-      if (match) addWorkspace({ id: match.id, name: match.name ?? match.id, directory: match.directory, type: "local" })
-      else window.alert(`No OpenACP instance found in ${selected}.\nRun "openacp start" in that directory first.`)
-    } catch (e) { console.error("[openFolder] failed", e) }
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, multiple: false });
+      if (!selected || typeof selected !== "string") return;
+      const existingMatch = workspaces.find((w) => w.directory === selected);
+      if (existingMatch) {
+        switchInstance(existingMatch.id);
+        return;
+      }
+      const discovered = await discoverLocalInstances();
+      const match = discovered.find((info) => info.directory === selected);
+      if (match)
+        addWorkspace({
+          id: match.id,
+          name: match.name ?? match.id,
+          directory: match.directory,
+          type: "local",
+        });
+      else
+        window.alert(
+          `No OpenACP instance found in ${selected}.\nRun "openacp start" in that directory first.`,
+        );
+    } catch (e) {
+      console.error("[openFolder] failed", e);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  const activeWorkspace = active ? findWorkspace(active) ?? null : null
-  const hasInstance = active !== null
-  const isConnected = server !== null
+  const activeWorkspace = active ? (findWorkspace(active) ?? null) : null;
+  const hasInstance = active !== null;
+  const isConnected = server !== null;
 
   return (
-    <div className="flex h-screen w-screen bg-background-base text-text-base select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+    <div className="flex h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
       <SidebarRail
-        workspaces={workspaces.map((w) => w.directory || w.id)}
-        activeWorkspace={activeWorkspace?.directory ?? activeWorkspace?.id ?? ""}
-        errorWorkspaces={new Set(workspaces.filter(w => errorWorkspaceIds.has(w.id)).map(w => w.directory || w.id))}
-        onSwitchWorkspace={(dir) => { const match = workspaces.find((w) => w.directory === dir || w.id === dir); if (match) switchInstance(match.id) }}
-        onReconnect={(dir) => { const match = workspaces.find((w) => w.directory === dir || w.id === dir); if (match) switchInstance(match.id); openAddWorkspaceModal('remote') }}
-        onOpenFolder={() => openAddWorkspaceModal('local')}
+        workspaces={workspaces.map((w) => ({ id: w.id, directory: w.directory, name: w.name, type: w.type }))}
+        activeId={active}
+        connectedIds={connectedWorkspaceIds}
+        errorIds={errorWorkspaceIds}
+        onSwitchWorkspace={(id) => switchInstance(id)}
+        onRemoveWorkspace={(id) => removeInstance(id)}
+        onReconnect={(id) => { switchInstance(id); openAddWorkspaceModal("remote") }}
+        onOpenFolder={() => openAddWorkspaceModal("local")}
+        onOpenPlugins={() => setPluginsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsPage("general");
+          setShowSettings(true);
+        }}
       />
 
       {hasInstance ? (
@@ -254,42 +438,83 @@ export function OpenACPApp() {
           <WorkspaceProvider
             workspace={activeWorkspace!}
             server={server!}
-            onReconnectNeeded={() => { setServer(null); setServerError(true); if (active) setErrorWorkspaceIds(prev => new Set([...prev, active])) }}
+            onReconnectNeeded={() => {
+              setServer(null);
+              setServerError(true);
+              if (active)
+                setErrorWorkspaceIds((prev) => new Set([...prev, active]));
+            }}
             onTokenRefreshed={({ expiresAt, refreshDeadline }) => {
-              if (!active) return
-              setWorkspaces(prev => prev.map(w => w.id === active ? { ...w, expiresAt, refreshDeadline } : w))
+              if (!active) return;
+              setWorkspaces((prev) =>
+                prev.map((w) =>
+                  w.id === active ? { ...w, expiresAt, refreshDeadline } : w,
+                ),
+              );
             }}
           >
             <SessionsProvider>
-              <ChatProvider>
-                <SidebarPanel />
-                <ChatArea />
-              </ChatProvider>
+              <PermissionsProvider>
+                <ChatWithPermissions />
+              </PermissionsProvider>
             </SessionsProvider>
+            <PluginsModal open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
           </WorkspaceProvider>
         ) : (
-          <div className="flex-1 flex items-center justify-center bg-background-stronger">
+          <div className="flex-1 flex items-center justify-center bg-card">
             {serverError ? (
               <div className="text-center flex flex-col items-center gap-4">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="text-16-medium text-text-strong">No Server Found</div>
-                  <div className="text-14-regular text-text-weak">Run <code className="px-1.5 py-0.5 rounded bg-surface-raised-base text-13-regular font-mono">openacp start</code> in your workspace</div>
-                  <div className="text-12-regular text-text-weak font-mono mt-1">{activeWorkspace?.directory}</div>
+                  <div className="text-lg font-medium leading-xl tracking-tight text-foreground">
+                    No Server Found
+                  </div>
+                  <div className="text-base leading-xl text-muted-foreground">
+                    Run{" "}
+                    <code className="px-1.5 py-0.5 rounded bg-secondary text-sm leading-lg font-mono">
+                      openacp start
+                    </code>{" "}
+                    in your workspace
+                  </div>
+                  <div className="text-sm leading-lg text-muted-foreground font-mono mt-1">
+                    {activeWorkspace?.directory}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-12-regular text-text-weaker"><div className="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />Waiting for server...</div>
+                <div className="flex items-center gap-2 text-sm leading-lg text-foreground-weaker">
+                  <div className="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />
+                  Waiting for server...
+                </div>
               </div>
             ) : (
-              <div className="text-14-regular text-text-weak">Connecting...</div>
+              <div className="text-base leading-xl text-muted-foreground">
+                Connecting...
+              </div>
             )}
           </div>
         )
       ) : (
-        <WelcomeScreen onOpenFolder={openFolderPicker} onSelectWorkspace={(instanceId) => addInstance(instanceId)} />
+        <WelcomeScreen
+          onOpenFolder={openFolderPicker}
+          onSelectWorkspace={(instanceId) => addInstance(instanceId)}
+        />
       )}
 
       {showAddWorkspace && (
-        <AddWorkspaceModal onAdd={handleAddWorkspace} onClose={closeAddWorkspaceModal} existingIds={workspaces.map((w) => w.id)} defaultTab={addWorkspaceDefaultTab} />
+        <AddWorkspaceModal
+          onAdd={handleAddWorkspace}
+          onClose={closeAddWorkspaceModal}
+          existingIds={workspaces.map((w) => w.id)}
+          defaultTab={addWorkspaceDefaultTab}
+        />
       )}
+      <SettingsDialog
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        workspacePath={activeWorkspace?.directory ?? ""}
+        serverUrl={server?.url ?? null}
+        serverConnected={!!server}
+        initialPage={settingsPage}
+      />
+      <Toaster />
     </div>
-  )
+  );
 }
