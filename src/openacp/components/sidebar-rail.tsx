@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { GearSix, PuzzlePiece, Plus, Trash } from "@phosphor-icons/react"
 import { Button } from "./ui/button"
+import { showToast } from "../lib/toast"
 
 const AVATAR_COLORS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 
@@ -190,6 +191,7 @@ export function SidebarRail(props: {
             onCopyPath={async () => {
               try {
                 await navigator.clipboard.writeText(ws.directory)
+                showToast({ description: "Path copied to clipboard" })
               } catch { /* fallback */ }
             }}
             onReconnect={() => props.onSwitchWorkspace(contextMenu.id)}

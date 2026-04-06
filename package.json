@@ -53,6 +53,7 @@
     "remeda": "^2.33.6",
     "remend": "^1.3.0",
     "shiki": "^4.0.2",
+    "sonner": "^2.0.7",
     "strip-ansi": "^7.2.0",
     "tailwind-merge": "^3.0.2",
     "use-immer": "^0.11.0",

@@ -1,6 +1,6 @@
 import React, { memo, useState, useMemo } from "react"
-import { motion } from "motion/react"
-import { ArrowsOut } from "@phosphor-icons/react"
+import { motion, AnimatePresence } from "motion/react"
+import { ArrowsOut, CaretRight } from "@phosphor-icons/react"
 import { TextShimmer } from "../../ui/text-shimmer"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialog"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
@@ -65,6 +65,13 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
           </>
         )}
         {isPending && <TextShimmer text="" active className="" />}
+        {hasBody && !isPending && (
+          <CaretRight
+            size={10}
+            className="shrink-0 text-muted-foreground transition-transform duration-150"
+            style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
+          />
+        )}
       </div>
 
       {reason && (
@@ -78,34 +85,43 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
         </div>
       )}
 
-      {hasBody && !reason && (
-        <div className={`oac-tool-card-collapse ${expanded ? "oac-tool-card-collapse--open" : ""}`}>
-          <div className="oac-tool-card-body relative group/toolbody">
-            <button
-              type="button"
-              className="absolute top-1 right-1 p-1 rounded opacity-0 group-hover/toolbody:opacity-100 hover:bg-accent transition-opacity z-10"
-              title="Expand"
-              onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
-            >
-              <ArrowsOut size={12} className="text-muted-foreground" />
-            </button>
-            <div className="oac-tool-card-grid">
-              {inputText && (
-                <div className="oac-tool-card-row">
-                  <div className="oac-tool-card-row-label">IN</div>
-                  <div className="oac-tool-card-row-content">{inputText}</div>
-                </div>
-              )}
-              {block.output && !isRejected && (
-                <div className="oac-tool-card-row">
-                  <div className="oac-tool-card-row-label">OUT</div>
-                  <div className="oac-tool-card-row-content">{block.output}</div>
-                </div>
-              )}
+      <AnimatePresence initial={false}>
+        {hasBody && !reason && expanded && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="oac-tool-card-body relative group/toolbody">
+              <button
+                type="button"
+                className="absolute top-1 right-1 p-1 rounded opacity-0 group-hover/toolbody:opacity-100 hover:bg-accent transition-opacity z-10"
+                title="Expand"
+                onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
+              >
+                <ArrowsOut size={12} className="text-muted-foreground" />
+              </button>
+              <div className="oac-tool-card-grid">
+                {inputText && (
+                  <div className="oac-tool-card-row">
+                    <div className="oac-tool-card-row-label">IN</div>
+                    <div className="oac-tool-card-row-content">{inputText}</div>
+                  </div>
+                )}
+                {block.output && !isRejected && (
+                  <div className="oac-tool-card-row">
+                    <div className="oac-tool-card-row-label">OUT</div>
+                    <div className="oac-tool-card-row-content">{block.output}</div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col [backface-visibility:hidden]">
