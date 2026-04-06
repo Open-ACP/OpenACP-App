@@ -34,3 +34,11 @@ dirs = "6"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = "z"          # Optimize for binary size
+lto = "fat"              # Full link-time optimization
+strip = "symbols"        # Strip debug symbols
+codegen-units = 1        # Single codegen unit for better optimization
+panic = "abort"          # No stack unwinding overhead
+incremental = false      # Deterministic release builds
