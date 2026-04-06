@@ -881,7 +881,7 @@ Expected: Clean build, 0 errors.
 git log --oneline feature/smooth-streaming ^develop
 ```
 
-Expected output (6 commits):
+Expected output (7 commits):
 ```
 feat: add entrance animation to plan blocks via motion.div
 feat: add entrance animation to tool blocks via motion.div

@@ -193,6 +193,7 @@ const abort = useCallback(() => {
   charStream.clearStream(`${sessionID}:thought`) // NEW
   // ... existing abort logic unchanged
 }, [...])
+```
 
 ---
 

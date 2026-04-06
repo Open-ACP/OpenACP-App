@@ -1,4 +1,5 @@
 import React, { memo, useState, useMemo } from "react"
+import { motion } from "motion/react"
 import { TextShimmer } from "../../ui/text-shimmer"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
@@ -31,7 +32,11 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
   const hasBody = !!inputText || (!!block.output && !isRejected) || !!reason
 
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+    >
       <div
         className={`oac-tool-card-title${isPending ? " oac-tool-card-shimmer" : ""}`}
         onClick={() => hasBody && setExpanded(!expanded)}
@@ -90,6 +95,6 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   )
 })

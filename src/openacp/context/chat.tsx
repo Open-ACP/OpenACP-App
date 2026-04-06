@@ -14,10 +14,13 @@ import type {
 import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
 } from "../components/chat/block-utils"
+import * as charStream from "../lib/char-stream"
 
 interface ChatContext {
   messages: () => Message[]
   streaming: () => boolean
+  /** Session ID that is currently streaming (may differ from activeSession for cross-adapter turns) */
+  streamingSession: () => string | undefined
   loadingHistory: () => boolean
   sseStatus: () => 'connected' | 'reconnecting' | 'disconnected'
   activeSession: () => string | undefined
@@ -145,6 +148,8 @@ interface ChatStore {
   messagesBySession: Record<string, Message[]>
   activeSession: string | undefined
   streaming: boolean
+  /** Which session is currently streaming (can be different from activeSession) */
+  streamingSession: string | undefined
   loadingHistory: boolean
   sseStatus: 'connected' | 'reconnecting' | 'disconnected'
   scrollTrigger: number
@@ -159,6 +164,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     messagesBySession: {},
     activeSession: undefined,
     streaming: false,
+    streamingSession: undefined,
     loadingHistory: false,
     sseStatus: 'disconnected',
     scrollTrigger: 0,
@@ -172,6 +178,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const thinkingStartTime = useRef(new Map<string, number>())
   // Maps turnId → userMsgId for cross-adapter messages (message:queued → message:processing pairing)
   const turnIdToUserMsgId = useRef(new Map<string, string>())
+  // Track whether we had a disconnect so we can reload history on reconnect
+  const hadDisconnect = useRef(false)
   const msgCounter = useRef(0)
   const partCounter = useRef(0)
   const sendingRef = useRef(false)
@@ -243,7 +251,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       id: msgId, role: "assistant", sessionID,
       parts: [], blocks: [], createdAt: Date.now(), parentID: parentId,
     })
-    setStore((draft) => { draft.streaming = true })
+    setStore((draft) => { draft.streaming = true; draft.streamingSession = sessionID })
     return msgId
   }
 
@@ -277,7 +285,13 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
         if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
           const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
-          const inFlight = local.filter((m) => m.createdAt > lastServerTime + 1000)
+          // Use lastServerTime without a large buffer so rapid consecutive turns are preserved.
+          // The streaming assistant message (if any) is always included explicitly.
+          const streamingMsgId = assistantMsgId.current.get(sessionID)
+          const inFlight = local.filter((m) =>
+            m.createdAt > lastServerTime ||
+            (streamingMsgId != null && m.id === streamingMsgId)
+          )
           setMessages(sessionID, [...serverMessages, ...inFlight])
           void cacheMessages(sessionID, serverMessages)
         } else if (local.length === 0) {
@@ -458,12 +472,14 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     switch (evt.type) {
       case "text": {
         ensureAssistantMessage(sessionID)
+        charStream.pushChars(`${sessionID}:text`, evt.content)
         textBuffer.current.set(sessionID, (textBuffer.current.get(sessionID) ?? "") + evt.content)
         scheduleFlush()
         break
       }
       case "thought": {
         ensureAssistantMessage(sessionID)
+        charStream.pushChars(`${sessionID}:thought`, evt.content)
         if (!thinkingStartTime.current.has(sessionID)) {
           thinkingStartTime.current.set(sessionID, Date.now())
         }
@@ -566,6 +582,10 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       }
       case "error": {
         flushBuffers()
+        charStream.flush(`${sessionID}:text`)
+        charStream.flush(`${sessionID}:thought`)
+        charStream.clearStream(`${sessionID}:text`)
+        charStream.clearStream(`${sessionID}:thought`)
         ensureAssistantMessage(sessionID)
         updateAssistantParts(sessionID, (parts) => {
           parts.push({ id: nextPartId(), type: "text", content: `\n\n**Error:** ${evt.content}` })
@@ -574,11 +594,15 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           blocks.push({ type: "error", id: nextPartId(), content: evt.content })
         })
         assistantMsgId.current.delete(sessionID)
-        setStore((draft) => { draft.streaming = false })
+        setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
         break
       }
       case "usage": {
         flushBuffers()
+        charStream.flush(`${sessionID}:text`)
+        charStream.flush(`${sessionID}:thought`)
+        charStream.clearStream(`${sessionID}:text`)
+        charStream.clearStream(`${sessionID}:thought`)
         const thinkStart2 = thinkingStartTime.current.get(sessionID)
         if (thinkStart2) {
           const durationMs = Date.now() - thinkStart2
@@ -607,7 +631,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           })
         }
         assistantMsgId.current.delete(sessionID)
-        setStore((draft) => { draft.streaming = false })
+        setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
         void sessions.refresh()
         const msgs = messagesRef.current[sessionID]
         if (msgs) void cacheMessages(sessionID, [...msgs])
@@ -619,22 +643,29 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   function handleMessageQueued(ev: MessageQueuedEvent) {
     const userMsgId = nextId("usr-ext")
     turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
+    const userMsg: Message = {
+      id: userMsgId,
+      role: "user",
+      sessionID: ev.sessionId,
+      parts: [{ id: nextPartId(), type: "text", content: ev.text }],
+      blocks: [{ type: "text", id: nextPartId(), content: ev.text }],
+      createdAt: new Date(ev.timestamp).getTime(),
+      sourceAdapterId: ev.sourceAdapterId,
+    }
     setStore((draft) => {
       if (!draft.messagesBySession[ev.sessionId]) draft.messagesBySession[ev.sessionId] = []
-      draft.messagesBySession[ev.sessionId].push({
-        id: userMsgId,
-        role: "user",
-        sessionID: ev.sessionId,
-        parts: [{ id: nextPartId(), type: "text", content: ev.text }],
-        blocks: [{ type: "text", id: nextPartId(), content: ev.text }],
-        createdAt: new Date(ev.timestamp).getTime(),
-        sourceAdapterId: ev.sourceAdapterId,
-      })
+      draft.messagesBySession[ev.sessionId].push(userMsg)
       // Sort by createdAt so the message lands in correct chronological position
       // (it may arrive while a previous AI turn is still streaming)
       draft.messagesBySession[ev.sessionId].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
       draft.scrollTrigger++
     })
+    // Sync ref so loadHistory's inFlight calculation includes this message
+    if (!messagesRef.current[ev.sessionId]) messagesRef.current[ev.sessionId] = []
+    messagesRef.current[ev.sessionId] = [
+      ...(messagesRef.current[ev.sessionId] || []),
+      userMsg,
+    ].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
   }
 
   function handleMessageProcessing(ev: MessageProcessingEvent) {
@@ -650,7 +681,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       createdAt: new Date(ev.timestamp).getTime(),
       parentID: userMsgId,
     })
-    setStore((draft) => { draft.streaming = true })
+    setStore((draft) => { draft.streaming = true; draft.streamingSession = ev.sessionId })
   }
 
   const connect = useCallback(() => {
@@ -665,7 +696,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       onPermissionResolved: onPermissionResolved,
       onConnected: () => setStore((d) => { d.sseStatus = 'connected' }),
       onReconnecting: () => setStore((d) => { d.sseStatus = 'reconnecting' }),
-      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected'; d.streaming = false }),
+      onDisconnected: () => setStore((d) => { d.sseStatus = 'disconnected'; d.streaming = false; d.streamingSession = undefined }),
     })
   }, [workspace.directory, workspace.client.eventsUrl])
 
@@ -737,8 +768,12 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     const sessionID = store.activeSession
     if (!sessionID) return
     abortedSessions.current.add(sessionID)
+    charStream.flush(`${sessionID}:text`)
+    charStream.flush(`${sessionID}:thought`)
+    charStream.clearStream(`${sessionID}:text`)
+    charStream.clearStream(`${sessionID}:thought`)
     assistantMsgId.current.delete(sessionID)
-    setStore((draft) => { draft.streaming = false })
+    setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
     // Tell server to actually cancel the agent's prompt
     workspace.client.cancelPrompt(sessionID).catch(() => {})
     setTimeout(() => abortedSessions.current.delete(sessionID), 5000)
@@ -750,9 +785,35 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     return () => sseRef.current.disconnectAll()
   }, [connect])
 
+  // Track disconnections so we can reload history after reconnect
+  useEffect(() => {
+    if (store.sseStatus !== 'connected') {
+      hadDisconnect.current = true
+    }
+  }, [store.sseStatus])
+
+  // Auto-reconnect when SSE permanently disconnects (2s delay to avoid thrashing)
+  useEffect(() => {
+    if (store.sseStatus === 'disconnected') {
+      const timer = setTimeout(() => connect(), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [store.sseStatus, connect])
+
+  // Reload active session history after SSE reconnects to recover any missed cross-adapter events
+  useEffect(() => {
+    if (store.sseStatus === 'connected' && hadDisconnect.current) {
+      hadDisconnect.current = false
+      if (store.activeSession) {
+        void loadHistory(store.activeSession)
+      }
+    }
+  }, [store.sseStatus, store.activeSession])
+
   const value = useMemo((): ChatContext => ({
     messages: () => store.messagesBySession[store.activeSession || ""] || [],
     streaming: () => store.streaming,
+    streamingSession: () => store.streamingSession,
     loadingHistory: () => store.loadingHistory,
     sseStatus: () => store.sseStatus,
     activeSession: () => store.activeSession,

@@ -58,7 +58,7 @@ export function SidebarPanel() {
               key={session.id}
               session={session}
               active={chat.activeSession() === session.id}
-              streaming={chat.streaming() && chat.activeSession() === session.id}
+              streaming={chat.streamingSession() === session.id}
               onClick={() => chat.setActiveSession(session.id)}
               onDelete={() => sessions.remove(session.id)}
             />

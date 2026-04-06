@@ -1,4 +1,5 @@
 import React, { memo } from "react"
+import { motion } from "motion/react"
 import type { PlanBlock, PlanEntry } from "../../../types"
 
 interface PlanBlockProps {
@@ -30,7 +31,11 @@ function PlanIcon({ status }: { status: PlanEntry["status"] }) {
 
 export const PlanBlockView = memo(function PlanBlockView({ block }: PlanBlockProps) {
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+    >
       <div className="oac-plan-header">Update Todos</div>
       {block.entries.map((entry, i) => (
         <div key={i} className="oac-plan-entry">
@@ -41,6 +46,6 @@ export const PlanBlockView = memo(function PlanBlockView({ block }: PlanBlockPro
           }>{entry.content}</span>
         </div>
       ))}
-    </div>
+    </motion.div>
   )
 })

@@ -5,9 +5,10 @@ import type { TextBlock } from "../../../types"
 interface TextBlockProps {
   block: TextBlock
   streaming?: boolean
+  sessionID?: string
 }
 
-export const TextBlockView = memo(function TextBlockView({ block, streaming }: TextBlockProps) {
+export const TextBlockView = memo(function TextBlockView({ block, streaming, sessionID }: TextBlockProps) {
   const text = block.content.replace(/^\n+/, "")
 
   return (
@@ -15,6 +16,7 @@ export const TextBlockView = memo(function TextBlockView({ block, streaming }: T
       <Markdown
         text={text}
         cacheKey={block.id}
+        streamId={streaming && sessionID ? `${sessionID}:text` : undefined}
         streaming={streaming}
       />
     </div>

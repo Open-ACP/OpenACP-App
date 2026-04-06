@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenACP Desktop is a native desktop app for managing AI coding agents across multiple workspaces. Built with **Tauri 2** (Rust backend) and **SolidJS** (TypeScript frontend). Each workspace connects to a locally-running OpenACP server instance via REST + SSE.
+OpenACP Desktop is a native desktop app for managing AI coding agents across multiple workspaces. Built with **Tauri 2** (Rust backend) and **React 19** (TypeScript frontend). Each workspace connects to a locally-running OpenACP server instance via REST + SSE.
 
 ## Commands
 
@@ -46,7 +46,7 @@ The active application layer, organized as:
 
 ### Design System (`src/ui/`)
 
-Custom `@openacp/ui` library built on **Kobalte** headless components. 50+ components with co-located CSS files. Styling uses CSS layers (theme → base → components → utilities) with **Tailwind CSS 4** and design tokens in `src/ui/src/styles/`.
+Custom `@openacp/ui` library built on **Radix UI** headless components. 50+ components with co-located CSS files. Styling uses CSS layers (theme → base → components → utilities) with **Tailwind CSS 4** and design tokens in `src/ui/src/styles/`.
 
 ### Platform Layer (`src/platform/`)
 
@@ -73,10 +73,10 @@ PlatformProvider > AppBaseProviders > AppInterface > OpenACPApp
 
 ## Key Conventions
 
-- **SolidJS, not React** — uses signals/stores, `createContext`, `createResource`. No hooks like `useState`/`useEffect`.
-- **TypeScript strict mode** with `jsxImportSource: "solid-js"`.
+- **React 19, not SolidJS** — uses hooks (`useState`, `useEffect`, `useRef`, `useCallback`, `useMemo`), React context, `use-immer` for state management.
+- **TypeScript strict mode** with `jsxImportSource: "react"`.
 - **Component files**: one component per file, kebab-case filenames.
 - **Styling**: co-located CSS files alongside components. Theme tokens as CSS custom properties (`--color-*`, `--background-*`).
-- **State**: SolidJS contexts + stores for app state, TanStack Solid Query for async data.
+- **State**: React contexts + `useImmer` stores for app state, TanStack React Query for async data.
 - **i18n**: translations in `src/platform/i18n/` and `src/ui/src/i18n/` (18+ languages).
 - **Versioning**: date-based `YYYY.MMDD.N` format via `scripts/release.sh`.
