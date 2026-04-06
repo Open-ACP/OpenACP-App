@@ -5,10 +5,12 @@
 - Last updated: 2026-04-06
 
 ## In Progress
+- Settings dialog visual polish (text wrapping in card rows still needs tuning)
 - Audit + restructure styles/ directory (currently messy: duplicate files, unclear boundaries)
 - ds-demo page polish (typography page color fix verified, more component demos)
 
 ## Completed
+- Settings dialog redesign: full-page panel → Dialog overlay with grouped sidebar nav + card groups
 - Setup moi truong dev (Node.js, pnpm, Rust, Tauri)
 - Build va chay full Tauri app
 - 18 Pencil mockup screens with shadcn component refs
