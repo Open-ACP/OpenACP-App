@@ -36,7 +36,6 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
             variant="ghost"
             size="icon-sm"
             onClick={props.onClose}
-            className="text-muted-foreground hover:text-foreground"
             aria-label="Close"
           >
             <XIcon />

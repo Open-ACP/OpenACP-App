@@ -34,7 +34,6 @@ export function PluginsModal(props: Props) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
             aria-label="Close"
             onClick={props.onClose}
           >

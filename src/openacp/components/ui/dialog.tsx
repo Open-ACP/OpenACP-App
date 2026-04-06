@@ -70,7 +70,7 @@ function DialogContent({
             <Button
               variant="ghost"
               size="icon-md"
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+              className="absolute top-4 right-4"
             >
               <XIcon />
               <span className="sr-only">Close</span>
