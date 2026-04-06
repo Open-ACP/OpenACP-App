@@ -11,6 +11,7 @@
 
 ## Completed
 - Settings dialog redesign: full-page panel → Dialog overlay with grouped sidebar nav + card groups
+- Color token collision fix: `--text-*` color tokens renamed to `--color-text-*` (avoid font-size collision)
 - Setup moi truong dev (Node.js, pnpm, Rust, Tauri)
 - Build va chay full Tauri app
 - 18 Pencil mockup screens with shadcn component refs

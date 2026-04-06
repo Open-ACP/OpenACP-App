@@ -91,6 +91,11 @@ Chronological record of design & development sessions.
   - CLAUDE.md + DESIGN.md updates (design system compliance rules)
   - Minor component cleanup: add-workspace, plugins, button, dialog
 - **Build:** all passes
+- **Color token collision fix:**
+  - Renamed all `--text-*` color tokens in theme.css → `--color-text-*` (102 definitions)
+  - `--text-base` was both a color (#6f6f6f) and font-size (1rem) — now separated
+  - Updated references in index.css, components.css, onboarding files
+  - Font-size tokens (`--text-sm`, `--text-base: 1rem`, etc.) untouched
 
 ## 2026-04-04
 
