@@ -5,7 +5,13 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
-interface CreateInstanceProps { path: string; existingInstances: InstanceListEntry[]; onAdd: (entry: WorkspaceEntry) => void; onClose: () => void }
+interface CreateInstanceProps {
+  path: string
+  existingInstances: InstanceListEntry[]
+  onAdd: (entry: WorkspaceEntry) => void
+  onSetup?: (path: string, instanceId: string) => void
+  onClose: () => void
+}
 
 export function CreateInstance(props: CreateInstanceProps) {
   const [mode, setMode] = useState<'choose' | 'clone' | 'new'>('choose')
@@ -20,9 +26,29 @@ export function CreateInstance(props: CreateInstanceProps) {
       if (name) args.push('--name', name)
       if (mode === 'clone' && cloneFrom) args.push('--from', cloneFrom); else args.push('--no-interactive')
       args.push('--json')
-      const stdout = await invoke<string>('invoke_cli', { args }); const result = JSON.parse(stdout); const data = result?.data ?? result
-      props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
-    } catch (e: any) { setError(e.message ?? 'Failed to create instance') } finally { setLoading(false) }
+      const stdout = await invoke<string>('invoke_cli', { args })
+      const result = JSON.parse(stdout); const data = result?.data ?? result
+
+      if (mode === 'clone') {
+        // Clone has config ready — start server and add workspace
+        try {
+          await invoke<string>('invoke_cli', { args: ['start', '--dir', props.path, '--daemon'] })
+        } catch { /* server may take a moment to start */ }
+        props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
+      } else {
+        // New instance needs onboarding (agent setup etc.)
+        if (props.onSetup) {
+          props.onSetup(props.path, data.id)
+        } else {
+          // Fallback: add without starting
+          props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
+        }
+      }
+    } catch (e: any) {
+      const msg = typeof e === 'string' ? e : e?.message ?? 'Failed to create instance'
+      console.error('[create-instance]', msg)
+      setError(msg)
+    } finally { setLoading(false) }
   }
 
   return (
