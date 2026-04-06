@@ -90,7 +90,7 @@ export function SettingsDialog({
                   return (
                     <button
                       key={item.id}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md text-base transition-colors ${
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md text-sm transition-colors ${
                         isActive
                           ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                           : "text-sidebar-foreground hover:bg-sidebar-accent/50"
