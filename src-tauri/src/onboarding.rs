@@ -317,7 +317,7 @@ pub async fn run_openacp_agent_install(
 /// Used to reset onboarding state during development.
 #[allow(dead_code)]
 #[tauri::command]
-pub async fn dev_reset_openacp(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn dev_reset_openacp(_app: tauri::AppHandle) -> Result<(), String> {
     // Remove ~/.openacp
     if let Some(home) = dirs::home_dir() {
         let openacp_dir = home.join(".openacp");
@@ -326,20 +326,10 @@ pub async fn dev_reset_openacp(app: tauri::AppHandle) -> Result<(), String> {
         }
     }
 
-    // Remove openacp binary via `which openacp`
-    let which = app
-        .shell()
-        .command("which")
-        .args(["openacp"])
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if which.status.success() {
-        let bin_path = String::from_utf8_lossy(&which.stdout).trim().to_string();
-        if !bin_path.is_empty() {
-            std::fs::remove_file(&bin_path).ok(); // best-effort
-        }
+    // Remove openacp binary using same discovery as the rest of the app
+    if let Some((bin, _)) = find_openacp_binary_pub() {
+        std::fs::remove_file(&bin).ok(); // best-effort
+        tracing::info!("dev_reset: removed binary at {}", bin.display());
     }
 
     Ok(())

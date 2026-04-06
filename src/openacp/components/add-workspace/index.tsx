@@ -9,6 +9,7 @@ import { Button } from "../ui/button";
 
 interface AddWorkspaceModalProps {
   onAdd: (entry: WorkspaceEntry) => void;
+  onSetup?: (path: string, instanceId: string) => void;
   onClose: () => void;
   existingIds: string[];
   defaultTab?: "local" | "remote";
@@ -64,7 +65,7 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="local" className="p-6">
-            <LocalTab onAdd={props.onAdd} existingIds={props.existingIds} />
+            <LocalTab onAdd={props.onAdd} onSetup={props.onSetup} existingIds={props.existingIds} />
           </TabsContent>
           <TabsContent value="remote" className="p-6">
             <RemoteTab onAdd={props.onAdd} />

@@ -25,10 +25,17 @@ function App() {
           invoke<boolean>('check_openacp_config').catch(() => false),
         ]),
       ])
-      setScreen(determineStartupScreen({
+      const screen = determineStartupScreen({
         installed: installedResult !== null,
         configExists: Boolean(configResult),
-      }))
+      })
+      console.log('[onboard]', {
+        installed: installedResult !== null,
+        version: installedResult,
+        configExists: Boolean(configResult),
+        screen,
+      })
+      setScreen(screen)
     })()
   }, [])
 

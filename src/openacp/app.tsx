@@ -22,6 +22,7 @@ import {
   SettingsDialog,
   type SettingsPage,
 } from "./components/settings/settings-dialog";
+import { SetupModal } from "./components/add-workspace/setup-modal";
 import { showToast } from "./lib/toast";
 import { Toaster } from "./components/ui/toaster";
 import {
@@ -82,6 +83,7 @@ export function OpenACPApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("general");
   const [pluginsOpen, setPluginsOpen] = useState(false);
+  const [setupInfo, setSetupInfo] = useState<{ path: string; instanceId: string } | null>(null);
 
   const retryRef = useRef<ReturnType<typeof setInterval>>();
   const retryCountRef = useRef(0);
@@ -501,9 +503,26 @@ export function OpenACPApp() {
       {showAddWorkspace && (
         <AddWorkspaceModal
           onAdd={handleAddWorkspace}
+          onSetup={(path, instanceId) => {
+            setShowAddWorkspace(false)
+            setSetupInfo({ path, instanceId })
+          }}
           onClose={closeAddWorkspaceModal}
           existingIds={workspaces.map((w) => w.id)}
           defaultTab={addWorkspaceDefaultTab}
+        />
+      )}
+      {setupInfo && (
+        <SetupModal
+          open
+          path={setupInfo.path}
+          instanceId={setupInfo.instanceId}
+          onComplete={(entry) => {
+            setSetupInfo(null)
+            addWorkspace(entry)
+            showToast({ description: `Workspace "${entry.name}" ready.`, variant: "success" })
+          }}
+          onClose={() => setSetupInfo(null)}
         />
       )}
       <SettingsDialog

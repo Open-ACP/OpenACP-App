@@ -36,13 +36,8 @@ export function CreateInstance(props: CreateInstanceProps) {
         } catch { /* server may take a moment to start */ }
         props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
       } else {
-        // New instance needs onboarding (agent setup etc.)
-        if (props.onSetup) {
-          props.onSetup(props.path, data.id)
-        } else {
-          // Fallback: add without starting
-          props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
-        }
+        // New — needs onboarding (agent setup, then start)
+        props.onSetup?.(props.path, data.id)
       }
     } catch (e: any) {
       const msg = typeof e === 'string' ? e : e?.message ?? 'Failed to create instance'

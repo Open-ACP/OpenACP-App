@@ -44,7 +44,11 @@ export function SetupWizard(props: Props) {
   const installAgent = async (key: string) => {
     setInstallingAgent(key); setAgentInstallError(''); setAgentInstallLog([]);
     const unlisten = await listen<string>('agent-install-output', (event) => setAgentInstallLog((prev) => [...prev, event.payload]));
-    try { await invoke('run_openacp_agent_install', { agentKey: key }); setSelectedAgent(key); /* refetch would go here */ } catch (err) { setAgentInstallError(`Failed to install ${key}: ${String(err)}`); } finally { setInstallingAgent(''); unlisten(); }
+    try {
+      await invoke('run_openacp_agent_install', { agentKey: key });
+      setSelectedAgent(key);
+      setAgents((prev) => prev.map((a) => a.key === key ? { ...a, installed: true } : a));
+    } catch (err) { setAgentInstallError(`Failed to install ${key}: ${String(err)}`); } finally { setInstallingAgent(''); unlisten(); }
   };
 
   const runSetup = async () => {
@@ -52,7 +56,8 @@ export function SetupWizard(props: Props) {
     const unlisten = await listen<string>('setup-output', (event) => setSetupLog((prev) => [...prev, event.payload]));
     try {
       const jsonStr = await invoke<string>('run_openacp_setup', { workspace: workspace, agent: selectedAgent });
-      setSetupStatus('starting'); await invoke('start_server');
+      setSetupStatus('starting');
+      await invoke<string>('invoke_cli', { args: ['start', '--global', '--daemon'] });
       const parsed = JSON.parse(jsonStr) as { success: boolean; data?: { instanceId?: string; name?: string; directory?: string } };
       const data = parsed?.data ?? {};
       const entry: WorkspaceEntry = { id: data.instanceId ?? 'main', name: data.name ?? 'Main', directory: data.directory ?? workspace, type: 'local' };
