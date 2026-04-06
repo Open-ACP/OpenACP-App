@@ -1,43 +1,32 @@
 import React from "react"
+import { SettingCard } from "./setting-card"
+import { SettingRow } from "./setting-row"
 
-export function SettingsServer(props: {
+export function SettingsServer({
+  serverUrl,
+  connected,
+}: {
   serverUrl: string | null
   connected: boolean
 }) {
-  const statusColor = props.connected ? "bg-status-success" : "bg-status-error"
-  const statusText = props.connected ? "Connected" : "Disconnected"
+  const statusColor = connected ? "bg-status-success" : "bg-status-error"
+  const statusText = connected ? "Connected" : "Disconnected"
 
   return (
-    <div data-component="oac-settings" className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg-medium text-foreground mb-1">Server</h2>
-        <p className="text-sm-regular text-muted-foreground">OpenACP server connection details</p>
-      </div>
-
-      <SettingRow label="Status" description="Current server connection status">
-        <div className="flex items-center gap-2">
-          <div className={`size-2 rounded-full ${statusColor}`} />
-          <span className="text-sm-regular text-foreground-weak">{statusText}</span>
-        </div>
-      </SettingRow>
-
-      <SettingRow label="Server address" description="The address of the connected OpenACP server">
-        <code className="text-sm-regular text-foreground-weak font-mono bg-secondary px-2 py-1 rounded-md">
-          {props.serverUrl ?? "N/A"}
-        </code>
-      </SettingRow>
-    </div>
-  )
-}
-
-function SettingRow(props: { label: string; description: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-2 border-b border-border-weak/50 last:border-b-0">
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-md-medium text-foreground">{props.label}</span>
-        <span className="text-sm-regular text-muted-foreground">{props.description}</span>
-      </div>
-      <div className="shrink-0">{props.children}</div>
+    <div className="flex flex-col gap-6">
+      <SettingCard title="Connection">
+        <SettingRow label="Status" description="Current server connection status">
+          <div className="flex items-center gap-2">
+            <div className={`size-2 rounded-full ${statusColor}`} />
+            <span className="text-sm text-foreground-weak">{statusText}</span>
+          </div>
+        </SettingRow>
+        <SettingRow label="Server address" description="The address of the connected OpenACP server">
+          <code className="text-sm text-foreground-weak font-mono bg-secondary px-2 py-1 rounded-md">
+            {serverUrl ?? "N/A"}
+          </code>
+        </SettingRow>
+      </SettingCard>
     </div>
   )
 }
