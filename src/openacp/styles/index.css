@@ -1,12 +1,399 @@
-@layer theme, base, components, utilities;
+/* ── OpenACP Design System ─────────────────────────────────────────────────── */
+/* Single entry point: Tailwind + theme tokens + components + utilities        */
 
-@import "./colors.css" layer(theme);
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities) source("../../../");
+
+/* ── Theme tokens (colors, shadows — light/dark) ─────────────────────────── */
 @import "./theme.css" layer(theme);
-
-@import "./base.css" layer(base);
 @import "katex/dist/katex.min.css" layer(base);
 
+/* ── Component styles (markdown, .oac-* app styles) ──────────────────────── */
 @import "./components.css" layer(components);
 
-@import "./utilities.css" layer(utilities);
-@import "./animations.css" layer(utilities);
+/* ── Utilities (text presets, no-scrollbar) ───────────────────────────────── */
+@import "./utilities.css";
+
+/* ── Tailwind @theme configuration ───────────────────────────────────────── */
+
+@theme {
+  --*: initial;
+
+  /* Spacing */
+  --spacing: 0.25rem;
+
+  /* Breakpoints */
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+  --breakpoint-2xl: 96rem;
+  --breakpoint-3xl: 112rem;
+  --breakpoint-4xl: 128rem;
+  --breakpoint-5xl: 144rem;
+
+  /* Containers */
+  --container-3xs: 16rem;
+  --container-2xs: 18rem;
+  --container-xs: 20rem;
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+  --container-3xl: 48rem;
+  --container-4xl: 56rem;
+  --container-5xl: 64rem;
+  --container-6xl: 72rem;
+  --container-7xl: 80rem;
+
+  /* Fonts */
+  --font-sans: "SF Pro", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans--font-feature-settings: normal;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono--font-feature-settings: normal;
+
+  /* Font sizes */
+  --text-2xs: 0.6875rem;   /* 11px */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-md: 1rem;         /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-2xl: 1.5rem;      /* 24px */
+  --text-3xl: 1.75rem;     /* 28px */
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+
+  /* Line heights */
+  --leading-lg: 150%;
+  --leading-xl: 180%;
+  --leading-2xl: 200%;
+
+  /* Letter spacing */
+  --tracking-normal: 0;
+  --tracking-tight: -0.16px;
+  --tracking-tightest: -0.32px;
+
+  /* Radius */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+
+  /* Shadows (Tailwind defaults) */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+  /* Shadow-border tokens (reference theme.css — use border color vars) */
+  --shadow-xs-border: var(--shadow-xs-border);
+  --shadow-xs-border-base: var(--shadow-xs-border-base);
+  --shadow-xs-border-select: var(--shadow-xs-border-select);
+  --shadow-xs-border-focus: var(--shadow-xs-border-focus);
+  --shadow-xs-border-hover: var(--shadow-xs-border-hover);
+  --shadow-xs-border-critical-base: var(--shadow-xs-border-critical-base);
+  --shadow-lg-border-base: var(--shadow-lg-border-base);
+
+  --animate-pulse: var(--animate-pulse);
+}
+
+/* ── Color token registrations ───────────────────────────────────────────── */
+/* Maps CSS custom properties from theme.css to Tailwind --color-* utilities  */
+
+@theme {
+
+  /* shadcn/ui core */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Extensions */
+  --color-border-weak: var(--border-weak);
+  --color-foreground-weak: var(--foreground-weak);
+  --color-foreground-weaker: var(--foreground-weaker);
+
+  /* Sidebar */
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Legacy surface/border/icon/text tokens (specialized, no shadcn equivalent) */
+  --color-background-base: var(--background);
+  --color-background-weak: var(--background-weak);
+  --color-background-strong: var(--background-strong);
+  --color-background-stronger: var(--card);
+  --color-surface-base: var(--surface-base);
+  --color-base: var(--base);
+  --color-surface-base-hover: var(--surface-base-hover);
+  --color-surface-base-active: var(--surface-base-active);
+  --color-surface-base-interactive-active: var(--surface-base-interactive-active);
+  --color-base2: var(--base2);
+  --color-base3: var(--base3);
+  --color-surface-inset-base: var(--surface-inset-base);
+  --color-surface-inset-base-hover: var(--surface-inset-base-hover);
+  --color-surface-inset-strong: var(--surface-inset-strong);
+  --color-surface-inset-strong-hover: var(--surface-inset-strong-hover);
+  --color-surface-raised-base: var(--secondary);
+  --color-surface-float-base: var(--surface-float-base);
+  --color-surface-float-base-hover: var(--surface-float-base-hover);
+  --color-surface-raised-base-hover: var(--accent);
+  --color-surface-raised-base-active: var(--surface-raised-base-active);
+  --color-surface-raised-strong: var(--surface-raised-strong);
+  --color-surface-raised-strong-hover: var(--surface-raised-strong-hover);
+  --color-surface-raised-stronger: var(--surface-raised-stronger);
+  --color-surface-raised-stronger-hover: var(--surface-raised-stronger-hover);
+  --color-surface-weak: var(--muted);
+  --color-surface-weaker: var(--surface-weaker);
+  --color-surface-strong: var(--surface-strong);
+  --color-surface-raised-stronger-non-alpha: var(--surface-raised-stronger-non-alpha);
+  --color-surface-brand-base: var(--surface-brand-base);
+  --color-surface-brand-hover: var(--surface-brand-hover);
+  --color-surface-interactive-base: var(--surface-interactive-base);
+  --color-surface-interactive-hover: var(--surface-interactive-hover);
+  --color-surface-interactive-weak: var(--surface-interactive-weak);
+  --color-surface-interactive-weak-hover: var(--surface-interactive-weak-hover);
+  --color-surface-success-base: var(--surface-success-base);
+  --color-surface-success-weak: var(--surface-success-weak);
+  --color-surface-success-strong: var(--surface-success-strong);
+  --color-surface-warning-base: var(--surface-warning-base);
+  --color-surface-warning-weak: var(--surface-warning-weak);
+  --color-surface-warning-strong: var(--surface-warning-strong);
+  --color-surface-critical-base: var(--surface-critical-base);
+  --color-surface-critical-weak: var(--surface-critical-weak);
+  --color-surface-critical-strong: var(--destructive);
+  --color-surface-info-base: var(--surface-info-base);
+  --color-surface-info-weak: var(--surface-info-weak);
+  --color-surface-info-strong: var(--surface-info-strong);
+  --color-surface-diff-unchanged-base: var(--surface-diff-unchanged-base);
+  --color-surface-diff-skip-base: var(--surface-diff-skip-base);
+  --color-surface-diff-hidden-base: var(--surface-diff-hidden-base);
+  --color-surface-diff-hidden-weak: var(--surface-diff-hidden-weak);
+  --color-surface-diff-hidden-weaker: var(--surface-diff-hidden-weaker);
+  --color-surface-diff-hidden-strong: var(--surface-diff-hidden-strong);
+  --color-surface-diff-hidden-stronger: var(--surface-diff-hidden-stronger);
+  --color-surface-diff-add-base: var(--surface-diff-add-base);
+  --color-surface-diff-add-weak: var(--surface-diff-add-weak);
+  --color-surface-diff-add-weaker: var(--surface-diff-add-weaker);
+  --color-surface-diff-add-strong: var(--surface-diff-add-strong);
+  --color-surface-diff-add-stronger: var(--surface-diff-add-stronger);
+  --color-surface-diff-delete-base: var(--surface-diff-delete-base);
+  --color-surface-diff-delete-weak: var(--surface-diff-delete-weak);
+  --color-surface-diff-delete-weaker: var(--surface-diff-delete-weaker);
+  --color-surface-diff-delete-strong: var(--surface-diff-delete-strong);
+  --color-surface-diff-delete-stronger: var(--surface-diff-delete-stronger);
+  --color-input-base: var(--input-base);
+  --color-input-hover: var(--input-hover);
+  --color-input-active: var(--input-active);
+  --color-input-selected: var(--input-selected);
+  --color-input-focus: var(--input-focus);
+  --color-input-disabled: var(--input-disabled);
+  --color-text-weak: var(--muted-foreground);
+  --color-text-weaker: var(--foreground-weaker);
+  --color-text-strong: var(--foreground);
+  --color-text-interactive-base: var(--color-text-interactive-base);
+  --color-text-on-brand-base: var(--color-text-on-brand-base);
+  --color-text-on-interactive-base: var(--color-text-on-interactive-base);
+  --color-text-on-interactive-weak: var(--color-text-on-interactive-weak);
+  --color-text-on-success-base: var(--color-text-on-success-base);
+  --color-text-on-critical-base: var(--color-text-on-critical-base);
+  --color-text-on-critical-weak: var(--color-text-on-critical-weak);
+  --color-text-on-critical-strong: var(--color-text-on-critical-strong);
+  --color-text-on-warning-base: var(--color-text-on-warning-base);
+  --color-text-on-info-base: var(--color-text-on-info-base);
+  --color-text-diff-add-base: var(--color-text-diff-add-base);
+  --color-text-diff-delete-base: var(--color-text-diff-delete-base);
+  --color-text-diff-delete-strong: var(--color-text-diff-delete-strong);
+  --color-text-diff-add-strong: var(--color-text-diff-add-strong);
+  --color-text-on-info-weak: var(--color-text-on-info-weak);
+  --color-text-on-info-strong: var(--color-text-on-info-strong);
+  --color-text-on-warning-weak: var(--color-text-on-warning-weak);
+  --color-text-on-warning-strong: var(--color-text-on-warning-strong);
+  --color-text-on-success-weak: var(--color-text-on-success-weak);
+  --color-text-on-success-strong: var(--color-text-on-success-strong);
+  --color-text-on-brand-weak: var(--color-text-on-brand-weak);
+  --color-text-on-brand-weaker: var(--color-text-on-brand-weaker);
+  --color-text-on-brand-strong: var(--color-text-on-brand-strong);
+  --color-button-secondary-base: var(--button-secondary-base);
+  --color-button-secondary-hover: var(--button-secondary-hover);
+  --color-border-base: var(--border);
+  --color-border-hover: var(--border-hover);
+  --color-border-active: var(--border-active);
+  --color-border-selected: var(--ring);
+  --color-border-disabled: var(--border-disabled);
+  --color-border-focus: var(--border-focus);
+  --color-border-weak-base: var(--border-weak);
+  --color-border-strong-base: var(--border-strong-base);
+  --color-border-strong-hover: var(--border-strong-hover);
+  --color-border-strong-active: var(--border-strong-active);
+  --color-border-strong-selected: var(--border-strong-selected);
+  --color-border-strong-disabled: var(--border-strong-disabled);
+  --color-border-strong-focus: var(--border-strong-focus);
+  --color-border-weak-hover: var(--border-weak-hover);
+  --color-border-weak-active: var(--border-weak-active);
+  --color-border-weak-selected: var(--border-weak-selected);
+  --color-border-weak-disabled: var(--border-weak-disabled);
+  --color-border-weak-focus: var(--border-weak-focus);
+  --color-border-weaker-base: var(--border-weaker-base);
+  --color-border-interactive-base: var(--border-interactive-base);
+  --color-border-interactive-hover: var(--border-interactive-hover);
+  --color-border-interactive-active: var(--border-interactive-active);
+  --color-border-interactive-selected: var(--border-interactive-selected);
+  --color-border-interactive-disabled: var(--border-interactive-disabled);
+  --color-border-interactive-focus: var(--border-interactive-focus);
+  --color-border-success-base: var(--border-success-base);
+  --color-border-success-hover: var(--border-success-hover);
+  --color-border-success-selected: var(--border-success-selected);
+  --color-border-warning-base: var(--border-warning-base);
+  --color-border-warning-hover: var(--border-warning-hover);
+  --color-border-warning-selected: var(--border-warning-selected);
+  --color-border-critical-base: var(--border-critical-base);
+  --color-border-critical-hover: var(--border-critical-hover);
+  --color-border-critical-selected: var(--border-critical-selected);
+  --color-border-info-base: var(--border-info-base);
+  --color-border-info-hover: var(--border-info-hover);
+  --color-border-info-selected: var(--border-info-selected);
+  --color-border-color: var(--border-color);
+  --color-button-ghost-hover: var(--button-ghost-hover);
+  --color-button-ghost-hover2: var(--button-ghost-hover2);
+  --color-icon-base: var(--icon-base);
+  --color-icon-hover: var(--icon-hover);
+  --color-icon-active: var(--icon-active);
+  --color-icon-selected: var(--icon-selected);
+  --color-icon-disabled: var(--icon-disabled);
+  --color-icon-focus: var(--icon-focus);
+  --color-icon-invert-base: var(--icon-invert-base);
+  --color-icon-weak-base: var(--icon-weak-base);
+  --color-icon-weak-hover: var(--icon-weak-hover);
+  --color-icon-weak-active: var(--icon-weak-active);
+  --color-icon-weak-selected: var(--icon-weak-selected);
+  --color-icon-weak-disabled: var(--icon-weak-disabled);
+  --color-icon-weak-focus: var(--icon-weak-focus);
+  --color-icon-strong-base: var(--icon-strong-base);
+  --color-icon-strong-hover: var(--icon-strong-hover);
+  --color-icon-strong-active: var(--icon-strong-active);
+  --color-icon-strong-selected: var(--icon-strong-selected);
+  --color-icon-strong-disabled: var(--icon-strong-disabled);
+  --color-icon-strong-focus: var(--icon-strong-focus);
+  --color-icon-brand-base: var(--icon-brand-base);
+  --color-icon-interactive-base: var(--icon-interactive-base);
+  --color-icon-success-base: var(--icon-success-base);
+  --color-icon-success-hover: var(--icon-success-hover);
+  --color-icon-success-active: var(--icon-success-active);
+  --color-icon-warning-base: var(--icon-warning-base);
+  --color-icon-warning-hover: var(--icon-warning-hover);
+  --color-icon-warning-active: var(--icon-warning-active);
+  --color-icon-critical-base: var(--icon-critical-base);
+  --color-icon-critical-hover: var(--icon-critical-hover);
+  --color-icon-critical-active: var(--icon-critical-active);
+  --color-icon-info-base: var(--icon-info-base);
+  --color-icon-info-hover: var(--icon-info-hover);
+  --color-icon-info-active: var(--icon-info-active);
+  --color-icon-on-brand-base: var(--icon-on-brand-base);
+  --color-icon-on-brand-hover: var(--icon-on-brand-hover);
+  --color-icon-on-brand-selected: var(--icon-on-brand-selected);
+  --color-icon-on-interactive-base: var(--icon-on-interactive-base);
+  --color-icon-agent-plan-base: var(--icon-agent-plan-base);
+  --color-icon-agent-docs-base: var(--icon-agent-docs-base);
+  --color-icon-agent-ask-base: var(--icon-agent-ask-base);
+  --color-icon-agent-build-base: var(--icon-agent-build-base);
+  --color-icon-on-success-base: var(--icon-on-success-base);
+  --color-icon-on-success-hover: var(--icon-on-success-hover);
+  --color-icon-on-success-selected: var(--icon-on-success-selected);
+  --color-icon-on-warning-base: var(--icon-on-warning-base);
+  --color-icon-on-warning-hover: var(--icon-on-warning-hover);
+  --color-icon-on-warning-selected: var(--icon-on-warning-selected);
+  --color-icon-on-critical-base: var(--icon-on-critical-base);
+  --color-icon-on-critical-hover: var(--icon-on-critical-hover);
+  --color-icon-on-critical-selected: var(--icon-on-critical-selected);
+  --color-icon-on-info-base: var(--icon-on-info-base);
+  --color-icon-on-info-hover: var(--icon-on-info-hover);
+  --color-icon-on-info-selected: var(--icon-on-info-selected);
+  --color-icon-diff-add-base: var(--icon-diff-add-base);
+  --color-icon-diff-add-hover: var(--icon-diff-add-hover);
+  --color-icon-diff-add-active: var(--icon-diff-add-active);
+  --color-icon-diff-delete-base: var(--icon-diff-delete-base);
+  --color-icon-diff-delete-hover: var(--icon-diff-delete-hover);
+  --color-syntax-comment: var(--syntax-comment);
+  --color-syntax-regexp: var(--syntax-regexp);
+  --color-syntax-string: var(--syntax-string);
+  --color-syntax-keyword: var(--syntax-keyword);
+  --color-syntax-primitive: var(--syntax-primitive);
+  --color-syntax-operator: var(--syntax-operator);
+  --color-syntax-variable: var(--syntax-variable);
+  --color-syntax-property: var(--syntax-property);
+  --color-syntax-type: var(--syntax-type);
+  --color-syntax-constant: var(--syntax-constant);
+  --color-syntax-punctuation: var(--syntax-punctuation);
+  --color-syntax-object: var(--syntax-object);
+  --color-syntax-success: var(--syntax-success);
+  --color-syntax-warning: var(--syntax-warning);
+  --color-syntax-critical: var(--syntax-critical);
+  --color-syntax-info: var(--syntax-info);
+  --color-syntax-diff-add: var(--syntax-diff-add);
+  --color-syntax-diff-delete: var(--syntax-diff-delete);
+  --color-syntax-diff-unknown: var(--syntax-diff-unknown);
+  --color-markdown-heading: var(--markdown-heading);
+  --color-markdown-text: var(--markdown-text);
+  --color-markdown-link: var(--markdown-link);
+  --color-markdown-link-text: var(--markdown-link-text);
+  --color-markdown-code: var(--markdown-code);
+  --color-markdown-block-quote: var(--markdown-block-quote);
+  --color-markdown-emph: var(--markdown-emph);
+  --color-markdown-strong: var(--markdown-strong);
+  --color-markdown-horizontal-rule: var(--markdown-horizontal-rule);
+  --color-markdown-list-item: var(--markdown-list-item);
+  --color-markdown-list-enumeration: var(--markdown-list-enumeration);
+  --color-markdown-image: var(--markdown-image);
+  --color-markdown-image-text: var(--markdown-image-text);
+  --color-markdown-code-block: var(--markdown-code-block);
+}
+
+/* ── Tauri platform overrides ────────────────────────────────────────────── */
+
+:root {
+  interpolate-size: allow-keywords;
+}
+
+*[data-tauri-drag-region] {
+  app-region: drag;
+}
+*[data-tauri-drag-region] button,
+*[data-tauri-drag-region] a,
+*[data-tauri-drag-region] input,
+*[data-tauri-drag-region] textarea,
+*[data-tauri-drag-region] select,
+*[data-tauri-drag-region] [role="button"],
+*[data-tauri-drag-region] [role="menuitem"],
+*[data-tauri-drag-region] [contenteditable] {
+  app-region: no-drag;
+}

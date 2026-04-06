@@ -49,7 +49,8 @@ export function applyTheme(theme: AppSettings["theme"]) {
   }
 }
 
-/** Apply font size scaling to document element */
+/** Apply font size scaling to html root — scales entire UI proportionally (text, icons, spacing).
+ *  All rem-based values in Tailwind scale with this, acting as a UI zoom level. */
 export function applyFontSize(fontSize: AppSettings["fontSize"]) {
   const root = document.documentElement
   root.removeAttribute("data-font-size")

@@ -20,7 +20,7 @@ function ensureTheme() {
       name: "OpenACP",
       colors: {
         "editor.background": "var(--color-background-stronger)",
-        "editor.foreground": "var(--text-base)",
+        "editor.foreground": "var(--foreground-weak)",
         "gitDecoration.addedResourceForeground": "var(--syntax-diff-add)",
         "gitDecoration.deletedResourceForeground": "var(--syntax-diff-delete)",
       },
@@ -43,7 +43,7 @@ function ensureTheme() {
         { scope: "meta.property-name", settings: { foreground: "var(--syntax-property)" } },
         { scope: "variable", settings: { foreground: "var(--syntax-variable)" } },
         { scope: "variable.other", settings: { foreground: "var(--syntax-variable)" } },
-        { scope: "markup.bold", settings: { fontStyle: "bold", foreground: "var(--text-strong)" } },
+        { scope: "markup.bold", settings: { fontStyle: "bold", foreground: "var(--foreground)" } },
         { scope: ["markup.heading", "markup.heading entity.name"], settings: { fontStyle: "bold", foreground: "var(--syntax-info)" } },
       ],
       semanticTokenColors: {},

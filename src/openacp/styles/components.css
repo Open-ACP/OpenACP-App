@@ -8,9 +8,9 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
-  color: var(--text-strong);
+  color: var(--foreground);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-base); /* 14px */
+  font-size: 14px; /* 14px */
   line-height: 1.6;
 
   /* Spacing for flow */
@@ -24,29 +24,29 @@
   /* Headings — scaled sizes matching Claude Code */
   h1 {
     font-size: 1.6em;
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 8px;
     line-height: 1.3;
-    border-bottom: 1px solid var(--border-weak-base);
+    border-bottom: 1px solid var(--border-weak);
     padding-bottom: 8px;
   }
 
   h2 {
     font-size: 1.3em;
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 8px;
     line-height: 1.3;
-    border-bottom: 1px solid var(--border-weak-base);
+    border-bottom: 1px solid var(--border-weak);
     padding-bottom: 6px;
   }
 
   h3 {
     font-size: 1.1em;
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 8px;
@@ -56,8 +56,8 @@
   h4,
   h5,
   h6 {
-    font-size: var(--font-size-base);
-    color: var(--text-strong);
+    font-size: 14px;
+    color: var(--foreground);
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 8px;
@@ -67,7 +67,7 @@
   /* Emphasis & Strong */
   strong,
   b {
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: 600;
   }
 
@@ -78,7 +78,7 @@
 
   /* Links */
   a {
-    color: var(--text-interactive-base);
+    color: var(--color-text-interactive-base);
     text-decoration: none;
     font-weight: inherit;
   }
@@ -121,7 +121,7 @@
   }
 
   li::marker {
-    color: var(--text-weak);
+    color: var(--muted-foreground);
   }
 
   /* Nested lists */
@@ -134,17 +134,17 @@
 
   /* Blockquotes — 3px border matching Claude Code */
   blockquote {
-    border-left: 3px solid var(--border-weak-base);
+    border-left: 3px solid var(--border-weak);
     margin: 8px 0;
     padding: 4px 12px;
-    color: var(--text-weak);
+    color: var(--muted-foreground);
     font-style: normal;
   }
 
   /* Horizontal Rule */
   hr {
     border: none;
-    border-top: 1px solid var(--border-weak-base);
+    border-top: 1px solid var(--border-weak);
     margin: 16px 0;
   }
 
@@ -152,7 +152,7 @@
     font-size: 13px;
     padding: 12px;
     border-radius: 4px;
-    border: 0.5px solid var(--border-weak-base);
+    border: 0.5px solid var(--border-weak);
   }
 
   [data-component="markdown-code"] {
@@ -178,7 +178,7 @@
       max-width: 320px;
       border-radius: var(--radius-sm);
       background: var(--surface-float-base);
-      color: var(--text-invert-strong);
+      color: var(--primary-foreground);
       padding: 2px 8px;
       border: 1px solid var(--border-weak-base, rgba(0, 0, 0, 0.07));
       box-shadow: var(--shadow-md);
@@ -187,11 +187,11 @@
       white-space: nowrap;
 
       font-family: var(--font-family-sans);
-      font-size: var(--font-size-small);
+      font-size: 13px;
       font-style: normal;
-      font-weight: var(--font-weight-medium);
-      line-height: var(--line-height-large);
-      letter-spacing: var(--letter-spacing-normal);
+      font-weight: 500;
+      line-height: 150%;
+      letter-spacing: 0;
 
       opacity: 0;
       transition: opacity 0.15s ease;
@@ -205,7 +205,7 @@
 
   [data-slot="markdown-copy-button"][data-variant="secondary"] {
     box-shadow: none;
-    border: 1px solid var(--border-weak-base);
+    border: 1px solid var(--border-weak);
   }
 
   [data-slot="markdown-copy-button"][data-variant="secondary"] [data-slot="icon-svg"] {
@@ -244,7 +244,7 @@
     font-family: var(--font-family-mono);
     font-feature-settings: var(--font-family-mono--font-feature-settings);
     color: var(--syntax-string);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
     font-size: 13px;
     padding: 2px 4px;
     border-radius: 3px;
@@ -256,21 +256,21 @@
     width: 100%;
     border-collapse: collapse;
     margin: 12px 0;
-    font-size: var(--font-size-base);
+    font-size: 14px;
     display: block;
     overflow-x: auto;
   }
 
   th,
   td {
-    border: 1px solid var(--border-weak-base);
+    border: 1px solid var(--border-weak);
     padding: 6px 12px;
     text-align: left;
     vertical-align: top;
   }
 
   th {
-    color: var(--text-strong);
+    color: var(--foreground);
     font-weight: 600;
     background: var(--surface-inset-base);
   }
@@ -370,8 +370,8 @@
   --text-shimmer-angle: 90deg;
   --text-shimmer-spread: 5.2ch;
   --text-shimmer-size: 360%;
-  --text-shimmer-base-color: var(--text-weak);
-  --text-shimmer-peak-color: var(--text-strong);
+  --text-shimmer-base-color: var(--muted-foreground);
+  --text-shimmer-peak-color: var(--foreground);
   --text-shimmer-sweep: linear-gradient(
     var(--text-shimmer-angle),
     transparent calc(50% - var(--text-shimmer-spread)),
@@ -411,7 +411,7 @@
 }
 
 [data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] {
-  color: var(--text-weaker);
+  color: var(--foreground-weaker);
   opacity: 0;
 }
 
@@ -481,29 +481,398 @@
     opacity: 1 !important;
   }
 }
+/* OpenACP App — custom styles */
 
-/* ── Dock Surface ──────────────────────────────────────────────────────────── */
+/* ── Sticky user message with feather bottom (Claude Code style) ────────── */
 
-[data-dock-surface="shell"] {
-  background-color: var(--surface-raised-stronger-non-alpha);
-  box-shadow: var(--shadow-xs-border);
-  position: relative;
-  z-index: 10;
-  border-radius: 12px;
-  overflow: clip;
+.oac-sticky-user {
+  background-image:
+    linear-gradient(
+      to bottom,
+      var(--background) calc(100% - 12px),
+      transparent 100%
+    );
 }
 
-[data-dock-surface="tray"] {
-  background-color: var(--background-base);
-  border: 1px solid var(--border-weak-base);
-  position: relative;
-  z-index: 0;
-  border-radius: 12px;
-  overflow: clip;
+/* ── Tool output ─────────────────────────────────────────────────────────── */
+
+.oac-tool-output {
+  width: 100%;
+  border: 1px solid var(--border-weak);
+  border-radius: 6px;
+  background: transparent;
+  overflow: hidden;
 }
 
-[data-dock-surface="tray"][data-dock-attach="top"] {
-  margin-top: -0.875rem;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+.oac-tool-output-pre {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--font-family-mono);
+  font-feature-settings: var(--font-family-mono--font-feature-settings);
+  font-size: 13px;
+  line-height: 150%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow-y: auto;
+  color: var(--foreground-weak);
+}
+
+/* ── User message ────────────────────────────────────────────────────────── */
+
+[data-component="oac-user-message"] {
+  background-color: var(--surface-stronger-non-alpha, var(--card));
+}
+
+/* ── Copy button ─────────────────────────────────────────────────────────── */
+
+.oac-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--icon-weak);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.oac-copy-btn:hover {
+  color: var(--icon-base);
+  background-color: var(--accent);
+}
+
+.oac-copy-btn:active {
+  color: var(--icon-strong);
+}
+
+/* Remove focus outline that could trigger focus-within */
+.oac-copy-btn:focus {
+  outline: none;
+}
+
+/* ── File preview (Edit/Write tool inline) ───────────────────────────────── */
+
+.oac-file-preview {
+  position: relative;
+  border: 1px solid var(--border-weak);
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 60px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 36px, transparent 58px);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 36px, transparent 58px);
+}
+
+.oac-file-preview-pre {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: var(--font-family-mono);
+  font-feature-settings: var(--font-family-mono--font-feature-settings);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground-weak);
+}
+
+/* ── Diff view ───────────────────────────────────────────────────────────── */
+
+.oac-diff-view {
+  width: 100%;
+  line-height: 20px;
+}
+
+.oac-diff-line {
+  display: flex;
+  min-height: 20px;
+  white-space: pre;
+}
+
+.oac-diff-gutter {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--foreground-weaker);
+  user-select: none;
+  opacity: 0.6;
+}
+
+.oac-diff-sign {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  user-select: none;
+}
+
+.oac-diff-content {
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+.oac-diff-add {
+  background: rgba(45, 164, 78, 0.12);
+}
+.oac-diff-add .oac-diff-sign,
+.oac-diff-add .oac-diff-content {
+  color: var(--syntax-diff-add, #2da44e);
+}
+.oac-diff-add .oac-diff-gutter {
+  background: rgba(45, 164, 78, 0.08);
+}
+
+.oac-diff-del {
+  background: rgba(207, 34, 46, 0.12);
+}
+.oac-diff-del .oac-diff-sign,
+.oac-diff-del .oac-diff-content {
+  color: var(--syntax-diff-delete, #cf222e);
+}
+.oac-diff-del .oac-diff-gutter {
+  background: rgba(207, 34, 46, 0.08);
+}
+
+.oac-diff-hunk {
+  background: rgba(100, 100, 100, 0.08);
+  color: var(--foreground-weaker);
+  padding: 2px 0;
+}
+.oac-diff-hunk .oac-diff-content {
+  padding-left: 4px;
+  font-style: italic;
+}
+
+/* ── Timeline ───────────────────────────────────────────────────────────── */
+
+.oac-timeline {
+  position: relative;
+  padding-left: 30px;
+}
+
+/* ── Step dots + per-step connecting line ─────────────────────────────── */
+
+.oac-step {
+  position: relative;
+  padding-bottom: 12px;
+  user-select: text;
+}
+
+.oac-step::before {
+  content: "";
+  position: absolute;
+  left: -21px;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  z-index: 1;
+  opacity: 1;
+}
+
+.oac-step::after {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-weak);
+}
+
+.oac-step--first::after { top: 12px; }
+.oac-step--last::after { bottom: auto; height: 15px; }
+.oac-step--no-line::after { display: none; }
+
+.oac-step--success::before { background: #a6e3a1; }
+.oac-step--failure::before { background: #f38ba8; }
+.oac-step--progress::before { animation: oac-blink 1s linear infinite; }
+.oac-step:last-child { padding-bottom: 0; }
+
+.oac-step [data-component="markdown"] > p:first-child { margin-top: 0; }
+.oac-step [data-component="markdown"] > p:last-child { margin-bottom: 0; }
+
+@keyframes oac-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── Thinking block ─────────────────────────────────────────────────────── */
+
+.oac-thinking summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-style: italic;
+  font-size: 12px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.oac-thinking summary::-webkit-details-marker { display: none; }
+
+.oac-thinking-chevron {
+  font-size: 10px;
+  transition: transform 0.15s;
+  color: var(--foreground-weaker);
+}
+
+.oac-thinking[open] .oac-thinking-chevron {
+  transform: rotate(90deg);
+}
+
+.oac-thinking-content {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+  padding: 8px;
+  border-left: 2px solid var(--border-weak);
+  border-radius: 0 4px 4px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Tool IN/OUT card ───────────────────────────────────────────────────── */
+
+.oac-tool-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.oac-tool-card-title:hover { opacity: 0.8; }
+
+.oac-tool-card-body {
+  border: 0.5px solid var(--border-weak);
+  border-radius: 5px;
+  overflow: hidden;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.oac-tool-card-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+}
+
+.oac-tool-card-row { display: contents; }
+
+.oac-tool-card-row-label {
+  padding: 4px 8px;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  font-family: var(--font-family-mono);
+  font-feature-settings: var(--font-family-mono--font-feature-settings);
+  font-size: 11px;
+  border-right: 0.5px solid var(--border-weak);
+}
+
+.oac-tool-card-row-content {
+  padding: 4px 8px;
+  font-family: var(--font-family-mono);
+  font-feature-settings: var(--font-family-mono--font-feature-settings);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 50px, transparent 60px);
+  mask-image: linear-gradient(to bottom, black 50px, transparent 60px);
+}
+
+.oac-tool-card-row-content--expanded {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.oac-tool-card-row + .oac-tool-card-row .oac-tool-card-row-label,
+.oac-tool-card-row + .oac-tool-card-row .oac-tool-card-row-content {
+  border-top: 0.5px solid var(--border-weak);
+}
+
+.oac-tool-card-shimmer {
+  animation: oac-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes oac-shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.oac-diff-stat-add { color: #a6e3a1; font-size: 11px; }
+.oac-diff-stat-del { color: #f38ba8; font-size: 11px; }
+
+/* ── Plan/Todos ─────────────────────────────────────────────────────────── */
+
+.oac-plan-header {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--foreground-weak);
+}
+
+.oac-plan-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  font-size: 12px;
+  color: var(--foreground-weak);
+}
+
+.oac-plan-entry--completed {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-color: var(--foreground-weaker);
+}
+
+.oac-plan-entry--in-progress { color: var(--foreground-weak); }
+
+/* ── Tool group (noise collapse) ────────────────────────────────────────── */
+
+.oac-tool-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  user-select: none;
+}
+
+.oac-tool-group-header:hover { color: var(--foreground-weak); }
+
+.oac-tool-group-chevron {
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.oac-tool-group--open .oac-tool-group-chevron {
+  transform: rotate(90deg);
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+
+@keyframes oac-spin {
+  to { transform: rotate(360deg); }
+}
+
+.oac-spinner {
+  animation: oac-spin 0.6s linear infinite;
 }
