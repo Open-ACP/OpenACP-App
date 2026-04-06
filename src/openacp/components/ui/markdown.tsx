@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from "react"
 import { cn } from "../../../lib/utils"
 import DOMPurify from "dompurify"
 import morphdom from "morphdom"
-import { marked } from "marked"
+import { Marked } from "marked"
 import markedKatex from "marked-katex-extension"
 import markedShiki from "marked-shiki"
 import { bundledLanguages, type BundledLanguage } from "shiki"
@@ -60,13 +60,13 @@ const linkRenderer = {
   },
 }
 
-let fullParser: typeof marked | null = null
-let fastParser: typeof marked | null = null
+let fullParser: Marked | null = null
+let fastParser: Marked | null = null
 
 function getFullParser() {
   if (fullParser) return fullParser
   ensureTheme()
-  fullParser = marked.use(
+  fullParser = new Marked(
     { renderer: linkRenderer },
     markedKatex({ throwOnError: false, nonStandard: true }),
     markedShiki({
@@ -83,7 +83,7 @@ function getFullParser() {
 
 function getFastParser() {
   if (fastParser) return fastParser
-  fastParser = marked.use({ renderer: linkRenderer }, markedKatex({ throwOnError: false, nonStandard: true }))
+  fastParser = new Marked({ renderer: linkRenderer }, markedKatex({ throwOnError: false, nonStandard: true }))
   return fastParser
 }
 
