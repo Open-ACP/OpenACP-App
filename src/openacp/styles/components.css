@@ -667,7 +667,7 @@
   content: "";
   position: absolute;
   left: -21px;
-  top: 8px;
+  top: 6px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -749,6 +749,10 @@
   font-size: 12px;
   cursor: pointer;
   user-select: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .oac-tool-card-title:hover { opacity: 0.8; }

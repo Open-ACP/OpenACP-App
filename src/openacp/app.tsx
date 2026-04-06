@@ -23,6 +23,7 @@ import {
   type SettingsPage,
 } from "./components/settings/settings-dialog";
 import { showToast } from "./lib/toast";
+import { Toaster } from "./components/ui/toaster";
 import {
   getAllSettings,
   applyTheme,
@@ -513,6 +514,7 @@ export function OpenACPApp() {
         serverConnected={!!server}
         initialPage={settingsPage}
       />
+      <Toaster />
     </div>
   );
 }

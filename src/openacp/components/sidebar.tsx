@@ -141,6 +141,8 @@ function SessionItem({
   onClick: () => void;
   onDelete: () => void;
 }) {
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+
   return (
     <div
       data-session-id={session.id}
@@ -178,18 +180,36 @@ function SessionItem({
           </Button>
         </div>
         <div className="shrink-0 overflow-hidden transition-[width,opacity] w-0 opacity-0 pointer-events-none group-hover/session:w-8 group-hover/session:opacity-100 group-hover/session:pointer-events-auto">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Archive"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <Trash size={16} />
-          </Button>
+          {confirmDelete ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Confirm delete"
+              className="text-destructive hover:text-destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete();
+                setConfirmDelete(false);
+              }}
+              onBlur={() => setConfirmDelete(false)}
+            >
+              <Trash size={16} weight="fill" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Delete session"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setConfirmDelete(true);
+              }}
+            >
+              <Trash size={16} />
+            </Button>
+          )}
         </div>
       </div>
     </div>

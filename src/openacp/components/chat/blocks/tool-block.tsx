@@ -1,6 +1,8 @@
 import React, { memo, useState, useMemo } from "react"
 import { motion } from "motion/react"
+import { ArrowsOut } from "@phosphor-icons/react"
 import { TextShimmer } from "../../ui/text-shimmer"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialog"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
 
@@ -22,6 +24,7 @@ interface ToolBlockProps {
 
 export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
   const [expanded, setExpanded] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
   const isPending = block.status === "pending" || block.status === "running"
   const isRejected = isRejectionOutput(block.output)
 
@@ -41,10 +44,10 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
         className={`oac-tool-card-title${isPending ? " oac-tool-card-shimmer" : ""}`}
         onClick={() => hasBody && setExpanded(!expanded)}
       >
-        <span>{icon}</span>
-        <span style={{ fontWeight: "500" }}>{label}</span>
-        <span style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--muted-foreground)" }}>
-          {isRejected ? block.title : block.title}
+        <span className="shrink-0">{icon}</span>
+        <span className="shrink-0" style={{ fontWeight: "500" }}>{label}</span>
+        <span className="truncate min-w-0" style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--muted-foreground)" }}>
+          {block.title}
         </span>
         {isRejected && (
           <span className="text-2xs-regular" style={{ color: "var(--text-critical-base, #dc2626)" }}>
@@ -77,7 +80,15 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
 
       {hasBody && !reason && (
         <div className={`oac-tool-card-collapse ${expanded ? "oac-tool-card-collapse--open" : ""}`}>
-          <div className="oac-tool-card-body">
+          <div className="oac-tool-card-body relative group/toolbody">
+            <button
+              type="button"
+              className="absolute top-1 right-1 p-1 rounded opacity-0 group-hover/toolbody:opacity-100 hover:bg-accent transition-opacity z-10"
+              title="Expand"
+              onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
+            >
+              <ArrowsOut size={12} className="text-muted-foreground" />
+            </button>
             <div className="oac-tool-card-grid">
               {inputText && (
                 <div className="oac-tool-card-row">
@@ -95,6 +106,34 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
           </div>
         </div>
       )}
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col [backface-visibility:hidden]">
+          <DialogHeader className="pr-8">
+            <DialogTitle className="flex items-center gap-2 text-sm min-w-0">
+              <span className="shrink-0">{icon}</span>
+              <span className="shrink-0">{label}</span>
+              <span className="text-muted-foreground font-normal truncate">{block.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto min-h-0">
+            <div className="oac-tool-card-grid border border-border-weak rounded-md overflow-hidden">
+              {inputText && (
+                <div className="oac-tool-card-row">
+                  <div className="oac-tool-card-row-label">IN</div>
+                  <div className="oac-tool-card-row-content oac-tool-card-row-content--expanded select-text">{inputText}</div>
+                </div>
+              )}
+              {block.output && !isRejected && (
+                <div className="oac-tool-card-row">
+                  <div className="oac-tool-card-row-label">OUT</div>
+                  <div className="oac-tool-card-row-content oac-tool-card-row-content--expanded select-text">{block.output}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 })

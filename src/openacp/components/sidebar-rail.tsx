@@ -31,6 +31,9 @@ export interface WorkspaceItem {
 function ContextMenu(props: {
   x: number
   y: number
+  workspace: WorkspaceItem
+  onCopyPath: () => void
+  onReconnect: () => void
   onRemove: () => void
   onClose: () => void
 }) {
@@ -54,11 +57,26 @@ function ContextMenu(props: {
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[140px] rounded-md border border-border-weak bg-popover shadow-lg py-1"
+      className="fixed z-50 min-w-[160px] rounded-md border border-border-weak bg-popover shadow-lg py-1"
       style={{ left: props.x, top: props.y }}
     >
+      {props.workspace.directory && (
+        <button
+          className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+          onClick={() => { props.onCopyPath(); props.onClose() }}
+        >
+          Copy path
+        </button>
+      )}
       <button
         className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+        onClick={() => { props.onReconnect(); props.onClose() }}
+      >
+        Reconnect
+      </button>
+      <div className="my-1 border-t border-border-weak" />
+      <button
+        className="w-full px-3 py-1.5 text-left text-sm text-destructive hover:bg-accent transition-colors"
         onClick={() => { props.onRemove(); props.onClose() }}
       >
         Remove workspace
@@ -161,14 +179,25 @@ export function SidebarRail(props: {
         </Button>
       </div>
 
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onRemove={() => props.onRemoveWorkspace?.(contextMenu.id)}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {contextMenu && (() => {
+        const ws = props.workspaces.find(w => w.id === contextMenu.id)
+        if (!ws) return null
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            workspace={ws}
+            onCopyPath={async () => {
+              try {
+                await navigator.clipboard.writeText(ws.directory)
+              } catch { /* fallback */ }
+            }}
+            onReconnect={() => props.onSwitchWorkspace(contextMenu.id)}
+            onRemove={() => props.onRemoveWorkspace?.(contextMenu.id)}
+            onClose={() => setContextMenu(null)}
+          />
+        )
+      })()}
     </div>
   )
 }
