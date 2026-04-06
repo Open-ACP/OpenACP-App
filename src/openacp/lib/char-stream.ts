@@ -69,6 +69,10 @@ export function pushChars(streamId: string, text: string): void {
  * Subscribe to display text updates. The callback is called on every rAF drain
  * with the currently revealed slice of the buffer.
  * Returns an unsubscribe function.
+ *
+ * If content has already been drained before this subscription (e.g. the component
+ * mounted after the first few drain ticks), the callback is called immediately with
+ * the current revealed slice so the subscriber never misses already-visible content.
  */
 export function subscribeDisplay(
   streamId: string,
@@ -76,6 +80,18 @@ export function subscribeDisplay(
 ): () => void {
   const stream = getOrCreate(streamId)
   stream.listeners.add(cb)
+
+  // Deliver any content already revealed before this subscription was established
+  if (stream.cursor > 0) {
+    cb(stream.buffer.slice(0, stream.cursor))
+  }
+
+  // Resume drain if buffer has pending content but the loop has stopped
+  if (stream.cursor < stream.buffer.length && !rafScheduled) {
+    rafScheduled = true
+    requestAnimationFrame(drain)
+  }
+
   return () => stream.listeners.delete(cb)
 }
 

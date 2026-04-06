@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo, startTransition } from "react"
+import React, { createContext, useContext, useEffect, useRef, useCallback, useMemo } from "react"
 import { useImmer } from "use-immer"
 import { current } from "immer"
 import { useWorkspace } from "./workspace"
@@ -388,8 +388,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     }
 
     // Single setStore call for ALL text and thought buffer updates
-    startTransition(() => {
-      setStore((draft) => {
+    setStore((draft) => {
       // Apply text buffer updates
       for (const [sessionID, text] of pendingText) {
         const msgId = assistantMsgId.current.get(sessionID)
@@ -458,8 +457,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
         syncRef(sessionID, draft)
       }
-      })
-    }) // end startTransition
+    })
   }
 
   // ── SSE event handling ──────────────────────────────────────────────────
