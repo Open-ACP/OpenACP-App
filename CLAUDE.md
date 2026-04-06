@@ -46,17 +46,30 @@ The active application layer, organized as:
 
 ### Design System (`src/openacp/components/ui/`)
 
-**shadcn/ui** components (new-york style) built on **Radix UI** primitives. Components installed via `npx shadcn add`. Styling uses CSS layers (theme → base → components → utilities) with **Tailwind CSS 4** and design tokens in `src/openacp/styles/`.
+**shadcn/ui** components (new-york style) built on **Radix UI** primitives. Components installed via `npx shadcn add`. Styling uses CSS layers (theme → base → components → utilities) with **Tailwind CSS 4**.
 
 The legacy `src/ui/` library (Kobalte-based) is being phased out. New components should use shadcn/ui primitives from `src/openacp/components/ui/`.
+
+**Styles** — flat 4-file layout in `src/openacp/styles/`:
+- `index.css` — Entry point: Tailwind imports + `@theme` config + color registrations (no separate `tailwind/` dir)
+- `theme.css` — Design tokens: colors, shadows, shadcn aliases (light/dark/dim themes)
+- `components.css` — Component styles: markdown, `.oac-*` app styles
+- `utilities.css` — Text presets, no-scrollbar, animations
 
 ### Design Reference
 
 See `docs/design/DESIGN.md` for the full design system overview (tokens, components, Tailwind integration). Key files:
 
 - **Pencil file**: `docs/design/pencil/openacp.pen` — 18 screens, 87 shadcn components. Read via Pencil MCP tools to match layout 1:1 when building FE.
-- **Design tokens**: `src/openacp/styles/theme.css` — Semantic tokens + shadcn aliases.
-- **Tailwind colors**: `src/openacp/styles/tailwind/colors.css` — All tokens registered for utility classes.
+- **Design tokens**: `src/openacp/styles/theme.css` — Semantic tokens + shadcn aliases (light/dark/dim).
+- **Tailwind @theme**: `src/openacp/styles/index.css` — All tokens registered as Tailwind utilities in `@theme` blocks.
+- **Demo page**: `/ds-demo.html` — Live showcase at `http://localhost:1420/ds-demo.html`. Reference this when building or reviewing UI.
+
+**IMPORTANT — Design System Compliance:**
+- When building new UI, brainstorming UI changes, or fixing UI issues, **always reference and follow the design system** (`docs/design/DESIGN.md` + demo page + Pencil file).
+- **Never hardcode CSS values** — always use Tailwind utility classes and design tokens. No inline `color:`, `font-size:`, `padding:` with raw px/rem values.
+- **Use component variants** (`variant`, `size` props) — don't override colors with custom `className` unless strictly needed for layout (`absolute`, `w-full`, etc.).
+- **Icons**: Use `@phosphor-icons/react` — never inline SVG for standard icons.
 
 ### Platform Layer (`src/platform/`)
 
@@ -86,7 +99,7 @@ PlatformProvider > AppBaseProviders > AppInterface > OpenACPApp
 - **React 19** with TypeScript strict mode.
 - **UI Components**: shadcn/ui (new-york style) + Radix UI primitives in `src/openacp/components/ui/`. Custom domain components in `src/openacp/components/`.
 - **Icons**: `@phosphor-icons/react` (configured in `components.json`).
-- **Styling**: Tailwind CSS 4 + shadcn design tokens (`--foreground`, `--border`, `--primary`, etc.) with alias layer to legacy tokens (`--text-strong`, `--border-base`, etc.) in `src/openacp/styles/theme.css`.
+- **Styling**: Tailwind CSS 4 + shadcn design tokens in flat 4-file layout (`index.css`, `theme.css`, `components.css`, `utilities.css`). shadcn aliases (`--foreground`, `--border`, `--primary`) mapped to semantic tokens (`--text-strong`, `--border-base`). All color registrations in `index.css` `@theme` blocks (no `tailwind/` subdirectory).
 - **State**: React Context + TanStack React Query for async data.
 - **Component files**: one component per file, kebab-case filenames.
 - **i18n**: translations in `src/platform/i18n/` and `src/ui/src/i18n/` (18+ languages).

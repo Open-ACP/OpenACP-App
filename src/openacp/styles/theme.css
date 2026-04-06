@@ -163,7 +163,7 @@
   --border-selected: rgba(3, 76, 255, 0.99);
   --border-disabled: rgba(0, 0, 0, 0.236);
   --border-focus: rgba(0, 0, 0, 0.46);
-  --border-weak-base: #e5e5e5;
+  --border-weak-base: #d4d4d4;
   --border-strong-base: rgba(0, 0, 0, 0.151);
   --border-strong-hover: rgba(0, 0, 0, 0.232);
   --border-strong-active: rgba(0, 0, 0, 0.151);
@@ -309,7 +309,7 @@
   /* ── shadcn/ui tokens (source of truth) ──────────────────────────────── */
   --background: #f8f8f8;
   --foreground: #171717;
-  --card: #fcfcfc;
+  --card: #ffffff;
   --card-foreground: var(--foreground);
   --popover: #fcfcfc;
   --popover-foreground: var(--foreground);
