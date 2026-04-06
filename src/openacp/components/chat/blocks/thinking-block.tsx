@@ -1,4 +1,5 @@
-import React, { memo, useRef, useEffect } from "react"
+import React, { memo, useState, useRef, useEffect } from "react"
+import { Markdown } from "../../ui/markdown"
 import * as charStream from "../../../lib/char-stream"
 import type { ThinkingBlock } from "../../../types"
 
@@ -8,15 +9,13 @@ interface ThinkingBlockProps {
 }
 
 export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessionID }: ThinkingBlockProps) {
-  const contentRef = useRef<HTMLDivElement>(null)
+  const [streamText, setStreamText] = useState("")
 
-  // During streaming: subscribe CharStream and write directly to DOM
+  // During streaming: subscribe CharStream
   useEffect(() => {
     if (!block.isStreaming || !sessionID) return
     const unsub = charStream.subscribeDisplay(`${sessionID}:thought`, (displayText) => {
-      if (contentRef.current) {
-        contentRef.current.textContent = displayText
-      }
+      setStreamText(displayText)
     })
     return unsub
   }, [block.isStreaming, sessionID])
@@ -30,7 +29,8 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
     return "Thinking"
   })()
 
-  const hasContent = !!block.content?.trim()
+  const content = block.isStreaming ? streamText : block.content
+  const hasContent = !!content?.trim()
 
   if (!hasContent && !block.isStreaming) {
     return (
@@ -46,10 +46,12 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
         <span>{summaryText}</span>
         <span className="oac-thinking-chevron">&#9654;</span>
       </summary>
-      <div ref={contentRef} className="oac-thinking-content">
-        {/* During streaming: contentRef written directly by CharStream subscription */}
-        {/* After streaming: block.content rendered normally */}
-        {!block.isStreaming ? block.content : null}
+      <div className="oac-thinking-content">
+        <Markdown
+          text={content || ""}
+          cacheKey={block.isStreaming ? undefined : block.id}
+          streaming={block.isStreaming}
+        />
       </div>
     </details>
   )
