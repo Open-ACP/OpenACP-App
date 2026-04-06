@@ -15,12 +15,14 @@
 ## File Map
 
 **New files:**
+
 - `src/openacp/components/add-workspace/index.tsx` — modal wrapper, tab switcher
 - `src/openacp/components/add-workspace/local-tab.tsx` — known instances list + folder browse
 - `src/openacp/components/add-workspace/remote-tab.tsx` — URL input + code exchange flow
 - `src/openacp/components/add-workspace/create-instance.tsx` — clone/create sub-screen
 
 **Modified files:**
+
 - `src/openacp/api/workspace-store.ts` — migrate to `WorkspaceEntry` schema
 - `src-tauri/src/lib.rs` — add `invoke_cli`, remove `discover_workspaces`
 - `src/openacp/app.tsx` — migrate state to `WorkspaceEntry[]`, add "+" button, wire modal
@@ -32,6 +34,7 @@
 ## Task 1: WorkspaceEntry Schema & Store Migration
 
 **Files:**
+
 - Modify: `src/openacp/api/workspace-store.ts`
 
 - [ ] **Step 1: Define new types and rewrite workspace-store.ts**
@@ -39,93 +42,97 @@
 Replace the entire contents of `src/openacp/api/workspace-store.ts`:
 
 ```typescript
-import { Store } from '@tauri-apps/plugin-store'
-import { invoke } from '@tauri-apps/api/core'
+import { Store } from "@tauri-apps/plugin-store";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface WorkspaceEntry {
-  id: string               // instance id — primary key, immutable
-  name: string             // display name
-  directory: string        // absolute path to project folder (parent of .openacp)
-  type: 'local' | 'remote'
+  id: string; // instance id — primary key, immutable
+  name: string; // display name
+  directory: string; // absolute path to project folder (parent of .openacp)
+  type: "local" | "remote";
   // Remote only:
-  host?: string            // current tunnel/remote host URL (mutable, updated on reconnect)
-  tokenId?: string         // JWT token id (for reference/revocation)
-  role?: string            // token role
-  expiresAt?: string       // JWT expiry ISO 8601
-  refreshDeadline?: string // JWT refresh deadline ISO 8601
+  host?: string; // current tunnel/remote host URL (mutable, updated on reconnect)
+  tokenId?: string; // JWT token id (for reference/revocation)
+  role?: string; // token role
+  expiresAt?: string; // JWT expiry ISO 8601
+  refreshDeadline?: string; // JWT refresh deadline ISO 8601
 }
 
 export interface InstanceListEntry {
-  id: string
-  name: string | null
-  directory: string
-  root: string
-  status: 'running' | 'stopped'
-  port: number | null
+  id: string;
+  name: string | null;
+  directory: string;
+  root: string;
+  status: "running" | "stopped";
+  port: number | null;
 }
 
-const STORE_KEY = 'workspaces_v2'
+const STORE_KEY = "workspaces_v2";
 
-let store: Store | null = null
+let store: Store | null = null;
 
 async function getStore(): Promise<Store> {
-  if (!store) store = await Store.load('openacp.bin')
-  return store
+  if (!store) store = await Store.load("openacp.bin");
+  return store;
 }
 
 export async function loadWorkspaces(): Promise<WorkspaceEntry[]> {
   try {
-    const s = await getStore()
-    const data = await s.get<WorkspaceEntry[]>(STORE_KEY)
-    if (Array.isArray(data)) return data
+    const s = await getStore();
+    const data = await s.get<WorkspaceEntry[]>(STORE_KEY);
+    if (Array.isArray(data)) return data;
   } catch {}
   // Fallback to localStorage (dev/browser)
   try {
-    const raw = localStorage.getItem(STORE_KEY)
-    if (raw) return JSON.parse(raw) as WorkspaceEntry[]
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw) as WorkspaceEntry[];
   } catch {}
-  return []
+  return [];
 }
 
 export async function saveWorkspaces(entries: WorkspaceEntry[]): Promise<void> {
   try {
-    const s = await getStore()
-    await s.set(STORE_KEY, entries)
-    await s.save()
+    const s = await getStore();
+    await s.set(STORE_KEY, entries);
+    await s.save();
   } catch {}
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(entries))
+    localStorage.setItem(STORE_KEY, JSON.stringify(entries));
   } catch {}
 }
 
-export async function upsertWorkspace(entry: WorkspaceEntry): Promise<WorkspaceEntry[]> {
-  const all = await loadWorkspaces()
-  const idx = all.findIndex(e => e.id === entry.id)
+export async function upsertWorkspace(
+  entry: WorkspaceEntry,
+): Promise<WorkspaceEntry[]> {
+  const all = await loadWorkspaces();
+  const idx = all.findIndex((e) => e.id === entry.id);
   if (idx >= 0) {
-    all[idx] = { ...all[idx], ...entry }
+    all[idx] = { ...all[idx], ...entry };
   } else {
-    all.push(entry)
+    all.push(entry);
   }
-  await saveWorkspaces(all)
-  return all
+  await saveWorkspaces(all);
+  return all;
 }
 
 export async function removeWorkspace(id: string): Promise<WorkspaceEntry[]> {
-  const all = await loadWorkspaces()
-  const filtered = all.filter(e => e.id !== id)
-  await saveWorkspaces(filtered)
-  return filtered
+  const all = await loadWorkspaces();
+  const filtered = all.filter((e) => e.id !== id);
+  await saveWorkspaces(filtered);
+  return filtered;
 }
 
 export async function discoverLocalInstances(): Promise<InstanceListEntry[]> {
   try {
-    const stdout = await invoke<string>('invoke_cli', { args: ['instances', 'list', '--json'] })
-    const parsed = JSON.parse(stdout)
+    const stdout = await invoke<string>("invoke_cli", {
+      args: ["instances", "list", "--json"],
+    });
+    const parsed = JSON.parse(stdout);
     // parsed is { success: true, data: [...] } from jsonSuccess
-    const data = parsed?.data ?? parsed
-    return Array.isArray(data) ? data : []
+    const data = parsed?.data ?? parsed;
+    return Array.isArray(data) ? data : [];
   } catch {
-    return []
+    return [];
   }
 }
 ```
@@ -136,6 +143,7 @@ export async function discoverLocalInstances(): Promise<InstanceListEntry[]> {
 cd /Users/lucas/code/openacp-workspace/OpenACP-App
 npx tsc --noEmit
 ```
+
 Expected: No errors in workspace-store.ts
 
 - [ ] **Step 3: Commit**
@@ -150,6 +158,7 @@ git commit -m "feat: migrate workspace store to WorkspaceEntry schema"
 ## Task 2: `invoke_cli` Tauri Command
 
 **Files:**
+
 - Modify: `src-tauri/src/lib.rs`
 
 - [ ] **Step 1: Add `invoke_cli` command and remove `discover_workspaces`**
@@ -197,6 +206,7 @@ async fn invoke_cli(args: Vec<String>, app: tauri::AppHandle) -> Result<String, 
 ```bash
 npx tauri build --debug 2>&1 | tail -20
 ```
+
 Expected: Builds successfully (or only non-fatal warnings)
 
 - [ ] **Step 3: Verify invoke_cli works in dev**
@@ -204,10 +214,15 @@ Expected: Builds successfully (or only non-fatal warnings)
 ```bash
 npx tauri dev
 ```
+
 In the app's browser console:
+
 ```javascript
-await window.__TAURI__.core.invoke('invoke_cli', { args: ['instances', 'list', '--json'] })
+await window.__TAURI__.core.invoke("invoke_cli", {
+  args: ["instances", "list", "--json"],
+});
 ```
+
 Expected: JSON string with instances array
 
 - [ ] **Step 4: Commit**
@@ -222,6 +237,7 @@ git commit -m "feat: add invoke_cli Tauri command, remove discover_workspaces"
 ## Task 3: Migrate `app.tsx` State to WorkspaceEntry
 
 **Files:**
+
 - Modify: `src/openacp/app.tsx`
 - Modify: `src/openacp/context/workspace.tsx`
 
@@ -236,15 +252,20 @@ Find the current store definition (uses `createStore`) and replace:
 // const [store, setStore] = createStore({ instances: string[], active: string | null, ... })
 
 // NEW:
-import { loadWorkspaces, saveWorkspaces, discoverLocalInstances, type WorkspaceEntry } from './api/workspace-store.js'
+import {
+  loadWorkspaces,
+  saveWorkspaces,
+  discoverLocalInstances,
+  type WorkspaceEntry,
+} from "./api/workspace-store.js";
 
 const [store, setStore] = createStore<{
-  workspaces: WorkspaceEntry[]
-  activeId: string | null
-  ready: boolean
-  server: ServerInfo | null
-  loading: boolean
-  error: string | null
+  workspaces: WorkspaceEntry[];
+  activeId: string | null;
+  ready: boolean;
+  server: ServerInfo | null;
+  loading: boolean;
+  error: string | null;
 }>({
   workspaces: [],
   activeId: null,
@@ -252,7 +273,7 @@ const [store, setStore] = createStore<{
   server: null,
   loading: false,
   error: null,
-})
+});
 ```
 
 - [ ] **Step 2: Update initialization logic**
@@ -261,48 +282,54 @@ Replace `refreshInstanceMap` / `discoverWorkspaces` calls with `loadWorkspaces`:
 
 ```typescript
 onMount(async () => {
-  const saved = await loadWorkspaces()
-  setStore('workspaces', saved)
+  const saved = await loadWorkspaces();
+  setStore("workspaces", saved);
 
   if (saved.length > 0) {
-    const lastActive = saved[saved.length - 1]!.id
-    setStore('activeId', lastActive)
-    await resolveServer(lastActive)
+    const lastActive = saved[saved.length - 1]!.id;
+    setStore("activeId", lastActive);
+    await resolveServer(lastActive);
   }
-})
+});
 ```
 
 - [ ] **Step 3: Update `resolveServer` to use WorkspaceEntry**
 
 ```typescript
 async function resolveServer(id: string) {
-  setStore('loading', true)
-  setStore('error', null)
-  const entry = store.workspaces.find(w => w.id === id)
-  if (!entry) { setStore('loading', false); return }
+  setStore("loading", true);
+  setStore("error", null);
+  const entry = store.workspaces.find((w) => w.id === id);
+  if (!entry) {
+    setStore("loading", false);
+    return;
+  }
 
-  if (entry.type === 'local') {
+  if (entry.type === "local") {
     // Read api-secret via existing get_workspace_server_info Tauri command (keep this one)
     try {
-      const info = await invoke<{ url: string; token: string }>('get_workspace_server_info', { instanceId: id })
-      setStore('server', info)
-      setStore('ready', true)
+      const info = await invoke<{ url: string; token: string }>(
+        "get_workspace_server_info",
+        { instanceId: id },
+      );
+      setStore("server", info);
+      setStore("ready", true);
     } catch (e) {
-      setStore('error', 'Server not reachable')
-      startRetry(id)
+      setStore("error", "Server not reachable");
+      startRetry(id);
     }
   } else {
     // Remote: get token from keychain
-    const { getKeychainToken } = await import('./api/keychain.js')
-    const token = await getKeychainToken(id)
+    const { getKeychainToken } = await import("./api/keychain.js");
+    const token = await getKeychainToken(id);
     if (!token || !entry.host) {
-      setStore('error', 'Reconnect needed')
-      return
+      setStore("error", "Reconnect needed");
+      return;
     }
-    setStore('server', { url: entry.host, token })
-    setStore('ready', true)
+    setStore("server", { url: entry.host, token });
+    setStore("ready", true);
   }
-  setStore('loading', false)
+  setStore("loading", false);
 }
 ```
 
@@ -315,12 +342,12 @@ Replace `persistInstances` → `saveWorkspaces(store.workspaces)`.
 In `src/openacp/context/workspace.tsx`, update `WorkspaceContext` to use `WorkspaceEntry`:
 
 ```typescript
-import type { WorkspaceEntry } from '../api/workspace-store.js'
+import type { WorkspaceEntry } from "../api/workspace-store.js";
 
 export interface WorkspaceContext {
-  workspace: WorkspaceEntry
-  server: { url: string; token: string }
-  client: ReturnType<typeof createApiClient>
+  workspace: WorkspaceEntry;
+  server: { url: string; token: string };
+  client: ReturnType<typeof createApiClient>;
 }
 ```
 
@@ -331,6 +358,7 @@ export interface WorkspaceContext {
 ```bash
 npx tauri dev
 ```
+
 App should still work for existing local workspaces.
 
 - [ ] **Step 7: Commit**
@@ -345,46 +373,52 @@ git commit -m "feat: migrate app state to WorkspaceEntry, wire discoverLocalInst
 ## Task 4: Add Workspace Modal Shell
 
 **Files:**
+
 - Create: `src/openacp/components/add-workspace/index.tsx`
 
 - [ ] **Step 1: Create modal shell with Local/Remote tabs**
 
 ```tsx
 // src/openacp/components/add-workspace/index.tsx
-import { createSignal, Show } from 'solid-js'
-import { LocalTab } from './local-tab.js'
-import { RemoteTab } from './remote-tab.js'
-import type { WorkspaceEntry } from '../../api/workspace-store.js'
+import { createSignal, Show } from "solid-js";
+import { LocalTab } from "./local-tab.js";
+import { RemoteTab } from "./remote-tab.js";
+import type { WorkspaceEntry } from "../../api/workspace-store.js";
 
 interface AddWorkspaceModalProps {
-  onAdd: (entry: WorkspaceEntry) => void
-  onClose: () => void
-  existingIds: string[]  // ids of already-added workspaces, passed down to LocalTab
+  onAdd: (entry: WorkspaceEntry) => void;
+  onClose: () => void;
+  existingIds: string[]; // ids of already-added workspaces, passed down to LocalTab
 }
 
 export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
-  const [tab, setTab] = createSignal<'local' | 'remote'>('local')
+  const [tab, setTab] = createSignal<"local" | "remote">("local");
 
   return (
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div class="bg-surface w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div class="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div class="flex items-center justify-between px-6 py-3 border-b border-border">
           <h2 class="text-lg font-semibold">Add Workspace</h2>
-          <button onClick={props.onClose} class="text-muted hover:text-fg text-xl leading-none">&times;</button>
+          <button
+            onClick={props.onClose}
+            class="text-muted hover:text-fg text-xl leading-none"
+          >
+            &times;
+          </button>
         </div>
 
         {/* Tabs */}
         <div class="flex border-b border-border">
           <button
-            class={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${tab() === 'local' ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'}`}
-            onClick={() => setTab('local')}
+            class={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${tab() === "local" ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg"}`}
+            onClick={() => setTab("local")}
           >
             Local
           </button>
           <button
-            class={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${tab() === 'remote' ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'}`}
-            onClick={() => setTab('remote')}
+            class={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${tab() === "remote" ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg"}`}
+            onClick={() => setTab("remote")}
           >
             Remote
           </button>
@@ -392,16 +426,16 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
 
         {/* Tab content */}
         <div class="p-6">
-          <Show when={tab() === 'local'}>
+          <Show when={tab() === "local"}>
             <LocalTab onAdd={props.onAdd} existingIds={props.existingIds} />
           </Show>
-          <Show when={tab() === 'remote'}>
+          <Show when={tab() === "remote"}>
             <RemoteTab onAdd={props.onAdd} />
           </Show>
         </div>
       </div>
     </div>
-  )
+  );
 }
 ```
 
@@ -409,17 +443,17 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
 
 ```tsx
 // src/openacp/components/add-workspace/local-tab.tsx
-import type { WorkspaceEntry } from '../../api/workspace-store.js'
+import type { WorkspaceEntry } from "../../api/workspace-store.js";
 export function LocalTab(_props: { onAdd: (e: WorkspaceEntry) => void }) {
-  return <div>Local tab (coming soon)</div>
+  return <div>Local tab (coming soon)</div>;
 }
 ```
 
 ```tsx
 // src/openacp/components/add-workspace/remote-tab.tsx
-import type { WorkspaceEntry } from '../../api/workspace-store.js'
+import type { WorkspaceEntry } from "../../api/workspace-store.js";
 export function RemoteTab(_props: { onAdd: (e: WorkspaceEntry) => void }) {
-  return <div>Remote tab (coming soon)</div>
+  return <div>Remote tab (coming soon)</div>;
 }
 ```
 
@@ -428,18 +462,19 @@ export function RemoteTab(_props: { onAdd: (e: WorkspaceEntry) => void }) {
 In `src/openacp/app.tsx`, add:
 
 ```typescript
-const [showAddWorkspace, setShowAddWorkspace] = createSignal(false)
+const [showAddWorkspace, setShowAddWorkspace] = createSignal(false);
 
 function handleAddWorkspace(entry: WorkspaceEntry) {
-  setStore('workspaces', prev => [...prev, entry])
-  saveWorkspaces(store.workspaces)
-  setShowAddWorkspace(false)
-  setStore('activeId', entry.id)
-  resolveServer(entry.id)
+  setStore("workspaces", (prev) => [...prev, entry]);
+  saveWorkspaces(store.workspaces);
+  setShowAddWorkspace(false);
+  setStore("activeId", entry.id);
+  resolveServer(entry.id);
 }
 ```
 
 In the JSX, inside the sidebar rail area, add a "+" button:
+
 ```tsx
 <button
   onClick={() => setShowAddWorkspace(true)}
@@ -465,6 +500,7 @@ Import `AddWorkspaceModal` at top of `app.tsx`.
 ```bash
 npx tauri dev
 ```
+
 Click "+" → modal opens with Local/Remote tabs → close button works.
 
 - [ ] **Step 5: Commit**
@@ -479,6 +515,7 @@ git commit -m "feat: add workspace modal shell with local/remote tabs"
 ## Task 5: Local Tab — Instances List
 
 **Files:**
+
 - Modify: `src/openacp/components/add-workspace/local-tab.tsx`
 
 - [ ] **Step 1: Add `path_exists` Tauri command to lib.rs**
@@ -500,10 +537,12 @@ In the `tauri::generate_handler![]` macro, add `path_exists`:
 ```
 
 Build to verify:
+
 ```bash
 cd /Users/lucas/code/openacp-workspace/OpenACP-App
 npx tauri build --debug 2>&1 | grep -E "error|warning\[" | head -20
 ```
+
 Expected: No new errors.
 
 - [ ] **Step 2: Implement local instances list**
@@ -512,25 +551,31 @@ Replace local-tab.tsx stub:
 
 ```tsx
 // src/openacp/components/add-workspace/local-tab.tsx
-import { createSignal, createResource, For, Show } from 'solid-js'
-import { discoverLocalInstances, type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store.js'
-import { CreateInstance } from './create-instance.js'
+import { createSignal, createResource, For, Show } from "solid-js";
+import {
+  discoverLocalInstances,
+  type InstanceListEntry,
+  type WorkspaceEntry,
+} from "../../api/workspace-store.js";
+import { CreateInstance } from "./create-instance.js";
 
 interface LocalTabProps {
-  onAdd: (entry: WorkspaceEntry) => void
-  existingIds?: string[]  // already-added workspace ids
+  onAdd: (entry: WorkspaceEntry) => void;
+  existingIds?: string[]; // already-added workspace ids
 }
 
 export function LocalTab(props: LocalTabProps) {
-  const [instances] = createResource(discoverLocalInstances)
-  const [browseResult, setBrowseResult] = createSignal<BrowseResult | null>(null)
+  const [instances] = createResource(discoverLocalInstances);
+  const [browseResult, setBrowseResult] = createSignal<BrowseResult | null>(
+    null,
+  );
 
   async function handleBrowse() {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const selected = await open({ directory: true, multiple: false })
-    if (!selected || typeof selected !== 'string') return
-    const result = await checkBrowsedPath(selected, instances() ?? [])
-    setBrowseResult(result)
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({ directory: true, multiple: false });
+    if (!selected || typeof selected !== "string") return;
+    const result = await checkBrowsedPath(selected, instances() ?? []);
+    setBrowseResult(result);
   }
 
   function handleSelectInstance(inst: InstanceListEntry) {
@@ -538,16 +583,18 @@ export function LocalTab(props: LocalTabProps) {
       id: inst.id,
       name: inst.name ?? inst.id,
       directory: inst.directory,
-      type: 'local',
-    }
-    props.onAdd(entry)
+      type: "local",
+    };
+    props.onAdd(entry);
   }
 
   return (
     <div class="space-y-4">
       {/* Known instances */}
       <div>
-        <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">Known Instances</p>
+        <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
+          Known Instances
+        </p>
         <Show when={instances.loading}>
           <p class="text-sm text-muted">Scanning...</p>
         </Show>
@@ -556,25 +603,33 @@ export function LocalTab(props: LocalTabProps) {
         </Show>
         <For each={instances() ?? []}>
           {(inst) => {
-            const alreadyAdded = () => props.existingIds?.includes(inst.id) ?? false
+            const alreadyAdded = () =>
+              props.existingIds?.includes(inst.id) ?? false;
             return (
               <button
                 disabled={alreadyAdded()}
                 onClick={() => handleSelectInstance(inst)}
-                class={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${alreadyAdded() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-hover'}`}
+                class={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${alreadyAdded() ? "opacity-50 cursor-not-allowed" : "hover:bg-surface-hover"}`}
               >
-                <span class={`text-xs ${inst.status === 'running' ? 'text-green-500' : 'text-muted'}`}>
-                  {inst.status === 'running' ? '●' : '○'}
+                <span
+                  class={`text-xs ${inst.status === "running" ? "text-green-500" : "text-muted"}`}
+                >
+                  {inst.status === "running" ? "●" : "○"}
                 </span>
                 <span class="flex-1 min-w-0">
-                  <span class="text-sm font-medium block truncate">{inst.name ?? inst.id}</span>
-                  <span class="text-xs text-muted block truncate">{inst.directory}{inst.port ? ` :${inst.port}` : ''}</span>
+                  <span class="text-sm font-medium block truncate">
+                    {inst.name ?? inst.id}
+                  </span>
+                  <span class="text-xs text-muted block truncate">
+                    {inst.directory}
+                    {inst.port ? ` :${inst.port}` : ""}
+                  </span>
                 </span>
                 <Show when={alreadyAdded()}>
                   <span class="text-xs text-muted">✓ Added</span>
                 </Show>
               </button>
-            )
+            );
           }}
         </For>
       </div>
@@ -599,7 +654,7 @@ export function LocalTab(props: LocalTabProps) {
         />
       </Show>
     </div>
-  )
+  );
 }
 ```
 
@@ -609,26 +664,29 @@ Add at the bottom of `local-tab.tsx`:
 
 ```typescript
 type BrowseResult =
-  | { type: 'known'; instance: InstanceListEntry }
-  | { type: 'unregistered'; path: string }
-  | { type: 'new'; path: string }
+  | { type: "known"; instance: InstanceListEntry }
+  | { type: "unregistered"; path: string }
+  | { type: "new"; path: string };
 
-async function checkBrowsedPath(selectedPath: string, knownInstances: InstanceListEntry[]): Promise<BrowseResult> {
+async function checkBrowsedPath(
+  selectedPath: string,
+  knownInstances: InstanceListEntry[],
+): Promise<BrowseResult> {
   // Check if path matches a known instance's directory
   // Use invoke_cli to get absolute path (Tauri dialog already returns absolute)
-  const match = knownInstances.find(i => i.directory === selectedPath)
-  if (match) return { type: 'known', instance: match }
+  const match = knownInstances.find((i) => i.directory === selectedPath);
+  if (match) return { type: "known", instance: match };
 
   // Check if path has .openacp/config.json (unregistered existing instance)
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const hasConfig = await invoke<boolean>('path_exists', {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const hasConfig = await invoke<boolean>("path_exists", {
       path: `${selectedPath}/.openacp/config.json`,
-    })
-    if (hasConfig) return { type: 'unregistered', path: selectedPath }
+    });
+    if (hasConfig) return { type: "unregistered", path: selectedPath };
   } catch {}
 
-  return { type: 'new', path: selectedPath }
+  return { type: "new", path: selectedPath };
 }
 ```
 
@@ -636,37 +694,45 @@ async function checkBrowsedPath(selectedPath: string, knownInstances: InstanceLi
 
 ```tsx
 function BrowseResultView(props: {
-  result: BrowseResult
-  instances: InstanceListEntry[]
-  onAdd: (e: WorkspaceEntry) => void
-  onClose: () => void
+  result: BrowseResult;
+  instances: InstanceListEntry[];
+  onAdd: (e: WorkspaceEntry) => void;
+  onClose: () => void;
 }) {
-  if (props.result.type === 'known') {
+  if (props.result.type === "known") {
     return (
       <div class="p-3 bg-surface-hover rounded-lg text-sm">
-        <p>This folder is already registered as <strong>{props.result.instance.name ?? props.result.instance.id}</strong>.</p>
+        <p>
+          This folder is already registered as{" "}
+          <strong>
+            {props.result.instance.name ?? props.result.instance.id}
+          </strong>
+          .
+        </p>
         <button
-          onClick={() => props.onAdd({
-            id: props.result.instance.id,
-            name: props.result.instance.name ?? props.result.instance.id,
-            directory: props.result.instance.directory,
-            type: 'local',
-          })}
+          onClick={() =>
+            props.onAdd({
+              id: props.result.instance.id,
+              name: props.result.instance.name ?? props.result.instance.id,
+              directory: props.result.instance.directory,
+              type: "local",
+            })
+          }
           class="mt-2 px-3 py-1 rounded bg-accent text-white text-xs"
         >
           Add workspace
         </button>
       </div>
-    )
+    );
   }
 
-  if (props.result.type === 'unregistered') {
+  if (props.result.type === "unregistered") {
     return (
       <div class="p-3 bg-surface-hover rounded-lg text-sm">
         <p>Found an existing OpenACP instance at this path.</p>
         <RegisterExistingButton path={props.result.path} onAdd={props.onAdd} />
       </div>
-    )
+    );
   }
 
   // type === 'new'
@@ -677,33 +743,43 @@ function BrowseResultView(props: {
       onAdd={props.onAdd}
       onClose={props.onClose}
     />
-  )
+  );
 }
 
-function RegisterExistingButton(props: { path: string; onAdd: (e: WorkspaceEntry) => void }) {
-  const [loading, setLoading] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
+function RegisterExistingButton(props: {
+  path: string;
+  onAdd: (e: WorkspaceEntry) => void;
+}) {
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
 
   async function register() {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const stdout = await invoke<string>('invoke_cli', {
-        args: ['instances', 'create', '--dir', props.path, '--no-interactive', '--json'],
-      })
-      const result = JSON.parse(stdout)
-      const data = result?.data ?? result
+      const { invoke } = await import("@tauri-apps/api/core");
+      const stdout = await invoke<string>("invoke_cli", {
+        args: [
+          "instances",
+          "create",
+          "--dir",
+          props.path,
+          "--no-interactive",
+          "--json",
+        ],
+      });
+      const result = JSON.parse(stdout);
+      const data = result?.data ?? result;
       props.onAdd({
         id: data.id,
         name: data.name ?? data.id,
         directory: data.directory,
-        type: 'local',
-      })
+        type: "local",
+      });
     } catch (e: any) {
-      setError(e.message ?? 'Failed to register')
+      setError(e.message ?? "Failed to register");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -714,11 +790,13 @@ function RegisterExistingButton(props: { path: string; onAdd: (e: WorkspaceEntry
         disabled={loading()}
         class="mt-2 px-3 py-1 rounded bg-accent text-white text-xs disabled:opacity-50"
       >
-        {loading() ? 'Registering...' : 'Register this instance'}
+        {loading() ? "Registering..." : "Register this instance"}
       </button>
-      <Show when={error()}><p class="text-xs text-red-500 mt-1">{error()}</p></Show>
+      <Show when={error()}>
+        <p class="text-xs text-red-500 mt-1">{error()}</p>
+      </Show>
     </>
-  )
+  );
 }
 ```
 
@@ -727,6 +805,7 @@ function RegisterExistingButton(props: { path: string; onAdd: (e: WorkspaceEntry
 ```bash
 npx tauri dev
 ```
+
 Click "+" → Local tab → instances appear with status indicators → clicking one calls `onAdd`.
 
 - [ ] **Step 6: Commit**
@@ -741,102 +820,116 @@ git commit -m "feat: local tab with instances list and folder browse"
 ## Task 6: Local Tab — Create Instance Sub-Screen
 
 **Files:**
+
 - Create: `src/openacp/components/add-workspace/create-instance.tsx`
 
 - [ ] **Step 1: Implement CreateInstance component**
 
 ```tsx
 // src/openacp/components/add-workspace/create-instance.tsx
-import { createSignal, For, Show } from 'solid-js'
-import { invoke } from '@tauri-apps/api/core'
-import type { InstanceListEntry, WorkspaceEntry } from '../../api/workspace-store.js'
+import { createSignal, For, Show } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  InstanceListEntry,
+  WorkspaceEntry,
+} from "../../api/workspace-store.js";
 
 interface CreateInstanceProps {
-  path: string
-  existingInstances: InstanceListEntry[]
-  onAdd: (entry: WorkspaceEntry) => void
-  onClose: () => void
+  path: string;
+  existingInstances: InstanceListEntry[];
+  onAdd: (entry: WorkspaceEntry) => void;
+  onClose: () => void;
 }
 
 export function CreateInstance(props: CreateInstanceProps) {
-  const [mode, setMode] = createSignal<'choose' | 'clone' | 'new'>('choose')
-  const [cloneFrom, setCloneFrom] = createSignal<string | null>(null)
-  const [name, setName] = createSignal('')
-  const [loading, setLoading] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
+  const [mode, setMode] = createSignal<"choose" | "clone" | "new">("choose");
+  const [cloneFrom, setCloneFrom] = createSignal<string | null>(null);
+  const [name, setName] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
 
-  const folderName = props.path.split('/').pop() ?? 'workspace'
+  const folderName = props.path.split("/").pop() ?? "workspace";
 
   async function handleCreate() {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const args = ['instances', 'create', '--dir', props.path, '--json']
-      if (name()) args.push('--name', name())
-      if (mode() === 'clone' && cloneFrom()) {
-        args.push('--from', cloneFrom()!)
+      const args = ["instances", "create", "--dir", props.path, "--json"];
+      if (name()) args.push("--name", name());
+      if (mode() === "clone" && cloneFrom()) {
+        args.push("--from", cloneFrom()!);
       } else {
-        args.push('--no-interactive')
+        args.push("--no-interactive");
       }
-      const stdout = await invoke<string>('invoke_cli', { args })
-      const result = JSON.parse(stdout)
-      const data = result?.data ?? result
+      const stdout = await invoke<string>("invoke_cli", { args });
+      const result = JSON.parse(stdout);
+      const data = result?.data ?? result;
       props.onAdd({
         id: data.id,
         name: data.name ?? data.id,
         directory: data.directory,
-        type: 'local',
-      })
+        type: "local",
+      });
     } catch (e: any) {
-      setError(e.message ?? 'Failed to create instance')
+      setError(e.message ?? "Failed to create instance");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   return (
     <div class="space-y-4 p-3 bg-surface-hover rounded-lg">
-      <p class="text-sm font-medium">No OpenACP instance at <code class="text-xs">{folderName}</code></p>
+      <p class="text-sm font-medium">
+        No OpenACP instance at <code class="text-xs">{folderName}</code>
+      </p>
 
-      <Show when={mode() === 'choose'}>
+      <Show when={mode() === "choose"}>
         <div class="space-y-2">
           <Show when={props.existingInstances.length > 0}>
             <button
-              onClick={() => setMode('clone')}
+              onClick={() => setMode("clone")}
               class="w-full text-left px-3 py-2 rounded border border-border text-sm hover:bg-surface transition-colors"
             >
               <span class="font-medium">Clone from existing</span>
-              <span class="block text-xs text-muted">Copy config from another instance</span>
+              <span class="block text-xs text-muted">
+                Copy config from another instance
+              </span>
             </button>
           </Show>
           <button
-            onClick={() => setMode('new')}
+            onClick={() => setMode("new")}
             class="w-full text-left px-3 py-2 rounded border border-border text-sm hover:bg-surface transition-colors"
           >
             <span class="font-medium">Create new</span>
-            <span class="block text-xs text-muted">Start with a fresh instance</span>
+            <span class="block text-xs text-muted">
+              Start with a fresh instance
+            </span>
           </button>
         </div>
       </Show>
 
-      <Show when={mode() === 'clone'}>
+      <Show when={mode() === "clone"}>
         <div class="space-y-3">
           <label class="block">
             <span class="text-xs text-muted block mb-1">Clone from</span>
             <select
-              value={cloneFrom() ?? ''}
+              value={cloneFrom() ?? ""}
               onInput={(e) => setCloneFrom(e.currentTarget.value || null)}
               class="w-full px-3 py-2 rounded border border-border bg-surface text-sm"
             >
               <option value="">Select instance...</option>
               <For each={props.existingInstances}>
-                {(inst) => <option value={inst.directory}>{inst.name ?? inst.id} ({inst.directory})</option>}
+                {(inst) => (
+                  <option value={inst.directory}>
+                    {inst.name ?? inst.id} ({inst.directory})
+                  </option>
+                )}
               </For>
             </select>
           </label>
           <NameInput value={name()} folderName={folderName} onInput={setName} />
           <ActionButtons
-            onBack={() => setMode('choose')}
+            onBack={() => setMode("choose")}
             onConfirm={handleCreate}
             disabled={!cloneFrom() || loading()}
             loading={loading()}
@@ -845,11 +938,11 @@ export function CreateInstance(props: CreateInstanceProps) {
         </div>
       </Show>
 
-      <Show when={mode() === 'new'}>
+      <Show when={mode() === "new"}>
         <div class="space-y-3">
           <NameInput value={name()} folderName={folderName} onInput={setName} />
           <ActionButtons
-            onBack={() => setMode('choose')}
+            onBack={() => setMode("choose")}
             onConfirm={handleCreate}
             disabled={loading()}
             loading={loading()}
@@ -858,10 +951,14 @@ export function CreateInstance(props: CreateInstanceProps) {
         </div>
       </Show>
     </div>
-  )
+  );
 }
 
-function NameInput(props: { value: string; folderName: string; onInput: (v: string) => void }) {
+function NameInput(props: {
+  value: string;
+  folderName: string;
+  onInput: (v: string) => void;
+}) {
   return (
     <label class="block">
       <span class="text-xs text-muted block mb-1">Instance name</span>
@@ -873,15 +970,15 @@ function NameInput(props: { value: string; folderName: string; onInput: (v: stri
         class="w-full px-3 py-2 rounded border border-border bg-surface text-sm"
       />
     </label>
-  )
+  );
 }
 
 function ActionButtons(props: {
-  onBack: () => void
-  onConfirm: () => void
-  disabled: boolean
-  loading: boolean
-  error: string | null
+  onBack: () => void;
+  onConfirm: () => void;
+  disabled: boolean;
+  loading: boolean;
+  error: string | null;
 }) {
   return (
     <>
@@ -889,17 +986,22 @@ function ActionButtons(props: {
         <p class="text-xs text-red-500">{props.error}</p>
       </Show>
       <div class="flex gap-2">
-        <button onClick={props.onBack} class="px-3 py-1 text-sm text-muted hover:text-fg">Back</button>
+        <button
+          onClick={props.onBack}
+          class="px-3 py-1 text-sm text-muted hover:text-fg"
+        >
+          Back
+        </button>
         <button
           onClick={props.onConfirm}
           disabled={props.disabled}
           class="flex-1 px-3 py-1 rounded bg-accent text-white text-sm disabled:opacity-50"
         >
-          {props.loading ? 'Creating...' : 'Create workspace'}
+          {props.loading ? "Creating..." : "Create workspace"}
         </button>
       </div>
     </>
-  )
+  );
 }
 ```
 
@@ -908,6 +1010,7 @@ function ActionButtons(props: {
 ```bash
 npx tauri dev
 ```
+
 "Browse for folder" → pick empty folder → create options appear → clone or create new → workspace added.
 
 - [ ] **Step 3: Commit**
@@ -922,6 +1025,7 @@ git commit -m "feat: local tab create instance sub-screen (clone or new)"
 ## Task 7: Remote Tab — Code Exchange Flow
 
 **Files:**
+
 - Modify: `src/openacp/components/add-workspace/remote-tab.tsx`
 
 - [ ] **Step 1: Implement full remote tab**
@@ -930,74 +1034,80 @@ Replace remote-tab.tsx stub:
 
 ```tsx
 // src/openacp/components/add-workspace/remote-tab.tsx
-import { createSignal, Show } from 'solid-js'
-import type { WorkspaceEntry } from '../../api/workspace-store.js'
+import { createSignal, Show } from "solid-js";
+import type { WorkspaceEntry } from "../../api/workspace-store.js";
 
 interface RemoteTabProps {
-  onAdd: (entry: WorkspaceEntry) => void
+  onAdd: (entry: WorkspaceEntry) => void;
 }
 
 interface ConnectionPreview {
-  host: string
-  accessToken: string
-  tokenId: string
-  expiresAt: string
-  refreshDeadline: string
-  role: string
-  scopes: string[]
-  workspaceId: string
-  workspaceName: string
-  workspaceDirectory: string
+  host: string;
+  accessToken: string;
+  tokenId: string;
+  expiresAt: string;
+  refreshDeadline: string;
+  role: string;
+  scopes: string[];
+  workspaceId: string;
+  workspaceName: string;
+  workspaceDirectory: string;
 }
 
 function parseLink(input: string): { host: string; code: string } | null {
   try {
-    let url: URL
-    if (input.startsWith('openacp://connect')) {
+    let url: URL;
+    if (input.startsWith("openacp://connect")) {
       // Custom scheme: openacp://connect?host=...&code=...
-      const params = new URLSearchParams(input.replace('openacp://connect?', ''))
-      const host = params.get('host')
-      const code = params.get('code')
-      if (!host || !code) return null
-      return { host: `https://${host}`, code }
+      const params = new URLSearchParams(
+        input.replace("openacp://connect?", ""),
+      );
+      const host = params.get("host");
+      const code = params.get("code");
+      if (!host || !code) return null;
+      return { host: `https://${host}`, code };
     }
-    url = new URL(input)
-    const code = url.searchParams.get('code')
-    if (!code) return null
-    const host = `${url.protocol}//${url.host}`
-    return { host, code }
+    url = new URL(input);
+    const code = url.searchParams.get("code");
+    if (!code) return null;
+    const host = `${url.protocol}//${url.host}`;
+    return { host, code };
   } catch {
-    return null
+    return null;
   }
 }
 
-async function connectWithCode(host: string, code: string): Promise<ConnectionPreview> {
+async function connectWithCode(
+  host: string,
+  code: string,
+): Promise<ConnectionPreview> {
   // Step 1: Exchange code for JWT
   const exchangeRes = await fetch(`${host}/api/v1/auth/exchange`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
-  })
+  });
   if (!exchangeRes.ok) {
-    const err = await exchangeRes.json().catch(() => ({}))
-    const msg = (err as any)?.error?.message ?? exchangeRes.statusText
-    throw new Error(msg)
+    const err = await exchangeRes.json().catch(() => ({}));
+    const msg = (err as any)?.error?.message ?? exchangeRes.statusText;
+    throw new Error(msg);
   }
-  const { accessToken, tokenId, expiresAt, refreshDeadline } = await exchangeRes.json()
+  const { accessToken, tokenId, expiresAt, refreshDeadline } =
+    await exchangeRes.json();
 
   // Step 2: Get workspace info
   const wsRes = await fetch(`${host}/api/v1/workspace`, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!wsRes.ok) throw new Error('Failed to fetch workspace info')
-  const ws = await wsRes.json()
+  });
+  if (!wsRes.ok) throw new Error("Failed to fetch workspace info");
+  const ws = await wsRes.json();
 
   // Step 3: Get token info
   const meRes = await fetch(`${host}/api/v1/auth/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!meRes.ok) throw new Error('Failed to fetch token info')
-  const me = await meRes.json()
+  });
+  if (!meRes.ok) throw new Error("Failed to fetch token info");
+  const me = await meRes.json();
 
   return {
     host,
@@ -1010,60 +1120,62 @@ async function connectWithCode(host: string, code: string): Promise<ConnectionPr
     workspaceId: ws.id,
     workspaceName: ws.name,
     workspaceDirectory: ws.directory,
-  }
+  };
 }
 
 export function RemoteTab(props: RemoteTabProps) {
-  const [input, setInput] = createSignal('')
-  const [loading, setLoading] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
-  const [preview, setPreview] = createSignal<ConnectionPreview | null>(null)
-  const [saving, setSaving] = createSignal(false)
+  const [input, setInput] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [preview, setPreview] = createSignal<ConnectionPreview | null>(null);
+  const [saving, setSaving] = createSignal(false);
 
   async function handleConnect() {
-    setError(null)
-    const parsed = parseLink(input().trim())
+    setError(null);
+    const parsed = parseLink(input().trim());
     if (!parsed) {
-      setError('Invalid link format. Paste an openacp:// link or https:// URL.')
-      return
+      setError(
+        "Invalid link format. Paste an openacp:// link or https:// URL.",
+      );
+      return;
     }
-    setLoading(true)
+    setLoading(true);
     try {
-      const result = await connectWithCode(parsed.host, parsed.code)
-      setPreview(result)
+      const result = await connectWithCode(parsed.host, parsed.code);
+      setPreview(result);
     } catch (e: any) {
-      setError(e.message ?? 'Connection failed')
+      setError(e.message ?? "Connection failed");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function handleConfirm() {
-    const p = preview()
-    if (!p) return
-    setSaving(true)
+    const p = preview();
+    if (!p) return;
+    setSaving(true);
     try {
       // Store JWT in keychain
-      const { setKeychainToken } = await import('../../api/keychain.js')
-      await setKeychainToken(p.workspaceId, p.accessToken)
+      const { setKeychainToken } = await import("../../api/keychain.js");
+      await setKeychainToken(p.workspaceId, p.accessToken);
 
       // Build WorkspaceEntry (no raw token stored here)
       const entry: WorkspaceEntry = {
         id: p.workspaceId,
         name: p.workspaceName,
         directory: p.workspaceDirectory,
-        type: 'remote',
+        type: "remote",
         host: p.host,
         tokenId: p.tokenId,
         role: p.role,
         expiresAt: p.expiresAt,
         refreshDeadline: p.refreshDeadline,
-      }
-      props.onAdd(entry)
+      };
+      props.onAdd(entry);
     } catch (e: any) {
-      setError(e.message ?? 'Failed to save workspace')
+      setError(e.message ?? "Failed to save workspace");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
@@ -1072,7 +1184,9 @@ export function RemoteTab(props: RemoteTabProps) {
       <Show when={!preview()}>
         <div class="space-y-3">
           <label class="block">
-            <span class="text-xs text-muted block mb-1">Paste openacp:// link or URL</span>
+            <span class="text-xs text-muted block mb-1">
+              Paste openacp:// link or URL
+            </span>
             <textarea
               value={input()}
               onInput={(e) => setInput(e.currentTarget.value)}
@@ -1089,7 +1203,7 @@ export function RemoteTab(props: RemoteTabProps) {
             disabled={loading() || !input().trim()}
             class="w-full px-4 py-2 rounded bg-accent text-white text-sm disabled:opacity-50"
           >
-            {loading() ? 'Connecting...' : 'Connect'}
+            {loading() ? "Connecting..." : "Connect"}
           </button>
         </div>
       </Show>
@@ -1104,7 +1218,9 @@ export function RemoteTab(props: RemoteTabProps) {
               </div>
               <div class="flex justify-between">
                 <span class="text-muted">Host</span>
-                <span class="font-mono text-xs truncate max-w-48">{p().host.replace('https://', '')}</span>
+                <span class="font-mono text-xs truncate max-w-48">
+                  {p().host.replace("https://", "")}
+                </span>
               </div>
               <div class="flex justify-between">
                 <span class="text-muted">Role</span>
@@ -1119,7 +1235,13 @@ export function RemoteTab(props: RemoteTabProps) {
               <p class="text-xs text-red-500">{error()}</p>
             </Show>
             <div class="flex gap-2">
-              <button onClick={() => { setPreview(null); setError(null) }} class="px-3 py-2 text-sm text-muted hover:text-fg">
+              <button
+                onClick={() => {
+                  setPreview(null);
+                  setError(null);
+                }}
+                class="px-3 py-2 text-sm text-muted hover:text-fg"
+              >
                 Back
               </button>
               <button
@@ -1127,14 +1249,14 @@ export function RemoteTab(props: RemoteTabProps) {
                 disabled={saving()}
                 class="flex-1 px-4 py-2 rounded bg-accent text-white text-sm disabled:opacity-50"
               >
-                {saving() ? 'Saving...' : 'Add Workspace'}
+                {saving() ? "Saving..." : "Add Workspace"}
               </button>
             </div>
           </div>
         )}
       </Show>
     </div>
-  )
+  );
 }
 ```
 
@@ -1150,6 +1272,7 @@ git commit -m "feat: remote tab with code exchange connection flow"
 ## Task 8: Keychain Storage & JWT Lifecycle
 
 **Files:**
+
 - Create: `src/openacp/api/keychain.ts`
 - Modify: `src/openacp/api/client.ts`
 
@@ -1216,14 +1339,17 @@ fn keychain_delete(key: String, app: tauri::AppHandle) -> Result<(), String> {
 In `tauri::generate_handler![]`, add `keychain_set, keychain_get, keychain_delete`.
 
 Add `serde_json` to `src-tauri/Cargo.toml` if not present:
+
 ```toml
 serde_json = "1"
 ```
 
 Build to verify:
+
 ```bash
 npx tauri build --debug 2>&1 | grep -E "^error" | head -20
 ```
+
 Expected: No errors.
 
 - [ ] **Step 2: Create keychain.ts abstraction**
@@ -1234,35 +1360,50 @@ Expected: No errors.
 // Key format: "workspace:<id>"
 // Falls back to sessionStorage in dev/browser (tokens are NOT persisted to disk in fallback).
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from "@tauri-apps/api/core";
 
 function keychainKey(workspaceId: string): string {
-  return `workspace:${workspaceId}`
+  return `workspace:${workspaceId}`;
 }
 
-export async function setKeychainToken(workspaceId: string, token: string): Promise<void> {
-  const key = keychainKey(workspaceId)
+export async function setKeychainToken(
+  workspaceId: string,
+  token: string,
+): Promise<void> {
+  const key = keychainKey(workspaceId);
   try {
-    await invoke('keychain_set', { key, value: token })
-    return
+    await invoke("keychain_set", { key, value: token });
+    return;
   } catch {}
   // Fallback: sessionStorage (non-persistent, cleared on close)
-  try { sessionStorage.setItem(key, token) } catch {}
+  try {
+    sessionStorage.setItem(key, token);
+  } catch {}
 }
 
-export async function getKeychainToken(workspaceId: string): Promise<string | null> {
-  const key = keychainKey(workspaceId)
+export async function getKeychainToken(
+  workspaceId: string,
+): Promise<string | null> {
+  const key = keychainKey(workspaceId);
   try {
-    const token = await invoke<string | null>('keychain_get', { key })
-    if (token) return token
+    const token = await invoke<string | null>("keychain_get", { key });
+    if (token) return token;
   } catch {}
-  try { return sessionStorage.getItem(key) } catch { return null }
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteKeychainToken(workspaceId: string): Promise<void> {
-  const key = keychainKey(workspaceId)
-  try { await invoke('keychain_delete', { key }) } catch {}
-  try { sessionStorage.removeItem(key) } catch {}
+  const key = keychainKey(workspaceId);
+  try {
+    await invoke("keychain_delete", { key });
+  } catch {}
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
 }
 ```
 
@@ -1275,22 +1416,25 @@ In `src/openacp/api/client.ts`, find `tryRefreshToken()`. It currently updates a
 async function tryRefreshToken(): Promise<boolean> {
   try {
     const res = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${currentToken}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ token: currentToken }),
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    currentToken = data.accessToken
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    currentToken = data.accessToken;
     // ADD THESE LINES:
     if (workspaceId) {
-      const { setKeychainToken } = await import('./keychain.js')
-      await setKeychainToken(workspaceId, data.accessToken)
-      onTokenRefreshed?.(data)  // notify app to update WorkspaceEntry
+      const { setKeychainToken } = await import("./keychain.js");
+      await setKeychainToken(workspaceId, data.accessToken);
+      onTokenRefreshed?.(data); // notify app to update WorkspaceEntry
     }
-    return true
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 ```
@@ -1303,26 +1447,29 @@ In `client.ts`, add a signal/callback for reconnect needed:
 
 ```typescript
 // In createApiClient, add:
-let onReconnectNeeded: (() => void) | undefined
+let onReconnectNeeded: (() => void) | undefined;
 
 // In api() fetch wrapper, after all 401 handling fails:
 if (res.status === 401 && !canRefresh) {
-  onReconnectNeeded?.()
-  throw new Error('Reconnect needed')
+  onReconnectNeeded?.();
+  throw new Error("Reconnect needed");
 }
 
 // Expose:
 return {
   // ... existing methods ...
-  setOnReconnectNeeded: (cb: () => void) => { onReconnectNeeded = cb },
-}
+  setOnReconnectNeeded: (cb: () => void) => {
+    onReconnectNeeded = cb;
+  },
+};
 ```
 
 In `app.tsx`, after creating the client:
+
 ```typescript
 client.setOnReconnectNeeded(() => {
-  setStore('error', 'reconnect-needed')
-})
+  setStore("error", "reconnect-needed");
+});
 ```
 
 In the UI, when `store.error === 'reconnect-needed'`, show reconnect badge on the workspace in the sidebar and open the Add Workspace modal (Remote tab) when clicked.
@@ -1345,6 +1492,7 @@ git commit -m "feat: keychain token storage and JWT refresh lifecycle"
 ## Task 9: Workspace Info Refresh & Final Wiring
 
 **Files:**
+
 - Modify: `src/openacp/app.tsx`
 
 - [ ] **Step 1: Add workspace info refresh on connect**
@@ -1355,23 +1503,34 @@ In `resolveServer`, after successfully connecting, refresh the stored `name` and
 async function refreshWorkspaceInfo(id: string, client: ApiClient) {
   try {
     // For remote workspaces: call /api/v1/workspace
-    const entry = store.workspaces.find(w => w.id === id)
-    if (!entry) return
-    if (entry.type === 'remote') {
-      const ws = await client.getWorkspaceInfo()  // add this to client.ts: GET /api/v1/workspace
+    const entry = store.workspaces.find((w) => w.id === id);
+    if (!entry) return;
+    if (entry.type === "remote") {
+      const ws = await client.getWorkspaceInfo(); // add this to client.ts: GET /api/v1/workspace
       if (ws.name !== entry.name || ws.directory !== entry.directory) {
-        const updated = { ...entry, name: ws.name, directory: ws.directory }
-        setStore('workspaces', prev => prev.map(w => w.id === id ? updated : w))
-        saveWorkspaces(store.workspaces)
+        const updated = { ...entry, name: ws.name, directory: ws.directory };
+        setStore("workspaces", (prev) =>
+          prev.map((w) => (w.id === id ? updated : w)),
+        );
+        saveWorkspaces(store.workspaces);
       }
     } else {
       // For local: re-run instances list and find by id
-      const list = await discoverLocalInstances()
-      const found = list.find(i => i.id === id)
-      if (found && (found.name !== entry.name || found.directory !== entry.directory)) {
-        const updated = { ...entry, name: found.name ?? entry.name, directory: found.directory }
-        setStore('workspaces', prev => prev.map(w => w.id === id ? updated : w))
-        saveWorkspaces(store.workspaces)
+      const list = await discoverLocalInstances();
+      const found = list.find((i) => i.id === id);
+      if (
+        found &&
+        (found.name !== entry.name || found.directory !== entry.directory)
+      ) {
+        const updated = {
+          ...entry,
+          name: found.name ?? entry.name,
+          directory: found.directory,
+        };
+        setStore("workspaces", (prev) =>
+          prev.map((w) => (w.id === id ? updated : w)),
+        );
+        saveWorkspaces(store.workspaces);
       }
     }
   } catch {}
@@ -1379,6 +1538,7 @@ async function refreshWorkspaceInfo(id: string, client: ApiClient) {
 ```
 
 Add `client.getWorkspaceInfo()` to `client.ts`:
+
 ```typescript
 getWorkspaceInfo: () => api<{ id: string; name: string; directory: string; version: string }>('/workspace'),
 ```
@@ -1393,6 +1553,7 @@ In the sidebar workspace switcher section of `app.tsx`, for each workspace in `s
 pnpm build && npx tsc --noEmit
 npx tauri build --debug 2>&1 | tail -30
 ```
+
 Expected: No TypeScript errors, Tauri builds successfully
 
 - [ ] **Step 4: Final commit**

@@ -3,6 +3,9 @@ import { showToast } from "../lib/toast"
 import { useWorkspace } from "../context/workspace"
 import type { MarketplacePlugin } from "../types"
 import { CommandBlock } from "./plugin-command-block"
+import { Input } from "./ui/input"
+import { Button } from "./ui/button"
+import { Badge } from "./ui/badge"
 
 type WorkspaceCtx = ReturnType<typeof useWorkspace>
 
@@ -60,37 +63,70 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
   return (
     <div className="p-4 flex flex-col gap-4">
       {installingPlugin && (
-        <div className="border border-border-base rounded-lg p-4 flex flex-col gap-3 bg-surface-base">
-          <div className="flex items-center justify-between"><span className="text-14-medium text-text-strong">Installing {installingPlugin.displayName ?? installingPlugin.name}</span><button className="text-12-regular text-text-weak hover:text-text-base" onClick={() => { stopPolling(); setInstallingPlugin(null) }}>Close</button></div>
+        <div className="border border-border rounded-lg p-4 flex flex-col gap-3 bg-surface-base">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-medium leading-lg text-foreground">Installing {installingPlugin.displayName ?? installingPlugin.name}</span>
+            <Button variant="ghost" size="xs" className="text-sm leading-lg text-muted-foreground" onClick={() => { stopPolling(); setInstallingPlugin(null) }}>Close</Button>
+          </div>
           <CommandBlock label="Run in your terminal:" command={getInstallCommand(installingPlugin)} />
           <CommandBlock label="After install completes, restart the server:" command={getRestartCommand()} />
-          {isRemote && <p className="text-12-regular text-text-weak italic">Run this on the machine hosting the server.</p>}
-          <div className="flex items-center gap-2 text-12-regular text-text-weak">
-            {pollTimedOut ? <span>Install not detected. <button className="underline text-text-base" onClick={() => { setPollTimedOut(false); refetch() }}>Refresh</button></span> : <><div className="w-4 h-4 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} /><span>Waiting for install...</span></>}
+          {isRemote && <p className="text-sm leading-lg text-muted-foreground italic">Run this on the machine hosting the server.</p>}
+          <div className="flex items-center gap-2 text-sm leading-lg text-muted-foreground">
+            {pollTimedOut
+              ? <span>Install not detected. <Button variant="link" className="p-0 h-auto text-sm leading-lg text-foreground-weak" onClick={() => { setPollTimedOut(false); refetch() }}>Refresh</Button></span>
+              : <><div className="w-4 h-4 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /><span>Waiting for install...</span></>
+            }
           </div>
         </div>
       )}
-      <input type="search" placeholder="Search plugins..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-border-base bg-background-base text-14-regular text-text-strong placeholder:text-text-weak focus:outline-none focus:ring-2" />
-      {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--text-weak)", borderTopColor: "transparent" }} /></div>}
-      {error && <div className="text-red-500 text-14-regular text-center py-8 flex flex-col items-center gap-2"><span>Marketplace unavailable</span><button className="text-12-regular text-text-base border border-border-base rounded px-3 py-1 hover:bg-surface-raised-base-hover" onClick={refetch}>Retry</button></div>}
+      <Input
+        type="search"
+        placeholder="Search plugins..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full text-base leading-xl"
+      />
+      {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /></div>}
+      {error && (
+        <div className="text-red-500 text-base leading-xl text-center py-8 flex flex-col items-center gap-2">
+          <span>Marketplace unavailable</span>
+          <Button variant="outline" size="sm" onClick={refetch}>Retry</Button>
+        </div>
+      )}
       {filtered.map((plugin) => (
-        <div key={plugin.name} className="border border-border-base rounded-lg p-3 flex items-start justify-between gap-3">
+        <div key={plugin.name} className="border border-border rounded-lg p-3 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <span className="text-2xl shrink-0 mt-0.5">{plugin.icon}</span>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-14-medium text-text-strong">{plugin.displayName ?? plugin.name}</span>
-                {plugin.verified ? <span className="text-12-regular text-green-500">Verified</span> : <span className="text-12-regular text-yellow-500">Unverified</span>}
-                {plugin.minCliVersion && isVersionTooLow(plugin.minCliVersion) && <span className="text-12-regular text-yellow-500">Requires v{plugin.minCliVersion}</span>}
+                <span className="text-base font-medium leading-lg text-foreground">{plugin.displayName ?? plugin.name}</span>
+                {plugin.verified
+                  ? <Badge variant="outline" className="text-sm leading-lg text-green-500 border-transparent">Verified</Badge>
+                  : <Badge variant="outline" className="text-sm leading-lg text-yellow-500 border-transparent">Unverified</Badge>
+                }
+                {plugin.minCliVersion && isVersionTooLow(plugin.minCliVersion) && (
+                  <Badge variant="outline" className="text-sm leading-lg text-yellow-500 border-transparent">Requires v{plugin.minCliVersion}</Badge>
+                )}
               </div>
-              <span className="text-12-regular text-text-weak mt-0.5">{plugin.description}</span>
-              <span className="text-12-regular text-text-weak mt-1">by {plugin.author} · {plugin.category}</span>
+              <span className="text-sm leading-lg text-muted-foreground mt-0.5">{plugin.description}</span>
+              <span className="text-sm leading-lg text-muted-foreground mt-1">by {plugin.author} · {plugin.category}</span>
             </div>
           </div>
           <div className="shrink-0">
-            {plugin.installed ? <span className="text-12-regular text-green-500">Installed</span> : (
-              <button className="text-12-regular px-3 py-1.5 rounded-md border border-border-base hover:bg-surface-raised-base-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled={isVersionTooLow(plugin.minCliVersion)} onClick={() => { setInstallingPlugin(plugin); startPolling(plugin.name) }}>Install</button>
-            )}
+            {plugin.installed
+              ? <Badge variant="outline" className="text-sm leading-lg text-green-500 border-transparent">Installed</Badge>
+              : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-sm leading-lg"
+                  disabled={isVersionTooLow(plugin.minCliVersion)}
+                  onClick={() => { setInstallingPlugin(plugin); startPolling(plugin.name) }}
+                >
+                  Install
+                </Button>
+              )
+            }
           </div>
         </div>
       ))}

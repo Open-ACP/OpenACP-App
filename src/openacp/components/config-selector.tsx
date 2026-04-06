@@ -1,6 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from "react"
-import { createPortal } from "react-dom"
+import React, { useState, useEffect, useCallback } from "react"
 import { useWorkspace } from "../context/workspace"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu"
+import { Button } from "./ui/button"
 
 interface ConfigChoice {
   value: string
@@ -22,10 +29,7 @@ export function ConfigSelector(props: {
   refreshKey?: number
 }) {
   const workspace = useWorkspace()
-  const [open, setOpen] = useState(false)
   const [config, setConfig] = useState<ConfigData | null>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const popupRef = useRef<HTMLDivElement>(null)
 
   const fetchConfig = useCallback(async () => {
     if (!props.sessionID) { setConfig(null); return }
@@ -53,19 +57,6 @@ export function ConfigSelector(props: {
 
   useEffect(() => { void fetchConfig() }, [fetchConfig, props.refreshKey])
 
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return
-    function handle(e: MouseEvent) {
-      const target = e.target as Node
-      if (rootRef.current?.contains(target)) return
-      if (popupRef.current?.contains(target)) return
-      setOpen(false)
-    }
-    document.addEventListener("mousedown", handle)
-    return () => document.removeEventListener("mousedown", handle)
-  }, [open])
-
   const currentLabel = (() => {
     if (!config) return props.category
     const choice = config.choices.find((ch) => ch.value === config.currentValue)
@@ -81,67 +72,54 @@ export function ConfigSelector(props: {
     } catch (e) {
       console.error(`Failed to set ${props.category}`, e)
     }
-    setOpen(false)
   }
 
   if (!props.sessionID) return null
 
+  const align = props.category === "mode" ? "end" : "start"
+
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        className="min-w-0 max-w-[160px] text-12-regular text-text-base capitalize flex items-center gap-1 px-2 py-1 rounded-md hover:bg-surface-raised-base-hover"
-        onClick={() => { setOpen(!open); if (!open) void fetchConfig() }}
-      >
-        <span className="truncate">{currentLabel}</span>
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M5.83 8.33L10 12.5l4.17-4.17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      </button>
-      {open && createPortal(
-        <div
-          ref={popupRef}
-          className="fixed w-72 flex flex-col p-1 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 overflow-y-auto"
-          style={(() => {
-            const rect = rootRef.current?.getBoundingClientRect()
-            if (!rect) return {}
-            const pos: React.CSSProperties = { bottom: window.innerHeight - rect.top + 4 }
-            if (props.category === "mode") {
-              (pos as any).right = window.innerWidth - rect.right
-            } else {
-              pos.left = rect.left
-            }
-            return pos
-          })()}
+    <DropdownMenu onOpenChange={(open) => { if (open) void fetchConfig() }}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-w-0 max-w-[160px] text-sm-regular text-foreground-weak capitalize gap-1 px-2"
         >
-          <span className="block px-3 py-1 text-text-weaker" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
-            {props.category === "mode" ? "Modes" : (config?.name || props.category)}
-          </span>
-          {(config?.choices || []).map((choice) => {
-            const isCurrent = choice.value === config?.currentValue
-            return (
-              <button
-                key={choice.value}
-                className="w-full flex items-start gap-2 px-3 py-1.5 rounded text-left hover:bg-surface-raised-base-hover"
-                onClick={() => select(choice.value)}
-              >
-                <span className="w-4 shrink-0 text-center mt-px">
-                  {isCurrent && <span className="text-text-interactive-base">&#10003;</span>}
+          <span className="truncate">{currentLabel}</span>
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M5.83 8.33L10 12.5l4.17-4.17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={align} side="top" sideOffset={4} className="w-72">
+        <DropdownMenuLabel className="text-foreground-weaker" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
+          {props.category === "mode" ? "Modes" : (config?.name || props.category)}
+        </DropdownMenuLabel>
+        {(config?.choices || []).map((choice) => {
+          const isCurrent = choice.value === config?.currentValue
+          return (
+            <DropdownMenuItem
+              key={choice.value}
+              className="items-start gap-2 px-3 py-1.5"
+              onClick={() => void select(choice.value)}
+            >
+              <span className="w-4 shrink-0 text-center mt-px">
+                {isCurrent && <span className="text-primary">&#10003;</span>}
+              </span>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span
+                  className={isCurrent ? "text-foreground" : "text-foreground-weak"}
+                  style={{ fontSize: "12px", fontWeight: "500", lineHeight: "1.4" }}
+                >
+                  {choice.label}
                 </span>
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span
-                    className={isCurrent ? "text-text-strong" : "text-text-base"}
-                    style={{ fontSize: "12px", fontWeight: "500", lineHeight: "1.4" }}
-                  >
-                    {choice.label}
-                  </span>
-                  {choice.description && (
-                    <span className="text-text-weak truncate" style={{ fontSize: "10.5px", lineHeight: "1.3" }}>{choice.description}</span>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>,
-        document.body
-      )}
-    </div>
+                {choice.description && (
+                  <span className="text-muted-foreground truncate" style={{ fontSize: "10.5px", lineHeight: "1.3" }}>{choice.description}</span>
+                )}
+              </div>
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

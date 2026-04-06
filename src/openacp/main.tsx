@@ -3,8 +3,7 @@
  */
 import React, { useState, useEffect } from "react"
 import { createRoot } from "react-dom/client"
-import "./styles/tailwind/index.css"
-import "./styles.css"
+import "./styles/index.css"
 import { OpenACPApp } from "./app"
 import { SplashScreen } from "../onboarding/splash-screen"
 import { InstallScreen } from "../onboarding/install-screen"

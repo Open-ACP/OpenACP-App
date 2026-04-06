@@ -1,12 +1,13 @@
-import React, { useRef, useEffect } from "react"
+import React, { useRef, useEffect, useCallback } from "react"
 import { cn } from "../../../lib/utils"
 import DOMPurify from "dompurify"
 import morphdom from "morphdom"
-import { marked } from "marked"
+import { Marked } from "marked"
 import markedKatex from "marked-katex-extension"
 import markedShiki from "marked-shiki"
 import { bundledLanguages, type BundledLanguage } from "shiki"
 import { getSharedHighlighter, registerCustomTheme, type ThemeRegistrationResolved } from "@pierre/diffs"
+import * as charStream from "../../lib/char-stream"
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ function ensureTheme() {
       name: "OpenACP",
       colors: {
         "editor.background": "var(--color-background-stronger)",
-        "editor.foreground": "var(--text-base)",
+        "editor.foreground": "var(--foreground-weak)",
         "gitDecoration.addedResourceForeground": "var(--syntax-diff-add)",
         "gitDecoration.deletedResourceForeground": "var(--syntax-diff-delete)",
       },
@@ -42,7 +43,7 @@ function ensureTheme() {
         { scope: "meta.property-name", settings: { foreground: "var(--syntax-property)" } },
         { scope: "variable", settings: { foreground: "var(--syntax-variable)" } },
         { scope: "variable.other", settings: { foreground: "var(--syntax-variable)" } },
-        { scope: "markup.bold", settings: { fontStyle: "bold", foreground: "var(--text-strong)" } },
+        { scope: "markup.bold", settings: { fontStyle: "bold", foreground: "var(--foreground)" } },
         { scope: ["markup.heading", "markup.heading entity.name"], settings: { fontStyle: "bold", foreground: "var(--syntax-info)" } },
       ],
       semanticTokenColors: {},
@@ -59,13 +60,13 @@ const linkRenderer = {
   },
 }
 
-let fullParser: typeof marked | null = null
-let fastParser: typeof marked | null = null
+let fullParser: Marked | null = null
+let fastParser: Marked | null = null
 
 function getFullParser() {
   if (fullParser) return fullParser
   ensureTheme()
-  fullParser = marked.use(
+  fullParser = new Marked(
     { renderer: linkRenderer },
     markedKatex({ throwOnError: false, nonStandard: true }),
     markedShiki({
@@ -82,7 +83,7 @@ function getFullParser() {
 
 function getFastParser() {
   if (fastParser) return fastParser
-  fastParser = marked.use({ renderer: linkRenderer }, markedKatex({ throwOnError: false, nonStandard: true }))
+  fastParser = new Marked({ renderer: linkRenderer }, markedKatex({ throwOnError: false, nonStandard: true }))
   return fastParser
 }
 
@@ -110,30 +111,87 @@ function hashString(s: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
+//
+// Streaming strategy (CharStream-driven):
+//   - During streaming, display text is driven by CharStream (subscribeDisplay)
+//     which drains chars from a global rAF loop at 80–200 chars/frame.
+//   - The Immer store update (via startTransition) runs independently for persistence.
+//   - morphdom handles efficient DOM diffing — only changed nodes update.
+//   - When streaming ends, a final full render fires with Shiki syntax highlighting.
+//   - Non-streaming renders use cache + Shiki from the start.
+
 
 interface MarkdownProps {
   text: string
   cacheKey?: string
+  streamId?: string
   streaming?: boolean
   className?: string
 }
 
-export function Markdown({ text, cacheKey, streaming, className }: MarkdownProps) {
+export function Markdown({ text, cacheKey, streamId, streaming, className }: MarkdownProps) {
   const elRef = useRef<HTMLDivElement>(null)
   const renderingRef = useRef(false)
   const prevStreamingRef = useRef(streaming)
+  const lastTextRef = useRef("")
+  const textRef = useRef(text)
 
-  // When streaming ends, invalidate cache to force full Shiki re-render
+  textRef.current = text
+
+  const renderMarkdown = useCallback(function renderMarkdown(mdText: string, isStreaming: boolean) {
+    if (renderingRef.current || !elRef.current) return
+    if (mdText === lastTextRef.current) return
+
+    renderingRef.current = true
+    lastTextRef.current = mdText
+
+    const parser = isStreaming ? getFastParser() : getFullParser()
+    const result = parser.parse(mdText)
+
+    function apply(html: string) {
+      renderingRef.current = false
+      const safe = sanitize(html)
+      const key = cacheKey || "md"
+
+      if (!isStreaming) {
+        if (cache.size >= MAX_CACHE) {
+          const first = cache.keys().next().value
+          if (first) cache.delete(first)
+        }
+        cache.set(key, { hash: hashString(mdText), html: safe })
+      }
+      if (elRef.current) {
+        morphdom(elRef.current, `<div data-component="markdown">${safe}</div>`, { childrenOnly: true })
+      }
+    }
+
+    if (result instanceof Promise) result.then(apply)
+    else apply(result)
+  }, [cacheKey])
+
+  // Streaming: subscribe to CharStream for character-by-character display
+  useEffect(() => {
+    if (!streaming || !streamId) return
+    const unsub = charStream.subscribeDisplay(streamId, (displayText) => {
+      renderMarkdown(displayText, true)
+    })
+    return unsub
+  }, [streaming, streamId, renderMarkdown])
+
+  // When streaming ends: final full Shiki render
   useEffect(() => {
     if (prevStreamingRef.current && !streaming) {
       cache.delete(cacheKey || "md")
+      lastTextRef.current = ""
+      renderMarkdown(text, false)
     }
     prevStreamingRef.current = streaming
-  }, [streaming, cacheKey])
+  }, [streaming, text, cacheKey])
 
+  // Non-streaming: render on text change
   useEffect(() => {
+    if (streaming) return
     if (!elRef.current || !text) return
-    if (renderingRef.current) return
 
     const key = cacheKey || "md"
     const hash = hashString(text)
@@ -146,25 +204,7 @@ export function Markdown({ text, cacheKey, streaming, className }: MarkdownProps
       return
     }
 
-    renderingRef.current = true
-    // Fast parser during streaming (no Shiki), full parser when done
-    const parser = streaming ? getFastParser() : getFullParser()
-    const result = parser.parse(text)
-
-    function apply(html: string) {
-      renderingRef.current = false
-      const safe = sanitize(html)
-      if (!streaming) {
-        if (cache.size >= MAX_CACHE) { const first = cache.keys().next().value; if (first) cache.delete(first) }
-        cache.set(key, { hash, html: safe })
-      }
-      if (elRef.current) {
-        morphdom(elRef.current, `<div data-component="markdown">${safe}</div>`, { childrenOnly: true })
-      }
-    }
-
-    if (result instanceof Promise) result.then(apply)
-    else apply(result)
+    renderMarkdown(text, false)
   }, [text, cacheKey, streaming])
 
   return (

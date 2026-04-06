@@ -4,15 +4,15 @@
  */
 import { useState, useEffect, useRef, useCallback } from "react"
 
-const PACE_MS = 30
+const PACE_MS = 24
 const SNAP = /[\s.,!?;:)\]]/
 
 function step(size: number) {
-  if (size <= 12) return 2
-  if (size <= 48) return 4
-  if (size <= 96) return 8
-  if (size <= 256) return 16
-  return Math.min(32, Math.ceil(size / 8))
+  if (size <= 12) return 4
+  if (size <= 48) return 8
+  if (size <= 96) return 16
+  if (size <= 256) return 24
+  return Math.min(48, Math.ceil(size / 6))
 }
 
 function next(text: string, start: number) {

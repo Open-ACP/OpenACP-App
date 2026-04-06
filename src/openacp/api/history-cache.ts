@@ -1,38 +1,32 @@
 /**
- * Chat history cache using Tauri Store plugin.
+ * Chat history cache using Tauri Store plugin (LazyStore).
  * Each session gets its own store file at: $APPDATA/history/{sessionId}.json
- * Falls back to in-memory cache when Tauri Store is unavailable (dev/browser).
+ * LazyStore creates a fresh instance each call, avoiding proxy revocation
+ * issues during HMR/hot reload while still persisting data to disk.
+ * Falls back to in-memory cache when Tauri is unavailable (browser dev).
  */
 import type { Message } from "../types"
 
 interface CacheEntry {
-  sessionId: string
   messages: Message[]
   updatedAt: number
 }
 
-// In-memory fallback for non-Tauri environments
+// In-memory fallback for non-Tauri environments or when store fails
 const memoryCache = new Map<string, CacheEntry>()
 
-let Store: any = null
-
-async function getStore(sessionId: string) {
-  if (!Store) {
-    try {
-      const mod = await import("@tauri-apps/plugin-store")
-      Store = mod.Store
-    } catch {
-      return null // Not in Tauri — use memory fallback
-    }
-  }
+/** Create a fresh LazyStore instance (avoids proxy revocation on HMR) */
+async function withStore<T>(sessionId: string, fn: (store: any) => Promise<T>): Promise<T | null> {
   try {
-    return await Store.load(`history/${sessionId}.json`, { autoSave: true })
+    const { LazyStore } = await import("@tauri-apps/plugin-store")
+    const store = new LazyStore(`history/${sessionId}.json`)
+    return await fn(store)
   } catch {
     return null
   }
 }
 
-/** Strip large dataUrl from attachments before caching (keep metadata for display) */
+/** Strip large dataUrl from attachments before caching */
 function stripAttachmentData(messages: Message[]): Message[] {
   return messages.map(msg => {
     if (!msg.attachments?.length) return msg
@@ -40,7 +34,7 @@ function stripAttachmentData(messages: Message[]): Message[] {
       ...msg,
       attachments: msg.attachments.map(att => ({
         ...att,
-        dataUrl: "", // strip base64 data, too large to persist
+        dataUrl: "",
       })),
     }
   })
@@ -48,42 +42,36 @@ function stripAttachmentData(messages: Message[]): Message[] {
 
 /** Save messages for a session to cache */
 export async function cacheMessages(sessionId: string, messages: Message[]): Promise<void> {
-  const entry: CacheEntry = { sessionId, messages: stripAttachmentData(messages), updatedAt: Date.now() }
+  const entry: CacheEntry = { messages: stripAttachmentData(messages), updatedAt: Date.now() }
 
-  const store = await getStore(sessionId)
-  if (store) {
-    try {
-      await store.set("data", entry)
-      await store.save()
-      return
-    } catch { /* fall through to memory */ }
-  }
-
+  // Always save to memory as backup
   memoryCache.set(sessionId, entry)
+
+  // Persist to disk via LazyStore
+  await withStore(sessionId, async (store) => {
+    await store.set("data", entry)
+    await store.save()
+  })
 }
 
 /** Load cached messages for a session */
 export async function loadCachedMessages(sessionId: string): Promise<Message[] | null> {
-  const store = await getStore(sessionId)
-  if (store) {
-    try {
-      const entry = await store.get("data") as CacheEntry | undefined
-      return entry?.messages ?? null
-    } catch { /* fall through */ }
-  }
+  // Try disk first
+  const diskEntry = await withStore(sessionId, async (store) => {
+    return await store.get("data") as CacheEntry | undefined
+  })
+  if (diskEntry?.messages?.length) return diskEntry.messages
 
-  const entry = memoryCache.get(sessionId)
-  return entry?.messages ?? null
+  // Fall back to memory
+  const memEntry = memoryCache.get(sessionId)
+  return memEntry?.messages ?? null
 }
 
 /** Clear cache for a session */
 export async function clearCachedMessages(sessionId: string): Promise<void> {
-  const store = await getStore(sessionId)
-  if (store) {
-    try {
-      await store.clear()
-      await store.save()
-    } catch { /* ignore */ }
-  }
+  await withStore(sessionId, async (store) => {
+    await store.clear()
+    await store.save()
+  })
   memoryCache.delete(sessionId)
 }

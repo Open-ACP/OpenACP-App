@@ -4,6 +4,8 @@ import { useSessions } from "../context/sessions"
 import { useWorkspace } from "../context/workspace"
 import { showToast } from "../lib/toast"
 import type { ServerCommand } from "../types"
+import { Button } from "./ui/button"
+import { Input } from "./ui/input"
 
 const HIDDEN_COMMANDS = new Set([
   "tunnel", "tunnels", "usage", "summary", "archive", "clear",
@@ -183,53 +185,53 @@ export function CommandPalette(props: {
   }
 
   return (
-    <div ref={rootRef} className="w-full rounded-lg border border-border-base bg-surface-raised-stronger-non-alpha shadow-lg overflow-hidden" onKeyDown={handleKeyDown}>
+    <div ref={rootRef} className="w-full rounded-lg border border-border bg-surface-raised-stronger-non-alpha shadow-lg overflow-hidden" onKeyDown={handleKeyDown}>
       {subPicker ? (
         <>
-          <div className="px-3 py-2 border-b border-border-weaker-base flex items-center gap-2">
-            <button className="text-icon-weak hover:text-icon-base transition-colors" onClick={() => setSubPicker(null)}>
+          <div className="px-3 py-2 border-b border-border-weak/50 flex items-center gap-2">
+            <Button variant="ghost" size="icon-xs" onClick={() => setSubPicker(null)}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M12.5 15.8337L6.66667 10.0003L12.5 4.16699" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
-            <span className="text-13-medium text-text-strong">{subPicker.title}</span>
+            </Button>
+            <span className="text-sm font-medium leading-lg text-foreground">{subPicker.title}</span>
           </div>
           <div className="max-h-64 overflow-y-auto py-1">
             {subPicker.choices.map((choice, index) => (
-              <button key={choice.value} className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${highlighted === index ? "bg-surface-raised-base-hover" : ""}`}
+              <button key={choice.value} className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${highlighted === index ? "bg-accent" : ""}`}
                 data-highlighted={highlighted === index ? "" : undefined}
                 onMouseEnter={() => setHighlighted(index)}
                 onClick={() => selectConfigValue(subPicker.configId, choice.value)}
               >
-                <span className="w-4 shrink-0 text-center">{choice.current && <span className="text-text-interactive-base" style={{ fontSize: "12px" }}>&#10003;</span>}</span>
-                <span style={{ fontSize: "12px", fontWeight: "500" }} className={choice.current ? "text-text-strong" : "text-text-base"}>{choice.label}</span>
-                {choice.description && <span className="text-text-weak truncate flex-1 min-w-0" style={{ fontSize: "10.5px" }}>{choice.description}</span>}
+                <span className="w-4 shrink-0 text-center">{choice.current && <span className="text-primary" style={{ fontSize: "12px" }}>&#10003;</span>}</span>
+                <span style={{ fontSize: "12px", fontWeight: "500" }} className={choice.current ? "text-foreground" : "text-foreground-weak"}>{choice.label}</span>
+                {choice.description && <span className="text-muted-foreground truncate flex-1 min-w-0" style={{ fontSize: "10.5px" }}>{choice.description}</span>}
               </button>
             ))}
           </div>
         </>
       ) : (
         <>
-          <div className="px-3 py-2 border-b border-border-weaker-base">
-            <input ref={inputRef} type="text" placeholder="Filter actions..." className="w-full bg-transparent text-13-regular text-text-strong placeholder:text-text-weak focus:outline-none" value={query} onChange={(e) => { setQuery(e.target.value); setHighlighted(0) }} />
+          <div className="px-3 py-2 border-b border-border-weak/50">
+            <Input ref={inputRef} type="text" placeholder="Filter actions..." className="bg-transparent text-sm leading-lg text-foreground placeholder:text-muted-foreground border-none shadow-none focus-visible:ring-0 h-auto px-0 py-0" value={query} onChange={(e) => { setQuery(e.target.value); setHighlighted(0) }} />
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
-            {filtered.length === 0 && <div className="px-3 py-3 text-13-regular text-text-weak text-center">No actions found</div>}
+            {filtered.length === 0 && <div className="px-3 py-3 text-sm leading-lg text-muted-foreground text-center">No actions found</div>}
             {groups.map(([group, groupItems]) => (
               <div key={group}>
-                <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--text-weaker)" }}>{group}</div>
+                <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--foreground-weaker)" }}>{group}</div>
                 {groupItems.map((item) => {
                   const globalIdx = filtered.indexOf(item)
                   const disabled = item.enabled === false
                   return (
-                    <button key={item.id} className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${highlighted === globalIdx ? "bg-surface-raised-base-hover" : ""} ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+                    <button key={item.id} className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${highlighted === globalIdx ? "bg-accent" : ""} ${disabled ? "opacity-40 pointer-events-none" : ""}`}
                       data-highlighted={highlighted === globalIdx ? "" : undefined}
                       onMouseEnter={() => !disabled && setHighlighted(globalIdx)}
                       onClick={() => !disabled && item.action()}
                       disabled={disabled}
                     >
-                      <span className="text-13-medium text-text-strong flex-1 min-w-0">{item.label}</span>
-                      {item.description && <span className="text-text-weak truncate" style={{ fontSize: "11px" }}>{item.description}</span>}
-                      {item.rightLabel && <span className="text-text-weak" style={{ fontSize: "11px" }}>{item.rightLabel}</span>}
-                      {item.type === "sub-picker" && <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="text-icon-weaker"><path d="M7.5 4.16699L13.3333 10.0003L7.5 15.8337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      <span className="text-sm font-medium leading-lg text-foreground flex-1 min-w-0">{item.label}</span>
+                      {item.description && <span className="text-muted-foreground truncate" style={{ fontSize: "11px" }}>{item.description}</span>}
+                      {item.rightLabel && <span className="text-muted-foreground" style={{ fontSize: "11px" }}>{item.rightLabel}</span>}
+                      {item.type === "sub-picker" && <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="text-foreground-weakerer"><path d="M7.5 4.16699L13.3333 10.0003L7.5 15.8337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                     </button>
                   )
                 })}
