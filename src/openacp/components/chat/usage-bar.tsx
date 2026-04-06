@@ -48,18 +48,16 @@ export const UsageBar = React.memo(function UsageBar({ usage }: UsageBarProps) {
   if (parts.length === 0) return null
 
   return (
-    <div
+    <span
       className="oac-usage-bar"
       style={{
         fontSize: 11,
         lineHeight: "16px",
         color: "var(--foreground-weaker)",
-        paddingTop: 4,
-        paddingLeft: 30,
         userSelect: "none",
       }}
     >
       {parts.join(" \u00B7 ")}
-    </div>
+    </span>
   )
 })

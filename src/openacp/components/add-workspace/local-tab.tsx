@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 
-interface LocalTabProps { onAdd: (entry: WorkspaceEntry) => void; existingIds?: string[] }
+interface LocalTabProps { onAdd: (entry: WorkspaceEntry) => void; onSetup?: (path: string, instanceId: string) => void; existingIds?: string[] }
 
 type BrowseResult = { type: 'known'; instance: InstanceListEntry } | { type: 'unregistered'; path: string } | { type: 'new'; path: string }
 
@@ -94,12 +94,12 @@ export function LocalTab(props: LocalTabProps) {
           <span>Choose a folder to open or create a workspace...</span>
         </Button>
       </div>
-      {browseResult && <BrowseResultView result={browseResult} instances={instances} onAdd={props.onAdd} onClose={() => setBrowseResult(null)} />}
+      {browseResult && <BrowseResultView result={browseResult} instances={instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={() => setBrowseResult(null)} />}
     </div>
   )
 }
 
-function BrowseResultView(props: { result: BrowseResult; instances: InstanceListEntry[]; onAdd: (e: WorkspaceEntry) => void; onClose: () => void }) {
+function BrowseResultView(props: { result: BrowseResult; instances: InstanceListEntry[]; onAdd: (e: WorkspaceEntry) => void; onSetup?: (path: string, instanceId: string) => void; onClose: () => void }) {
   const result = props.result
   if (result.type === 'known') {
     const inst = result.instance
@@ -130,7 +130,7 @@ function BrowseResultView(props: { result: BrowseResult; instances: InstanceList
       </div>
     )
   }
-  return <CreateInstance path={result.path} existingInstances={props.instances} onAdd={props.onAdd} onClose={props.onClose} />
+  return <CreateInstance path={result.path} existingInstances={props.instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={props.onClose} />
 }
 
 function RegisterExistingButton(props: { path: string; onAdd: (e: WorkspaceEntry) => void }) {
