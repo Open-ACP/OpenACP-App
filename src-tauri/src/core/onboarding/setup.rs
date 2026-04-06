@@ -20,18 +20,35 @@ pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf)
 
 /// Runs `openacp --version` and returns the version string, or None if not installed.
 pub async fn check_installed() -> Result<Option<String>, String> {
-    let (mut cmd, _bin) = match openacp_command() {
+    let (mut cmd, bin) = match openacp_command() {
         Ok(c) => c,
-        Err(_) => return Ok(None),
+        Err(e) => {
+            tracing::warn!("check_openacp_installed: binary not found — {e}");
+            return Ok(None);
+        }
     };
+
+    tracing::info!("check_openacp_installed: found binary at {}, running --version", bin.display());
 
     let result = cmd.args(["--version"]).output().await;
 
     match result {
-        Err(_) => Ok(None),
-        Ok(output) if !output.status.success() => Ok(None),
+        Err(e) => {
+            tracing::warn!("check_openacp_installed: failed to spawn --version: {e}");
+            Ok(None)
+        }
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            tracing::warn!(
+                "check_openacp_installed: --version exited with {:?}\n  stdout: {stdout}\n  stderr: {stderr}",
+                output.status.code()
+            );
+            Ok(None)
+        }
         Ok(output) => {
             let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            tracing::info!("check_openacp_installed: installed, version={version}");
             Ok(Some(version))
         }
     }

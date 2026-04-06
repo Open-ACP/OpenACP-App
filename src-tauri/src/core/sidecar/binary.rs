@@ -72,14 +72,27 @@ fn resolve_via_shell() -> Option<PathBuf> {
     {
         // Try zsh first (macOS default), then bash
         for shell in ["zsh", "bash"] {
-            if let Ok(output) = std::process::Command::new(shell)
+            match std::process::Command::new(shell)
                 .args(["-l", "-c", "which openacp"])
                 .output()
             {
-                if output.status.success() {
+                Err(e) => {
+                    tracing::debug!("find_openacp_binary: {shell} not available — {e}");
+                }
+                Ok(output) if !output.status.success() => {
+                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    tracing::info!(
+                        "find_openacp_binary: `{shell} -l -c 'which openacp'` not found (exit {:?}){hint}",
+                        output.status.code(),
+                        hint = if stderr.is_empty() { String::new() } else { format!(" — {stderr}") }
+                    );
+                }
+                Ok(output) => {
                     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !path.is_empty() {
-                        tracing::debug!("find_openacp_binary: found via {shell} login: {path}");
+                    if path.is_empty() {
+                        tracing::info!("find_openacp_binary: {shell} returned empty path for `which openacp`");
+                    } else {
+                        tracing::info!("find_openacp_binary: found via {shell} login: {path}");
                         return Some(PathBuf::from(path));
                     }
                 }
@@ -171,13 +184,20 @@ fn check_known_locations() -> Option<PathBuf> {
         }
     }
 
+    tracing::info!(
+        "find_openacp_binary: checking {} known locations",
+        candidates.len()
+    );
     for candidate in &candidates {
         if candidate.exists() {
-            tracing::debug!("find_openacp_binary: found at {}", candidate.display());
+            tracing::info!("find_openacp_binary: found at {}", candidate.display());
             return Some(candidate.clone());
+        } else {
+            tracing::debug!("find_openacp_binary: not at {}", candidate.display());
         }
     }
 
+    tracing::warn!("find_openacp_binary: exhausted all known locations, openacp not found");
     None
 }
 

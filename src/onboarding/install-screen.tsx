@@ -9,6 +9,9 @@ const ansiConverter = new AnsiToHtml({ escapeXML: true, newline: false });
 function ansiToHtml(line: string): string {
   try { return ansiConverter.toHtml(line); } catch { return line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, ''); }
 }
+function stripAnsi(line: string): string {
+  return line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
 
 interface Props { onSuccess: (configExists: boolean) => void; }
 
@@ -20,10 +23,11 @@ export function InstallScreen(props: Props) {
   const [status, setStatus] = useState<'running' | 'success' | 'error'>('running');
   const [error, setError] = useState('');
   const [configExists, setConfigExists] = useState(false);
+  const [logsCopied, setLogsCopied] = useState(false);
   const logEl = useRef<HTMLDivElement>(null);
 
   const runInstall = async () => {
-    setLines([]); setStatus('running'); setError('');
+    setLines([]); setStatus('running'); setError(''); setLogsCopied(false);
     const unlisten = await listen<string>('install-output', (event) => {
       setLines((prev) => [...prev, event.payload]);
       logEl.current?.scrollTo({ top: logEl.current.scrollHeight, behavior: 'smooth' });
@@ -38,7 +42,17 @@ export function InstallScreen(props: Props) {
   useEffect(() => { runInstall(); }, []);
 
   const copyCommand = async () => { const os = await platform(); await writeText(os === 'windows' ? INSTALL_CMD_WINDOWS : INSTALL_CMD_MACOS); };
+
+  const copyLogs = async () => {
+    const text = lines.map(stripAnsi).join('\n');
+    await writeText(text);
+    setLogsCopied(true);
+    setTimeout(() => setLogsCopied(false), 2000);
+  };
+
   const progressPercent = () => { const l = lines.length; if (status === 'success') return 100; if (status === 'error') return l; return Math.min(95, l * 3); };
+
+  const logHeight = status === 'error' ? 'h-[340px]' : 'h-[200px]';
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-start bg-background-base p-8 pt-16">
@@ -47,9 +61,18 @@ export function InstallScreen(props: Props) {
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--background-stronger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
         </div>
         <div className="flex flex-col items-center gap-2"><h1 className="text-xl-medium text-text-strong">Installing OpenACP</h1><p className="text-md-regular text-text-weak">Setting up the OpenACP CLI on your system...</p></div>
-        <div ref={logEl} className="h-[200px] w-full overflow-y-auto rounded-lg bg-[#1a1a1a] p-4 text-12-mono text-[#a3a3a3]">
-          {lines.map((line, i) => <div key={i} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />)}
-          {status === 'running' && <span className="animate-pulse text-[#737373]">|</span>}
+        <div className="w-full">
+          <div ref={logEl} className={`${logHeight} w-full overflow-y-auto rounded-lg bg-[#1a1a1a] p-4 text-12-mono text-[#a3a3a3]`}>
+            {lines.map((line, i) => <div key={i} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />)}
+            {status === 'running' && <span className="animate-pulse text-[#737373]">|</span>}
+          </div>
+          {lines.length > 0 && (
+            <div className="mt-1 flex justify-end">
+              <button onClick={copyLogs} className="text-xs text-[#737373] hover:text-[#a3a3a3] transition-colors">
+                {logsCopied ? 'Copied!' : 'Copy logs'}
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex w-full flex-col gap-2">
           <div className="flex w-full items-center justify-between"><span className="text-sm-regular text-text-weak">{status === 'success' ? 'Completed' : status === 'error' ? 'Failed' : 'Installing...'}</span><span className="text-sm-medium text-text-strong">{progressPercent()}%</span></div>
@@ -65,6 +88,9 @@ export function InstallScreen(props: Props) {
           <div className="w-full rounded-lg border border-surface-critical-strong bg-surface-raised-base p-4">
             <p className="text-md-medium mb-1 text-surface-critical-strong">Installation Failed</p><p className="text-md-regular mb-4 text-surface-critical-strong">{error}</p>
             <div className="flex justify-end gap-3">
+              <button onClick={copyLogs} className="text-md-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">
+                {logsCopied ? 'Copied!' : 'Copy logs'}
+              </button>
               <button onClick={copyCommand} className="text-md-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">Copy command</button>
               <button onClick={runInstall} className="text-md-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Retry</button>
             </div>
