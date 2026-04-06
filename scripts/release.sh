@@ -82,8 +82,13 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 echo "  package.json → ${NEXT}"
 
+# Sync version in Cargo.toml
+sed -i.bak "s/^version = \".*\"/version = \"${NEXT}\"/" src-tauri/Cargo.toml
+rm -f src-tauri/Cargo.toml.bak
+echo "  Cargo.toml → ${NEXT}"
+
 # ── Commit, tag, push ──
-git add package.json
+git add package.json src-tauri/Cargo.toml
 git commit -m "release: ${NEXT}"
 git tag -a "${TAG}" -m "Release ${TAG}"
 git push origin HEAD "${TAG}"
