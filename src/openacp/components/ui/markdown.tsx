@@ -176,7 +176,7 @@ export function Markdown({ text, cacheKey, streamId, streaming, className }: Mar
       renderMarkdown(displayText, true)
     })
     return unsub
-  }, [streaming, streamId])
+  }, [streaming, streamId, renderMarkdown])
 
   // When streaming ends: final full Shiki render
   useEffect(() => {
