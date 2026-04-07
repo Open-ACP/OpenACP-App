@@ -19,7 +19,7 @@ function App() {
     ;(async () => {
       const { invoke } = await import("@tauri-apps/api/core")
       const [, [installedResult, configResult]] = await Promise.all([
-        new Promise(r => setTimeout(r, 500)),
+        new Promise(r => setTimeout(r, 2000)),
         Promise.all([
           invoke<string | null>('check_openacp_installed').catch(() => null),
           invoke<boolean>('check_openacp_config').catch(() => false),

@@ -62,6 +62,9 @@ pub fn run() {
             core::filesystem::commands::invoke_cli,
             core::filesystem::commands::get_git_branch,
             core::filesystem::commands::get_git_branches,
+            core::filesystem::commands::read_directory,
+            core::filesystem::commands::read_file_content,
+            core::filesystem::commands::get_workspace_changes,
         ])
         .setup(move |app| {
             app.manage(AppState {

@@ -34,7 +34,36 @@ import {
   applyFontSize,
 } from "./lib/settings-store";
 import { Titlebar } from "./components/titlebar";
+import { FileTreePanel } from "./components/file-tree-panel";
 import type { ServerInfo } from "./types";
+
+function NoServerScreen({ directory, onStart }: { directory: string; onStart: () => void }) {
+  const [starting, setStarting] = useState(false)
+  return (
+    <div className="text-center flex flex-col items-center gap-5 max-w-xs">
+      <div className="flex flex-col items-center gap-2">
+        <div className="size-10 rounded-lg bg-secondary flex items-center justify-center mb-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+            <rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01" />
+          </svg>
+        </div>
+        <div className="text-sm font-medium text-foreground">No Server Found</div>
+        <div className="text-xs text-muted-foreground font-mono">{directory}</div>
+      </div>
+      <button
+        onClick={async () => { setStarting(true); await onStart(); setStarting(false) }}
+        disabled={starting}
+        className="h-8 px-4 rounded-lg bg-foreground text-background text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {starting ? "Starting..." : "Start Server"}
+      </button>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="size-1.5 rounded-full bg-muted-foreground animate-pulse" />
+        Waiting for server...
+      </div>
+    </div>
+  )
+}
 
 function ChatArea() {
   const chat = useChat();
@@ -48,12 +77,46 @@ function ChatArea() {
   );
 }
 
-function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview }: {
+function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath }: {
   sidebarCollapsed: boolean
   reviewOpen: boolean
   onToggleReview: () => void
+  setReviewOpen: (open: boolean) => void
+  fileTreeOpen: boolean
+  workspacePath: string
 }) {
   const permissions = usePermissions();
+  const [openFiles, setOpenFiles] = useState<import("./components/review-panel").OpenFile[]>([]);
+
+  const handleOpenFile = useCallback((path: string, content: string, language: string) => {
+    setOpenFiles(prev => {
+      if (prev.some(f => f.path === path)) return prev
+      return [...prev, { path, content, language }]
+    })
+    setReviewOpen(true)
+  }, [setReviewOpen])
+
+  const handleCloseFile = useCallback((path: string) => {
+    setOpenFiles(prev => prev.filter(f => f.path !== path))
+  }, [])
+
+  // Listen for file open events from tool blocks in chat
+  useEffect(() => {
+    async function handleOpenFromChat(e: Event) {
+      const { path } = (e as CustomEvent).detail
+      if (!path || typeof path !== "string") return
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        const result = await invoke<{ content: string; language: string }>("read_file_content", { path })
+        handleOpenFile(path, result.content, result.language)
+      } catch (err) {
+        console.error("[open-file-in-review] failed:", err)
+      }
+    }
+    window.addEventListener("open-file-in-review", handleOpenFromChat)
+    return () => window.removeEventListener("open-file-in-review", handleOpenFromChat)
+  }, [handleOpenFile])
+
   return (
     <ChatProvider
       onPermissionRequest={permissions.addRequest}
@@ -70,7 +133,23 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview }: {
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            <ReviewPanel onClose={onToggleReview} />
+            <ReviewPanel onClose={onToggleReview} openFiles={openFiles} onCloseFile={handleCloseFile} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {fileTreeOpen && workspacePath && (
+          <motion.div
+            className="shrink-0 h-full overflow-hidden"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: "auto", opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <FileTreePanel
+              workspacePath={workspacePath}
+              onOpenFile={handleOpenFile}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -436,6 +515,7 @@ export function OpenACPApp() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [fileTreeOpen, setFileTreeOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
@@ -444,6 +524,8 @@ export function OpenACPApp() {
         onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
         reviewOpen={reviewOpen}
         onToggleReview={() => setReviewOpen((v) => !v)}
+        fileTreeOpen={fileTreeOpen}
+        onToggleFileTree={() => setFileTreeOpen((v) => !v)}
       />
       <div className="flex flex-1 min-h-0">
         <SidebarRail
@@ -488,6 +570,9 @@ export function OpenACPApp() {
                     sidebarCollapsed={sidebarCollapsed}
                     reviewOpen={reviewOpen}
                     onToggleReview={() => setReviewOpen((v) => !v)}
+                    setReviewOpen={setReviewOpen}
+                    fileTreeOpen={fileTreeOpen}
+                    workspacePath={activeWorkspace?.directory ?? ""}
                   />
                 </PermissionsProvider>
               </SessionsProvider>
@@ -496,29 +581,32 @@ export function OpenACPApp() {
         ) : (
           <div className="flex-1 flex items-center justify-center bg-card">
             {serverError ? (
-              <div className="text-center flex flex-col items-center gap-4">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="text-lg font-medium leading-xl tracking-tight text-foreground">
-                    No Server Found
-                  </div>
-                  <div className="text-base leading-xl text-muted-foreground">
-                    Run{" "}
-                    <code className="px-1.5 py-0.5 rounded bg-secondary text-sm leading-lg font-mono">
-                      openacp start
-                    </code>{" "}
-                    in your workspace
-                  </div>
-                  <div className="text-sm leading-lg text-muted-foreground font-mono mt-1">
-                    {activeWorkspace?.directory}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm leading-lg text-foreground-weaker">
-                  <div className="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />
-                  Waiting for server...
-                </div>
-              </div>
+              <NoServerScreen
+                directory={activeWorkspace?.directory ?? ""}
+                onStart={async () => {
+                  if (!activeWorkspace?.directory || !active) return
+                  try {
+                    showToast({ description: "Starting server..." })
+                    const { invoke } = await import("@tauri-apps/api/core")
+                    await invoke<string>("invoke_cli", { args: ["start", "--dir", activeWorkspace.directory, "--daemon"] })
+                    // Wait a moment for server to be ready
+                    await new Promise(r => setTimeout(r, 2000))
+                    const info = await resolveServerRef.current(active)
+                    if (info) {
+                      setServer(info)
+                      stopRetryRef.current()
+                      showToast({ description: "Server started", variant: "success" })
+                    } else {
+                      startRetryRef.current(active)
+                    }
+                  } catch (e: any) {
+                    showToast({ description: typeof e === "string" ? e : "Failed to start server", variant: "error" })
+                  }
+                }}
+              />
             ) : (
-              <div className="text-base leading-xl text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="size-1.5 rounded-full bg-muted-foreground animate-pulse" />
                 Connecting...
               </div>
             )}
@@ -527,6 +615,7 @@ export function OpenACPApp() {
       ) : (
         <WelcomeScreen
           onOpenFolder={openFolderPicker}
+          onAddWorkspace={() => openAddWorkspaceModal("local")}
           onSelectWorkspace={(instanceId) => addInstance(instanceId)}
         />
       )}

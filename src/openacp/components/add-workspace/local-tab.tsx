@@ -3,7 +3,6 @@ import { discoverLocalInstances, type InstanceListEntry, type WorkspaceEntry } f
 import { CreateInstance } from './create-instance'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '../ui/button'
-import { Badge } from '../ui/badge'
 
 interface LocalTabProps { onAdd: (entry: WorkspaceEntry) => void; onSetup?: (path: string, instanceId: string) => void; existingIds?: string[] }
 
@@ -42,58 +41,56 @@ export function LocalTab(props: LocalTabProps) {
 
   return (
     <div className="space-y-5">
+      {/* Workspaces on machine */}
       <div>
-        <p className="text-sm-medium text-foreground-weaker uppercase tracking-wider mb-3">Workspaces on this machine</p>
-        {loading && <p className="text-md-regular text-muted-foreground py-2">Looking for workspaces...</p>}
-        {!loading && instances.length === 0 && <p className="text-md-regular text-muted-foreground py-2">No workspaces found on this machine.</p>}
-        <div className="space-y-2">
-          {instances.map((inst) => {
-            const alreadyAdded = props.existingIds?.includes(inst.id) ?? false
-            const isRunning = inst.status === 'running'
-            return (
-              <button key={inst.id} type="button" disabled={alreadyAdded} onClick={() => handleSelectInstance(inst)}
-                className={`w-full text-left rounded-xl border transition-colors p-4 ${alreadyAdded ? 'border-border opacity-60 cursor-not-allowed' : 'border-border hover:border-border-hover hover:bg-accent'}`}>
-                <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Workspaces on this machine</p>
+        {loading && <p className="text-sm text-muted-foreground py-3">Looking for workspaces...</p>}
+        {!loading && instances.length === 0 && <p className="text-sm text-muted-foreground py-3">No workspaces found.</p>}
+        {!loading && instances.length > 0 && (
+          <div className="rounded-lg border border-border-weak overflow-hidden">
+            {instances.map((inst, i) => {
+              const alreadyAdded = props.existingIds?.includes(inst.id) ?? false
+              const isRunning = inst.status === 'running'
+              return (
+                <button
+                  key={inst.id}
+                  type="button"
+                  disabled={alreadyAdded}
+                  onClick={() => handleSelectInstance(inst)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                    i > 0 ? 'border-t border-border-weak' : ''
+                  } ${alreadyAdded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent'}`}
+                >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-15-semibold text-foreground">{inst.name ?? inst.id}</span>
-                      {alreadyAdded && (
-                        <Badge variant="secondary" className="text-11-medium">Added</Badge>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{inst.name ?? inst.id}</span>
+                      {alreadyAdded && <span className="text-2xs text-muted-foreground">Added</span>}
                     </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm-regular text-muted-foreground truncate"><span className="text-foreground-weaker">Folder </span>{inst.directory}</p>
-                      {inst.port ? (
-                        <p className="text-sm-regular text-muted-foreground"><span className="text-foreground-weaker">Address </span><span className="font-mono">http://localhost:{inst.port}</span></p>
-                      ) : (
-                        <p className="text-sm-regular text-foreground-weaker">Not running</p>
-                      )}
-                    </div>
+                    <span className="text-xs text-muted-foreground truncate block font-mono">{inst.directory}</span>
                   </div>
-                  <Badge
-                    variant={isRunning ? "outline" : "secondary"}
-                    className={`shrink-0 text-11-medium mt-0.5 ${isRunning ? 'bg-green-500/15 text-green-500 border-transparent' : ''}`}
-                  >
-                    {isRunning ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                  {isRunning && (
+                    <div className="size-2 rounded-full shrink-0" style={{ background: 'var(--surface-success-strong)' }} />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
-      <div className="border-t border-border pt-5">
-        <p className="text-sm-medium text-foreground-weaker uppercase tracking-wider mb-3">Open a folder</p>
-        <Button
+
+      {/* Browse folder */}
+      <div className="border-t border-border-weak pt-4">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Open a folder</p>
+        <button
           type="button"
-          variant="outline"
           onClick={handleBrowse}
-          className="w-full px-4 py-3 rounded-xl text-md-medium text-foreground-weak h-auto justify-start gap-3"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border-weak text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className="text-muted-foreground shrink-0"><path d="M2.5 5.83333V15.8333H17.5V7.5H9.58333L7.5 5.83333H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          <span>Choose a folder to open or create a workspace...</span>
-        </Button>
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M2.5 5.83333V15.8333H17.5V7.5H9.58333L7.5 5.83333H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          Choose a folder to open or create a workspace...
+        </button>
       </div>
+
       {browseResult && <BrowseResultView result={browseResult} instances={instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={() => setBrowseResult(null)} />}
     </div>
   )

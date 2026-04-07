@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@phosphor-icons/react": "^2.1.7",
     "@pierre/diffs": "^1.1.10",
     "@radix-ui/react-slot": "^1.2.3",
@@ -45,6 +46,7 @@
     "marked": "^17.0.5",
     "marked-katex-extension": "^5.1.7",
     "marked-shiki": "^1.2.1",
+    "monaco-editor": "^0.55.1",
     "morphdom": "^2.7.8",
     "motion": "^12.38.0",
     "radix-ui": "^1.4.3",

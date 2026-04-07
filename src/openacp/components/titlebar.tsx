@@ -5,9 +5,11 @@ interface TitlebarProps {
   onToggleSidebar: () => void
   reviewOpen: boolean
   onToggleReview: () => void
+  fileTreeOpen: boolean
+  onToggleFileTree: () => void
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview }: TitlebarProps) {
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree }: TitlebarProps) {
   return (
     <header
       className="h-12 shrink-0 relative grid items-center border-b border-border-weak px-2"
@@ -42,8 +44,9 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
         </button>
         <button
           type="button"
-          className="oac-titlebar-btn"
+          className={`oac-titlebar-btn ${fileTreeOpen ? "oac-titlebar-btn--active" : ""}`}
           title="File tree"
+          onClick={onToggleFileTree}
         >
           <FolderOpen size={18} />
         </button>

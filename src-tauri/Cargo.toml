@@ -34,6 +34,7 @@ dirs = "6"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ignore = "0.4.25"
 
 [profile.release]
 opt-level = "z"          # Optimize for binary size

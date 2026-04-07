@@ -158,7 +158,7 @@ export function SidebarRail(props: {
                     {initial}
                   </div>
                 </button>
-                <div className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-background pointer-events-none"
+                <div className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-background pointer-events-none"
                   style={{ background: hasError ? 'var(--surface-critical-strong)' : isConnected ? 'var(--surface-success-strong)' : 'var(--text-weaker)' }}
                 />
               </div>

@@ -1,4 +1,6 @@
 import React from "react"
+import { X, ArrowUp } from "@phosphor-icons/react"
+import { Button } from "./ui/button"
 
 interface UpdateNotificationProps {
   version: string
@@ -18,80 +20,58 @@ export function UpdateNotification({
   onDismiss,
 }: UpdateNotificationProps) {
   return (
-    <div className="fixed top-4 right-4 z-[9999] w-80 rounded-lg border border-border-base bg-surface-raised-base shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2">
-      <div className="flex items-start gap-3 p-3">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] w-[360px] rounded-lg border border-border-weak bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex size-8 items-center justify-center rounded-md bg-accent shrink-0">
+          <ArrowUp size={16} className="text-foreground" />
+        </div>
         <div className="flex-1 min-w-0">
           {error ? (
             <>
-              <div className="text-13-medium text-text-strong">Update failed</div>
-              <div className="text-12-regular text-text-weak mt-0.5 truncate">{error}</div>
+              <div className="text-sm font-medium text-foreground">Update failed</div>
+              <div className="text-xs text-muted-foreground mt-0.5 truncate">{error}</div>
             </>
           ) : downloading ? (
             <>
-              <div className="text-13-medium text-text-strong">Downloading update...</div>
-              <div className="text-12-regular text-text-weak mt-0.5">v{version} — {progress}%</div>
+              <div className="text-sm font-medium text-foreground">Downloading v{version}...</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{progress}%</div>
             </>
           ) : (
             <>
-              <div className="text-13-medium text-text-strong">Update available</div>
-              <div className="text-12-regular text-text-weak mt-0.5">v{version} is ready to install</div>
+              <div className="text-sm font-medium text-foreground">OpenACP v{version}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">A new version is available</div>
             </>
           )}
         </div>
 
+        {!downloading && !error && (
+          <Button variant="outline" size="sm" className="shrink-0 h-7 text-xs" onClick={onUpdate}>
+            Update
+          </Button>
+        )}
+
+        {error && (
+          <Button variant="outline" size="sm" className="shrink-0 h-7 text-xs" onClick={onUpdate}>
+            Retry
+          </Button>
+        )}
+
         {!downloading && (
           <button
             onClick={onDismiss}
-            className="shrink-0 p-1 rounded hover:bg-surface-raised-hover text-text-weaker hover:text-text-weak transition-colors"
-            aria-label="Dismiss"
+            className="shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <X size={14} />
           </button>
         )}
       </div>
 
       {downloading && (
-        <div className="h-1 bg-surface-raised-hover">
+        <div className="h-1 bg-secondary">
           <div
-            className="h-full bg-accent-base transition-all duration-300 ease-out"
-            style={{ width: `${progress}%` }}
+            className="h-full transition-all duration-300 ease-out"
+            style={{ width: `${progress}%`, background: "var(--surface-success-strong)" }}
           />
-        </div>
-      )}
-
-      {!downloading && !error && (
-        <div className="flex items-center gap-2 px-3 pb-3">
-          <button
-            onClick={onUpdate}
-            className="px-3 py-1.5 rounded-md text-12-medium bg-accent-base text-white hover:bg-accent-hover transition-colors"
-          >
-            Update now
-          </button>
-          <button
-            onClick={onDismiss}
-            className="px-3 py-1.5 rounded-md text-12-medium text-text-weak hover:text-text-base hover:bg-surface-raised-hover transition-colors"
-          >
-            Later
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 px-3 pb-3">
-          <button
-            onClick={onUpdate}
-            className="px-3 py-1.5 rounded-md text-12-medium bg-accent-base text-white hover:bg-accent-hover transition-colors"
-          >
-            Retry
-          </button>
-          <button
-            onClick={onDismiss}
-            className="px-3 py-1.5 rounded-md text-12-medium text-text-weak hover:text-text-base hover:bg-surface-raised-hover transition-colors"
-          >
-            Dismiss
-          </button>
         </div>
       )}
     </div>

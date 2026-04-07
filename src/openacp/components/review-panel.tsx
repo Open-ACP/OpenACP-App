@@ -5,6 +5,7 @@ import { ResizeHandle } from "./ui/resize-handle";
 import { useChat } from "../context/chat";
 import type { ToolCallPart, FileDiff as FileDiffData } from "../types";
 import { Button } from "./ui/button";
+import { CodeViewer } from "./ui/code-viewer";
 
 const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
@@ -121,9 +122,19 @@ function DiffView({
   );
 }
 
-export function ReviewPanel({ onClose }: { onClose: () => void }) {
+export interface OpenFile {
+  path: string
+  content: string
+  language: string
+}
+
+export function ReviewPanel({ onClose, openFiles, onCloseFile }: {
+  onClose: () => void
+  openFiles?: OpenFile[]
+  onCloseFile?: (path: string) => void
+}) {
   const chat = useChat();
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_WIDTH);
 
   const fileDiffs = useMemo(() => {
@@ -140,17 +151,39 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
     return Array.from(diffs.entries()).map(([path, diff]) => ({ path, diff }));
   }, [chat.messages()]);
 
-  const selectedDiff = useMemo(() => {
-    const path = selectedFile;
-    if (!path) return fileDiffs[0] ?? null;
-    return fileDiffs.find((d) => d.path === path) ?? null;
-  }, [selectedFile, fileDiffs]);
+  // Build unified tab list: open files first (newest first), then diffs
+  type Tab = { type: "diff"; path: string; diff: FileDiffData } | { type: "file"; path: string; content: string; language: string }
+  const allTabs = useMemo((): Tab[] => {
+    const tabs: Tab[] = []
+    // Open files first (reversed so newest is first)
+    for (const f of [...(openFiles ?? [])].reverse()) {
+      tabs.push({ type: "file", path: f.path, content: f.content, language: f.language })
+    }
+    // Then diffs (skip if already open as file)
+    for (const d of fileDiffs) {
+      if (!tabs.some(t => t.path === d.path)) {
+        tabs.push({ type: "diff" as const, path: d.path, diff: d.diff })
+      }
+    }
+    return tabs
+  }, [fileDiffs, openFiles])
+
+  // Auto-select newest open file when new file added
+  const lastOpenFile = openFiles?.[openFiles.length - 1]?.path
+  React.useEffect(() => {
+    if (lastOpenFile) setSelectedTab(lastOpenFile)
+  }, [lastOpenFile])
+
+  const activeTab = selectedTab && allTabs.some(t => t.path === selectedTab)
+    ? selectedTab
+    : allTabs[0]?.path ?? null
+  const currentTab = allTabs.find(t => t.path === activeTab) ?? null
 
   const fileName = (path: string) => path.split("/").pop() || path;
 
   return (
     <div
-      className="relative flex flex-col h-full bg-background border-l border-t border-border-weak"
+      className="relative flex flex-col h-full bg-card border-l border-border-weak"
       style={{ width: `${panelWidth}px` }}
     >
       <ResizeHandle
@@ -161,27 +194,15 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
         max={MAX_WIDTH}
         onResize={setPanelWidth}
       />
-      <div className="flex items-center justify-between px-3 h-11 border-b border-border-weak flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-md-medium text-foreground truncate block">
-            Review
+      <div className="shrink-0 flex items-center px-3 h-9 border-b border-border-weak">
+        <span className="text-sm font-medium text-foreground">Review</span>
+        {allTabs.length > 0 && (
+          <span className="text-sm text-muted-foreground ml-2">
+            {allTabs.length} file{allTabs.length !== 1 ? "s" : ""}
           </span>
-          {fileDiffs.length > 0 && (
-            <span className="text-sm leading-lg text-muted-foreground">
-              {fileDiffs.length} file{fileDiffs.length !== 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onClose}
-          title="Close"
-        >
-          <X size={16} />
-        </Button>
+        )}
       </div>
-      {fileDiffs.length === 0 ? (
+      {allTabs.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-sm leading-lg text-muted-foreground">
@@ -194,36 +215,50 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-0 px-2 py-1.5 border-b border-border-weak/50 overflow-x-auto no-scrollbar flex-shrink-0">
-            {fileDiffs.map((item) => {
-              const isSelected =
-                (selectedFile ?? fileDiffs[0]?.path) === item.path;
+          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border-weak overflow-x-auto no-scrollbar flex-shrink-0">
+            {allTabs.map((tab) => {
+              const isSelected = activeTab === tab.path;
+              const isFileTab = tab.type === "file";
               return (
                 <button
-                  key={item.path}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium leading-lg whitespace-nowrap transition-colors ${isSelected ? "bg-secondary text-foreground" : "text-foreground-weak hover:text-foreground hover:bg-accent"}`}
-                  onClick={() => setSelectedFile(item.path)}
+                  key={tab.path}
+                  className={`flex items-center gap-1 h-6 px-2 rounded text-xs whitespace-nowrap transition-colors ${isSelected ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+                  onClick={() => setSelectedTab(tab.path)}
                 >
-                  {fileName(item.path)}
-                  <DiffStats
-                    before={item.diff.before ?? ""}
-                    after={item.diff.after}
-                  />
+                  <span>{fileName(tab.path)}</span>
+                  {tab.type === "diff" && (
+                    <DiffStats before={tab.diff.before ?? ""} after={tab.diff.after} />
+                  )}
+                  {isFileTab && (
+                    <span
+                      className="ml-0.5 hover:text-foreground"
+                      onClick={(e) => { e.stopPropagation(); onCloseFile?.(tab.path) }}
+                    >
+                      <X size={10} />
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
-            {selectedDiff && (
+            {currentTab?.type === "diff" && (
               <DiffView
-                path={selectedDiff.path}
-                before={selectedDiff.diff.before ?? ""}
-                after={selectedDiff.diff.after}
+                path={currentTab.path}
+                before={currentTab.diff.before ?? ""}
+                after={currentTab.diff.after}
               />
+            )}
+            {currentTab?.type === "file" && (
+              <FileContentView content={currentTab.content} language={currentTab.language} />
             )}
           </div>
         </>
       )}
     </div>
   );
+}
+
+function FileContentView({ content, language }: { content: string; language: string }) {
+  return <CodeViewer content={content} language={language} />
 }
