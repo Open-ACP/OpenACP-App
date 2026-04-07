@@ -20,7 +20,7 @@ export function UpdateNotification({
   onDismiss,
 }: UpdateNotificationProps) {
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] w-[360px] rounded-lg border border-border-weak bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+    <div className="fixed bottom-4 right-4 z-[9999] w-[320px] rounded-lg border border-border-weak bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2">
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="flex size-8 items-center justify-center rounded-md bg-accent shrink-0">
           <ArrowUp size={16} className="text-foreground" />

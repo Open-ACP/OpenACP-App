@@ -6,7 +6,7 @@ on:
   workflow_dispatch:          # Manual trigger — always builds, skips commit check
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 env:
@@ -113,14 +113,24 @@ jobs:
 
       - name: Switch to nightly channel
         shell: bash
+        env:
+          UPDATER_ENDPOINT: ${{ secrets.NIGHTLY_UPDATER_ENDPOINT }}
+          UPDATER_PUBKEY: ${{ secrets.UPDATER_PUBKEY }}
         run: ./scripts/set-channel.sh nightly
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.args }}
+          tagName: nightly
+          releaseName: "Nightly"
+          releaseBody: "Automated nightly build from develop branch."
+          prerelease: true
+          updaterJsonPreferNsis: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
