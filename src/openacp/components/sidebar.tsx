@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Trash } from "@phosphor-icons/react";
 import { ResizeHandle } from "./ui/resize-handle";
 import { Spinner } from "./ui/spinner";
@@ -12,7 +13,7 @@ const DEFAULT_SIDEBAR_WIDTH = 280;
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 480;
 
-export function SidebarPanel() {
+export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
   const sessions = useSessions();
   const chat = useChat();
   const workspace = useWorkspace();
@@ -30,9 +31,14 @@ export function SidebarPanel() {
   }, [workspace.directory]);
 
   return (
-    <div
-      className="relative flex flex-col min-h-0 min-w-0 box-border rounded-tl-[12px] px-3 border-l border-t border-border-weak bg-background overflow-hidden shrink-0"
-      style={{ width: `${panelWidth}px` }}
+    <AnimatePresence initial={false}>
+    {!collapsed && (
+    <motion.div
+      className="relative flex flex-col min-h-0 min-w-0 box-border border-l border-border-weak bg-background overflow-hidden shrink-0"
+      initial={{ width: 0, opacity: 0 }}
+      animate={{ width: panelWidth, opacity: 1 }}
+      exit={{ width: 0, opacity: 0 }}
+      transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
     >
       <ResizeHandle
         direction="horizontal"
@@ -42,6 +48,7 @@ export function SidebarPanel() {
         max={MAX_SIDEBAR_WIDTH}
         onResize={setPanelWidth}
       />
+      <div className="flex flex-col flex-1 min-h-0 px-3">
       <div className="shrink-0 pl-1 py-1">
         <div className="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
           <div className="flex flex-col min-w-0">
@@ -77,8 +84,10 @@ export function SidebarPanel() {
           ))}
         </nav>
       </div>
-
-    </div>
+      </div>
+    </motion.div>
+    )}
+    </AnimatePresence>
   );
 }
 

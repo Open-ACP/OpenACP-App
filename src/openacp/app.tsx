@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { WorkspaceProvider, resolveWorkspaceServer } from "./context/workspace";
 import { SessionsProvider } from "./context/sessions";
 import { ChatProvider, useChat } from "./context/chat";
@@ -32,35 +33,47 @@ import {
   applyTheme,
   applyFontSize,
 } from "./lib/settings-store";
+import { Titlebar } from "./components/titlebar";
 import type { ServerInfo } from "./types";
 
 function ChatArea() {
   const chat = useChat();
-  const [reviewOpen, setReviewOpen] = useState(false);
   return (
     <div className="flex flex-1 min-h-0 h-full min-w-0">
-      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-card min-w-0 border-l border-t border-border-weak">
-        <ChatView onOpenReview={() => setReviewOpen(true)} />
-        {chat.activeSession() && <Composer />}
+      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-card min-w-0 border-l border-border-weak">
+        <ChatView />
+        <Composer />
       </div>
-      {reviewOpen && (
-        <div className="shrink-0 h-full">
-          <ReviewPanel onClose={() => setReviewOpen(false)} />
-        </div>
-      )}
     </div>
   );
 }
 
-function ChatWithPermissions() {
+function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview }: {
+  sidebarCollapsed: boolean
+  reviewOpen: boolean
+  onToggleReview: () => void
+}) {
   const permissions = usePermissions();
   return (
     <ChatProvider
       onPermissionRequest={permissions.addRequest}
       onPermissionResolved={(e) => permissions.dismiss(e.sessionId)}
     >
-      <SidebarPanel />
+      <SidebarPanel collapsed={sidebarCollapsed} />
       <ChatArea />
+      <AnimatePresence initial={false}>
+        {reviewOpen && (
+          <motion.div
+            className="shrink-0 h-full overflow-hidden"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: "auto", opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <ReviewPanel onClose={onToggleReview} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </ChatProvider>
   );
 }
@@ -421,51 +434,65 @@ export function OpenACPApp() {
   const hasInstance = active !== null;
   const isConnected = server !== null;
 
-  return (
-    <div className="flex h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
-      <SidebarRail
-        workspaces={workspaces.map((w) => ({ id: w.id, directory: w.directory, name: w.name, type: w.type }))}
-        activeId={active}
-        connectedIds={connectedWorkspaceIds}
-        errorIds={errorWorkspaceIds}
-        onSwitchWorkspace={(id) => switchInstance(id)}
-        onRemoveWorkspace={(id) => removeInstance(id)}
-        onReconnect={(id) => { switchInstance(id); openAddWorkspaceModal("remote") }}
-        onOpenFolder={() => openAddWorkspaceModal("local")}
-        onOpenPlugins={() => setPluginsOpen(true)}
-        onOpenSettings={() => {
-          setSettingsPage("general");
-          setShowSettings(true);
-        }}
-      />
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
-      {hasInstance ? (
-        isConnected ? (
-          <WorkspaceProvider
-            workspace={activeWorkspace!}
-            server={server!}
-            onReconnectNeeded={() => {
-              setServer(null);
-              setServerError(true);
-              if (active)
-                setErrorWorkspaceIds((prev) => new Set([...prev, active]));
-            }}
-            onTokenRefreshed={({ expiresAt, refreshDeadline }) => {
-              if (!active) return;
-              setWorkspaces((prev) =>
-                prev.map((w) =>
-                  w.id === active ? { ...w, expiresAt, refreshDeadline } : w,
-                ),
-              );
-            }}
-          >
-            <SessionsProvider>
-              <PermissionsProvider>
-                <ChatWithPermissions />
-              </PermissionsProvider>
-            </SessionsProvider>
-            <PluginsModal open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
-          </WorkspaceProvider>
+  return (
+    <div className="flex flex-col h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+      <Titlebar
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
+        reviewOpen={reviewOpen}
+        onToggleReview={() => setReviewOpen((v) => !v)}
+      />
+      <div className="flex flex-1 min-h-0">
+        <SidebarRail
+          workspaces={workspaces.map((w) => ({ id: w.id, directory: w.directory, name: w.name, type: w.type }))}
+          activeId={active}
+          connectedIds={connectedWorkspaceIds}
+          errorIds={errorWorkspaceIds}
+          onSwitchWorkspace={(id) => switchInstance(id)}
+          onRemoveWorkspace={(id) => removeInstance(id)}
+          onReconnect={(id) => { switchInstance(id); openAddWorkspaceModal("remote") }}
+          onOpenFolder={() => openAddWorkspaceModal("local")}
+          onOpenPlugins={() => setPluginsOpen(true)}
+          onOpenSettings={() => {
+            setSettingsPage("general");
+            setShowSettings(true);
+          }}
+        />
+
+        {hasInstance ? (
+          isConnected ? (
+            <WorkspaceProvider
+              workspace={activeWorkspace!}
+              server={server!}
+              onReconnectNeeded={() => {
+                setServer(null);
+                setServerError(true);
+                if (active)
+                  setErrorWorkspaceIds((prev) => new Set([...prev, active]));
+              }}
+              onTokenRefreshed={({ expiresAt, refreshDeadline }) => {
+                if (!active) return;
+                setWorkspaces((prev) =>
+                  prev.map((w) =>
+                    w.id === active ? { ...w, expiresAt, refreshDeadline } : w,
+                  ),
+                );
+              }}
+            >
+              <SessionsProvider>
+                <PermissionsProvider>
+                  <ChatWithPermissions
+                    sidebarCollapsed={sidebarCollapsed}
+                    reviewOpen={reviewOpen}
+                    onToggleReview={() => setReviewOpen((v) => !v)}
+                  />
+                </PermissionsProvider>
+              </SessionsProvider>
+              <PluginsModal open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
+            </WorkspaceProvider>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-card">
             {serverError ? (
@@ -504,6 +531,7 @@ export function OpenACPApp() {
         />
       )}
 
+      </div>
       {showAddWorkspace && (
         <AddWorkspaceModal
           onAdd={handleAddWorkspace}

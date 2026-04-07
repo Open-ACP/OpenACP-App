@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Plus,
   Command,
@@ -13,8 +13,9 @@ import { AgentSelector } from "./agent-selector";
 import { BranchIndicator } from "./branch-indicator";
 import { CommandPalette } from "./command-palette";
 import { ConfigSelector } from "./config-selector";
+import { Spinner } from "./ui/spinner";
 import { showToast } from "../lib/toast";
-import type { FileAttachment } from "../types";
+import type { FileAttachment, UsageInfo } from "../types";
 import {
   validateFileMime,
   fileToDataUrl,
@@ -24,6 +25,54 @@ import {
   ACCEPTED_FILE_TYPES,
 } from "../lib/file-utils";
 import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+
+function formatK(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return n.toString()
+}
+
+function ContextBadge({ usage }: { usage: UsageInfo }) {
+  const used = usage.tokensUsed ?? 0
+  const ctx = usage.contextSize ?? 0
+  const pct = ctx > 0 ? ((used / ctx) * 100) : 0
+  const color = pct > 80 ? "var(--destructive)" : pct > 50 ? "var(--warning, #e5a50a)" : "var(--muted-foreground)"
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1.5 cursor-default mr-2">
+            <span style={{ fontSize: 11, color, fontWeight: 500 }}>{pct.toFixed(1)}%</span>
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <circle cx="9" cy="9" r="7" fill="none" stroke="var(--border-weak)" strokeWidth="2" />
+              <circle cx="9" cy="9" r="7" fill="none" stroke={color} strokeWidth="2"
+                strokeDasharray={`${(pct / 100) * 44} 44`}
+                strokeLinecap="round"
+                transform="rotate(-90 9 9)"
+              />
+            </svg>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={8} className="bg-card border border-border-weak text-foreground px-3 py-2 min-w-[160px]">
+          <div className="flex justify-between gap-4 mb-1">
+            <span style={{ color, fontWeight: 600 }}>{pct.toFixed(1)}%</span>
+            <span className="text-foreground-weak font-mono">{formatK(used)} / {formatK(ctx)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Text</span>
+            <span className="text-foreground-weak font-mono">{formatK(used)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Remaining</span>
+            <span className="text-foreground-weak font-mono">{formatK(Math.max(0, ctx - used))}</span>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 let attachIdCounter = 0;
 function nextAttachId() {
@@ -34,8 +83,21 @@ export function Composer() {
   const chat = useChat();
   const sessions = useSessions();
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const [agent, setAgent] = useState<string>();
   const [isBypass, setIsBypass] = useState(false);
+
+  // Get latest context usage from last assistant message
+  const contextUsage = useMemo(() => {
+    const messages = chat.messages();
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.usage?.contextSize) {
+        return msg.usage;
+      }
+    }
+    return null;
+  }, [chat.messages()]);
 
   // Sync agent from active session (e.g. on reload or session switch)
   useEffect(() => {
@@ -191,7 +253,12 @@ export function Composer() {
       if (editorRef.current) editorRef.current.textContent = "";
       const atts = attachments.length ? [...attachments] : undefined;
       setAttachments([]);
-      await chat.sendPrompt(value || "See attached files", atts);
+      setSending(true);
+      try {
+        await chat.sendPrompt(value || "See attached files", atts);
+      } finally {
+        setSending(false);
+      }
     },
     [text, paletteOpen, chat, attachments],
   );
@@ -244,7 +311,7 @@ export function Composer() {
   }
 
   return (
-    <div className="shrink-0 w-full px-4 py-3 flex flex-col justify-center items-center bg-card">
+    <div className="shrink-0 w-full px-4 pb-3 flex flex-col justify-center items-center bg-card">
       <div className="w-full rounded-xl md:max-w-200 md:mx-auto 2xl:max-w-250 border border-border bg-background-weak relative">
         {paletteOpen && (
           <div className="absolute bottom-full left-3 right-3 mb-1 z-50">
@@ -348,7 +415,10 @@ export function Composer() {
             />
 
             <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
-              <div className="flex items-center gap-1 pointer-events-auto">
+              <div className="flex items-center gap-1.5 pointer-events-auto">
+                {contextUsage?.contextSize && !chat.streaming() && (
+                  <ContextBadge usage={contextUsage} />
+                )}
                 <Button
                   data-action="prompt-submit"
                   type="submit"
@@ -366,7 +436,9 @@ export function Composer() {
                       : undefined
                   }
                 >
-                  {chat.streaming() ? (
+                  {sending ? (
+                    <Spinner className="size-3.5" />
+                  ) : chat.streaming() ? (
                     <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
                       <rect
                         x="5"
