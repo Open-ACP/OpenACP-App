@@ -1,6 +1,6 @@
 [package]
 name = "openacp-desktop"
-version = "2026.408.1"
+version = "2026.408.2"
 description = "OpenACP Desktop — AI coding agents, at your service"
 edition = "2024"
 
