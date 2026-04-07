@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Trash } from "@phosphor-icons/react";
+import { Trash, DotsThree } from "@phosphor-icons/react";
 import { ResizeHandle } from "./ui/resize-handle";
 import { Spinner } from "./ui/spinner";
 import { Button } from "./ui/button";
@@ -50,7 +50,7 @@ export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
       />
       <div className="flex flex-col flex-1 min-h-0 px-3">
       <div className="shrink-0 pl-1 py-1">
-        <div className="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
+        <div className="group/project flex items-center justify-between gap-2 py-2 pl-2 pr-1">
           <div className="flex flex-col min-w-0">
             <span className="text-base font-medium leading-lg text-foreground truncate">
               {workspaceName}
@@ -62,6 +62,18 @@ export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
               {workspacePath}
             </span>
           </div>
+          <button
+            type="button"
+            className="shrink-0 size-7 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover/project:opacity-100 hover:text-foreground hover:bg-accent transition-all"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              window.dispatchEvent(new CustomEvent("open-workspace-menu", {
+                detail: { x: rect.right, y: rect.bottom + 4 }
+              }))
+            }}
+          >
+            <DotsThree size={18} weight="bold" />
+          </button>
         </div>
       </div>
 

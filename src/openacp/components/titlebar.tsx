@@ -5,9 +5,12 @@ interface TitlebarProps {
   onToggleSidebar: () => void
   reviewOpen: boolean
   onToggleReview: () => void
+  fileTreeOpen: boolean
+  onToggleFileTree: () => void
+  hideFileTree?: boolean
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview }: TitlebarProps) {
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, hideFileTree }: TitlebarProps) {
   return (
     <header
       className="h-12 shrink-0 relative grid items-center border-b border-border-weak px-2"
@@ -15,8 +18,8 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
       data-tauri-drag-region
     >
       {/* Left: traffic light spacer + sidebar toggle */}
-      <div className="flex items-center min-w-0">
-        <div style={{ width: 80 }} className="shrink-0" />
+      <div className="flex items-center min-w-0" data-tauri-drag-region>
+        <div style={{ width: 80 }} className="shrink-0" data-tauri-drag-region />
         <button
           type="button"
           className="oac-titlebar-btn"
@@ -28,10 +31,10 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
       </div>
 
       {/* Center: empty, draggable */}
-      <div />
+      <div data-tauri-drag-region />
 
       {/* Right: Review + File Tree */}
-      <div className="flex items-center justify-end gap-0.5 min-w-0 pr-1" data-tauri-drag-region>
+      <div className="flex items-center justify-end gap-1 min-w-0 pr-1" data-tauri-drag-region>
         <button
           type="button"
           className={`oac-titlebar-btn ${reviewOpen ? "oac-titlebar-btn--active" : ""}`}
@@ -40,13 +43,16 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
         >
           <TextAlignLeft size={18} />
         </button>
-        <button
-          type="button"
-          className="oac-titlebar-btn"
-          title="File tree"
-        >
-          <FolderOpen size={18} />
-        </button>
+        {!hideFileTree && (
+          <button
+            type="button"
+            className={`oac-titlebar-btn ${fileTreeOpen ? "oac-titlebar-btn--active" : ""}`}
+            title="File tree"
+            onClick={onToggleFileTree}
+          >
+            <FolderOpen size={18} />
+          </button>
+        )}
       </div>
     </header>
   )

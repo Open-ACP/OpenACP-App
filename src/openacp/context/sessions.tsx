@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useWorkspace } from "./workspace"
+import { cacheSessions, loadCachedSessions } from "../api/session-cache"
 import type { Session } from "../types"
 
 interface SessionsContext {
@@ -7,6 +8,8 @@ interface SessionsContext {
   loading: () => boolean
   create: (agent?: string) => Promise<Session | null>
   remove: (id: string) => Promise<void>
+  rename: (id: string, name: string) => Promise<void>
+  archive: (id: string) => Promise<void>
   refresh: () => Promise<void>
   upsert: (session: Session) => void
   delete: (id: string) => void
@@ -24,9 +27,24 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
   const workspace = useWorkspace()
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
+
+  // Persist sessions to cache whenever they change
+  useEffect(() => {
+    if (sessions.length > 0) {
+      void cacheSessions(workspace.directory, sessions)
+    }
+  }, [sessions, workspace.directory])
 
   const refresh = useCallback(async () => {
     try {
+      // Load cache first for instant display
+      const cached = await loadCachedSessions(workspace.directory)
+      if (cached && cached.length > 0 && sessionsRef.current.length === 0) {
+        setSessions(cached)
+      }
+
       const result = await workspace.client.listSessions()
       setSessions(
         result.sort((a: Session, b: Session) => {
@@ -40,7 +58,7 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [workspace.client])
+  }, [workspace.client, workspace.directory])
 
   const create = useCallback(async (agent?: string): Promise<Session | null> => {
     try {
@@ -50,7 +68,8 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
         return [session, ...prev]
       })
       return session
-    } catch {
+    } catch (e) {
+      console.error("[sessions] create failed:", e)
       return null
     }
   }, [workspace.client])
@@ -61,6 +80,16 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Server may fail but still remove locally
     }
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+  }, [workspace.client])
+
+  const rename = useCallback(async (id: string, name: string) => {
+    await workspace.client.renameSession(id, name)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, name } : s))
+  }, [workspace.client])
+
+  const archive = useCallback(async (id: string) => {
+    await workspace.client.archiveSession(id)
     setSessions((prev) => prev.filter((s) => s.id !== id))
   }, [workspace.client])
 
@@ -89,10 +118,12 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
     loading: () => loading,
     create,
     remove,
+    rename,
+    archive,
     refresh,
     upsert,
     delete: del,
-  }), [sessions, loading, create, remove, refresh, upsert, del])
+  }), [sessions, loading, create, remove, rename, archive, refresh, upsert, del])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

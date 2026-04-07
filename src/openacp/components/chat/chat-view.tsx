@@ -11,6 +11,14 @@ import { showToast } from "../../lib/toast";
 import type { Message } from "../../types";
 import { Button } from "../ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -35,7 +43,7 @@ function ScrollToBottomButton({
   if (!visible) return null;
   return (
     <div
-      className="absolute bottom-4 left-1/2 z-10"
+      className="absolute bottom-50 left-1/2 z-20"
       style={{ transform: "translateX(-50%)" }}
     >
       <Button
@@ -94,6 +102,37 @@ export function ChatView() {
 
   const hasMessages = chat.activeSession() && chat.messages().length > 0;
 
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [archiveOpen, setArchiveOpen] = useState(false);
+
+  const handleStartRename = useCallback(() => {
+    setRenameValue(sessionTitle);
+    setRenameOpen(true);
+  }, [sessionTitle]);
+
+  const handleRename = useCallback(async () => {
+    const name = renameValue.trim();
+    if (!name || !activeSessionId) return;
+    try {
+      await sessions.rename(activeSessionId, name);
+    } catch {
+      showToast({ description: "Failed to rename session" });
+    }
+    setRenameOpen(false);
+  }, [renameValue, activeSessionId, sessions]);
+
+  const handleArchive = useCallback(async () => {
+    if (!activeSessionId) return;
+    try {
+      await sessions.archive(activeSessionId);
+      chat.setActiveSession("");
+    } catch {
+      showToast({ description: "Failed to archive session" });
+    }
+    setArchiveOpen(false);
+  }, [activeSessionId, sessions, chat]);
+
   return (
     <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
       {sessionTitle && (
@@ -106,12 +145,49 @@ export function ChatView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" sideOffset={4}>
-              <DropdownMenuItem onSelect={() => {/* TODO */}}>Rename</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => {/* TODO */}}>Archive</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleStartRename}>Rename</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>Archive</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       )}
+
+      {/* Rename dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Rename session</DialogTitle>
+            <DialogDescription>Enter a new name for this session.</DialogDescription>
+          </DialogHeader>
+          <input
+            autoFocus
+            className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground outline-none focus:border-primary"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleRename() }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
+            <Button disabled={!renameValue.trim()} onClick={handleRename}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archive confirmation dialog */}
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Archive session</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to archive "{sessionTitle}"? You can restore it later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setArchiveOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleArchive}>Archive</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {hasMessages ? (
           <>
@@ -122,7 +198,7 @@ export function ChatView() {
             >
               <div
                 ref={autoScroll.contentRef}
-                className="px-6 md:max-w-200 md:mx-auto 2xl:max-w-[1000px] pb-32 flex flex-col"
+                className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 pb-80 flex flex-col"
                 onClick={autoScroll.handleInteraction}
               >
                 {(() => {

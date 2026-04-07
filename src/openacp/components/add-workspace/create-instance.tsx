@@ -115,7 +115,7 @@ function ActionButtons(props: { onBack: () => void; onConfirm: () => void; disab
           type="button"
           onClick={props.onConfirm}
           disabled={props.disabled}
-          className="flex-1 px-3 py-1 text-md-medium h-auto"
+          className="flex-1 px-3 py-1 text-md-medium h-auto text-primary-foreground"
         >
           {props.loading ? 'Creating...' : 'Create workspace'}
         </Button>

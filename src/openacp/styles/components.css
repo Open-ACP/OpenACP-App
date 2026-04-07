@@ -593,7 +593,8 @@
 /* ── Diff view ───────────────────────────────────────────────────────────── */
 
 .oac-diff-view {
-  width: 100%;
+  width: fit-content;
+  min-width: 100%;
   line-height: 20px;
 }
 
@@ -656,6 +657,40 @@
 .oac-diff-hunk .oac-diff-content {
   padding-left: 4px;
   font-style: italic;
+}
+
+/* ── Code viewer (Shiki) ────────────────────────────────────────────────── */
+
+.oac-code-viewer pre {
+  margin: 0;
+  padding: 8px 0;
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  line-height: 18px;
+  background: transparent !important;
+}
+
+.oac-code-viewer code {
+  display: block;
+  counter-reset: line;
+}
+
+.oac-code-viewer code .line {
+  display: inline-block;
+  width: 100%;
+  padding: 0 12px 0 0;
+}
+
+.oac-code-viewer code .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 3.5em;
+  padding-right: 1em;
+  text-align: right;
+  color: var(--foreground-weakest, #555);
+  user-select: none;
+  flex-shrink: 0;
 }
 
 /* ── Timeline ───────────────────────────────────────────────────────────── */

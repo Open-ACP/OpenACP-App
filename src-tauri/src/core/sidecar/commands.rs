@@ -103,6 +103,69 @@ pub async fn get_workspace_server_info(instance_id: String) -> Result<ServerInfo
     ))
 }
 
+/// Resolve server info directly from a workspace directory (fallback when instance not in instances.json)
+#[tauri::command]
+pub async fn get_workspace_server_info_from_dir(directory: String) -> Result<ServerInfo, String> {
+    let dir = std::path::PathBuf::from(&directory).join(".openacp");
+
+    let token = std::fs::read_to_string(dir.join("api-secret"))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    if let Ok(port_str) = std::fs::read_to_string(dir.join("api.port")) {
+        if let Ok(port) = port_str.trim().parse::<u16>() {
+            return Ok(ServerInfo {
+                url: format!("http://127.0.0.1:{port}"),
+                token,
+            });
+        }
+    }
+
+    // Fallback: config.json
+    if let Ok(config_str) = std::fs::read_to_string(dir.join("config.json")) {
+        if let Ok(config) = serde_json::from_str::<serde_json::Value>(&config_str) {
+            if let Some(port) = config
+                .get("api")
+                .and_then(|a| a.get("port"))
+                .and_then(|p| p.as_u64())
+            {
+                let host = config
+                    .get("api")
+                    .and_then(|a| a.get("host"))
+                    .and_then(|h| h.as_str())
+                    .unwrap_or("127.0.0.1");
+                return Ok(ServerInfo {
+                    url: format!("http://{host}:{port}"),
+                    token,
+                });
+            }
+        }
+    }
+
+    Err(format!(
+        "Could not determine server info from {}",
+        dir.display()
+    ))
+}
+
+/// Remove an instance from instances.json registry
+#[tauri::command]
+pub async fn remove_instance_registration(instance_id: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    let path = home.join(".openacp").join("instances.json");
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let mut value: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    if let Some(instances) = value.get_mut("instances").and_then(|v| v.as_object_mut()) {
+        instances.remove(&instance_id);
+    }
+    let updated = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    std::fs::write(&path, updated).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn start_server(state: tauri::State<'_, AppState>) -> Result<ServerInfo, String> {
     let mut mgr = state.sidecar.lock().await;
