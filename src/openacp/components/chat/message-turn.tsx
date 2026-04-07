@@ -203,6 +203,11 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
       {!streaming && (message.usage || textContent) && (
         <MessageFooter usage={message.usage} textContent={textContent} />
       )}
+      {!streaming && message.interrupted && (
+        <div className="oac-interrupted" style={{ paddingLeft: 30 }}>
+          <span className="oac-interrupted-label">Interrupted</span>
+        </div>
+      )}
     </div>
   )
 }, (prev, next) => {

@@ -276,6 +276,22 @@ export function ChatView({ onOpenReview }: { onOpenReview?: () => void }) {
                 {activeSessionId && (
                   <PermissionRequestCard sessionId={activeSessionId} />
                 )}
+                {(() => {
+                  if (!chat.streaming()) return null;
+                  const msgs = chat.messages();
+                  const lastMsg = msgs[msgs.length - 1];
+                  // Don't show cursor when content is actively visible (text streaming or tool running)
+                  if (lastMsg?.role === "assistant" && lastMsg.blocks.length > 0) {
+                    const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1];
+                    if (lastBlock.type === "text" && lastBlock.content.length > 0) return null;
+                    if (lastBlock.type === "tool" && (lastBlock.status === "running" || lastBlock.status === "pending")) return null;
+                  }
+                  return (
+                    <div className="oac-stream-indicator" style={{ paddingLeft: 30 }}>
+                      <span className="oac-stream-cursor" />
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <ScrollToBottomButton

@@ -110,16 +110,22 @@ function hashString(s: string): string {
   return h.toString(36)
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Paragraph gating ────────────────────────────────────────────────────────
 //
-// Streaming strategy (CharStream-driven):
-//   - During streaming, display text is driven by CharStream (subscribeDisplay)
-//     which drains chars from a global rAF loop at 80–200 chars/frame.
-//   - The Immer store update (via startTransition) runs independently for persistence.
-//   - morphdom handles efficient DOM diffing — only changed nodes update.
-//   - When streaming ends, a final full render fires with Shiki syntax highlighting.
-//   - Non-streaming renders use cache + Shiki from the start.
+// During streaming, the last paragraph is incomplete and may contain partial
+// markdown constructs (unclosed fences, half-formed lists). Rendering it can
+// produce layout jitter or malformed output. We drop the trailing incomplete
+// paragraph and only render fully-completed paragraphs. Once streaming ends
+// the full text is rendered with Shiki highlighting.
 
+function gatePartialParagraph(text: string): string {
+  const parts = text.split(/\n\n+/)
+  if (parts.length <= 1) return text
+  parts.pop()
+  return parts.join("\n\n")
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 interface MarkdownProps {
   text: string
@@ -173,7 +179,7 @@ export function Markdown({ text, cacheKey, streamId, streaming, className }: Mar
   useEffect(() => {
     if (!streaming || !streamId) return
     const unsub = charStream.subscribeDisplay(streamId, (displayText) => {
-      renderMarkdown(displayText, true)
+      renderMarkdown(gatePartialParagraph(displayText), true)
     })
     return unsub
   }, [streaming, streamId, renderMarkdown])

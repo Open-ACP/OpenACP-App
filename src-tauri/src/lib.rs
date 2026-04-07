@@ -60,6 +60,8 @@ pub fn run() {
             // Filesystem commands
             core::filesystem::commands::path_exists,
             core::filesystem::commands::invoke_cli,
+            core::filesystem::commands::get_git_branch,
+            core::filesystem::commands::get_git_branches,
         ])
         .setup(move |app| {
             app.manage(AppState {
