@@ -68,11 +68,25 @@ export function SetupModal(props: SetupModalProps) {
     setStarting(true)
     setError("")
     try {
+      // Ensure config.json exists — if .openacp dir exists but has no config, remove and recreate
+      const configExists = await invoke<boolean>("path_exists", { path: `${props.path}/.openacp/config.json` })
+      if (!configExists) {
+        // Remove incomplete .openacp dir so instances create can start fresh
+        await invoke("remove_directory", { path: `${props.path}/.openacp` }).catch(() => {})
+        // Also unregister from instances.json if registered
+        await invoke("remove_instance_registration", { instanceId: props.instanceId }).catch(() => {})
+      }
+      // Create instance with config
+      await invoke<string>("invoke_cli", {
+        args: ["instances", "create", "--dir", props.path, "--no-interactive", "--json",
+          ...(selectedAgent ? ["--agent", selectedAgent] : [])],
+      }).catch((e) => console.warn("[setup-modal] instances create:", e))
+
       // Update config with selected agent
       if (selectedAgent) {
         await invoke<string>("invoke_cli", {
           args: ["config", "set", "defaultAgent", selectedAgent, "--dir", props.path, "--json"],
-        }).catch(() => {})
+        }).catch((e) => console.warn("[setup-modal] config set failed:", e))
       }
       // Start server
       await invoke<string>("invoke_cli", { args: ["start", "--dir", props.path, "--daemon"] })
@@ -83,6 +97,7 @@ export function SetupModal(props: SetupModalProps) {
         type: "local",
       })
     } catch (e: any) {
+      console.error("[setup-modal] start failed:", e)
       const msg = typeof e === "string" ? e : e?.message ?? "Failed to start"
       setError(msg)
       setStarting(false)
@@ -103,10 +118,10 @@ export function SetupModal(props: SetupModalProps) {
             ) : (
               <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
                 {agents.map((agent) => (
-                  <button
+                  <div
                     key={agent.key}
-                    type="button"
-                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                    role="button"
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors cursor-pointer ${
                       selectedAgent === agent.key
                         ? "border-foreground bg-accent"
                         : "border-border-weak hover:bg-accent"
@@ -136,7 +151,7 @@ export function SetupModal(props: SetupModalProps) {
                         {installingAgent === agent.key ? "..." : "Install"}
                       </Button>
                     ) : null}
-                  </button>
+                  </div>
                 ))}
               </div>
             )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { X } from '@phosphor-icons/react'
 import { discoverLocalInstances, type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
 import { CreateInstance } from './create-instance'
 import { invoke } from '@tauri-apps/api/core'
@@ -52,14 +53,12 @@ export function LocalTab(props: LocalTabProps) {
               const alreadyAdded = props.existingIds?.includes(inst.id) ?? false
               const isRunning = inst.status === 'running'
               return (
-                <button
+                <div
                   key={inst.id}
-                  type="button"
-                  disabled={alreadyAdded}
-                  onClick={() => handleSelectInstance(inst)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                  className={`group flex items-center gap-3 px-3 py-2.5 transition-colors cursor-pointer ${
                     i > 0 ? 'border-t border-border-weak' : ''
-                  } ${alreadyAdded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent'}`}
+                  } ${alreadyAdded ? 'opacity-70' : ''} hover:bg-accent`}
+                  onClick={() => handleSelectInstance(inst)}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -71,7 +70,25 @@ export function LocalTab(props: LocalTabProps) {
                   {isRunning && (
                     <div className="size-2 rounded-full shrink-0" style={{ background: 'var(--surface-success-strong)' }} />
                   )}
-                </button>
+                  {!alreadyAdded && !isRunning && (
+                    <button
+                      type="button"
+                      className="shrink-0 size-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-accent transition-all"
+                      title="Remove from list"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        try {
+                          await invoke('remove_instance_registration', { instanceId: inst.id })
+                          setInstances(prev => prev.filter(x => x.id !== inst.id))
+                        } catch (err) {
+                          console.error('[local-tab] remove instance failed:', err)
+                        }
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
               )
             })}
           </div>
