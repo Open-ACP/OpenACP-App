@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Trash } from "@phosphor-icons/react";
 import { ResizeHandle } from "./ui/resize-handle";
-import { Spinner } from "./ui/spinner";
+import { BrandIcon } from "./brand-loader";
 import { Button } from "./ui/button";
 import { useSessions } from "../context/sessions";
 import { useChat } from "../context/chat";
@@ -69,7 +69,7 @@ export function SidebarPanel() {
               session={session}
               active={chat.activeSession() === session.id}
               streaming={
-                chat.streaming() && chat.activeSession() === session.id
+                chat.streaming() && chat.streamingSession() === session.id
               }
               onClick={() => chat.setActiveSession(session.id)}
               onDelete={() => sessions.remove(session.id)}
@@ -90,7 +90,7 @@ function NewSessionButton() {
   return (
     <Button
       variant="outline"
-      className="w-full justify-center h-9 text-foreground"
+      className="w-full justify-center h-9"
       disabled={creating}
       onClick={async () => {
         if (creating) return;
@@ -112,7 +112,7 @@ function NewSessionButton() {
       }}
     >
       {creating ? (
-        <Spinner className="size-[15px] text-muted-foreground" />
+        <BrandIcon className="size-[15px] text-muted-foreground animate-bounce-squash" />
       ) : (
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
           <path
@@ -157,7 +157,11 @@ function SessionItem({
           >
             <div className="shrink-0 size-6 flex items-center justify-center">
               {streaming ? (
-                <Spinner className="size-[15px] text-muted-foreground" />
+                <span className="flex items-center gap-[3px]">
+                  <span className="size-[3px] rounded-full bg-foreground animate-dot-bounce" />
+                  <span className="size-[3px] rounded-full bg-foreground animate-dot-bounce [animation-delay:0.15s]" />
+                  <span className="size-[3px] rounded-full bg-foreground animate-dot-bounce [animation-delay:0.3s]" />
+                </span>
               ) : (
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
                   <path

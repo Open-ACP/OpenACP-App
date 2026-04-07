@@ -751,6 +751,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     })
     setStore((draft) => {
       draft.streaming = true
+      draft.streamingSession = sessionID
       draft.scrollTrigger++
     })
 
