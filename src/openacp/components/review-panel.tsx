@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { X } from "@phosphor-icons/react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { X, CaretRight, CaretDown, CaretLeft } from "@phosphor-icons/react";
 import { structuredPatch } from "diff";
 import { ResizeHandle } from "./ui/resize-handle";
 import { useChat } from "../context/chat";
@@ -93,33 +93,140 @@ function DiffView({
     () => computeDiffLines(before, after, path),
     [before, after, path],
   );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hasOverflowRight, setHasOverflowRight] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const check = () => setHasOverflowRight(el.scrollWidth > el.clientWidth + el.scrollLeft + 1);
+    check();
+    el.addEventListener("scroll", check);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", check); ro.disconnect(); };
+  }, [lines]);
+
   return (
-    <div className="oac-diff-view font-mono" style={{ fontSize: "12px" }}>
-      {lines.map((line, i) => (
-        <div
-          key={i}
-          className={`oac-diff-line ${line.type === "add" ? "oac-diff-add" : line.type === "del" ? "oac-diff-del" : line.type === "hunk" ? "oac-diff-hunk" : ""}`}
-        >
-          <span className="oac-diff-gutter oac-diff-gutter-old">
-            {line.oldNum ?? ""}
-          </span>
-          <span className="oac-diff-gutter oac-diff-gutter-new">
-            {line.newNum ?? ""}
-          </span>
-          <span className="oac-diff-sign">
-            {line.type === "add"
-              ? "+"
-              : line.type === "del"
-                ? "-"
-                : line.type === "hunk"
-                  ? ""
-                  : " "}
-          </span>
-          <span className="oac-diff-content">{line.content}</span>
-        </div>
-      ))}
+    <div className="relative">
+      <div ref={containerRef} className="oac-diff-view font-mono overflow-x-auto no-scrollbar" style={{ fontSize: "12px" }}>
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            className={`oac-diff-line ${line.type === "add" ? "oac-diff-add" : line.type === "del" ? "oac-diff-del" : line.type === "hunk" ? "oac-diff-hunk" : ""}`}
+          >
+            <span className="oac-diff-gutter oac-diff-gutter-old">
+              {line.oldNum ?? ""}
+            </span>
+            <span className="oac-diff-gutter oac-diff-gutter-new">
+              {line.newNum ?? ""}
+            </span>
+            <span className="oac-diff-sign">
+              {line.type === "add"
+                ? "+"
+                : line.type === "del"
+                  ? "-"
+                  : line.type === "hunk"
+                    ? ""
+                    : " "}
+            </span>
+            <span className="oac-diff-content">{line.content}</span>
+          </div>
+        ))}
+      </div>
+      {hasOverflowRight && (
+        <div className="absolute top-0 right-0 bottom-0 w-8 pointer-events-none" style={{ background: "linear-gradient(to left, var(--card), transparent)" }} />
+      )}
     </div>
   );
+}
+
+function FileTabsBar({ tabs, activeView, fileName, onSelect, onMiddleClick, onClose }: {
+  tabs: OpenFile[]
+  activeView: string
+  fileName: (path: string) => string
+  onSelect: (path: string) => void
+  onMiddleClick: (e: React.MouseEvent, path: string) => void
+  onClose?: (path: string) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 0)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    checkScroll()
+    el.addEventListener("scroll", checkScroll)
+    const ro = new ResizeObserver(checkScroll)
+    ro.observe(el)
+    return () => { el.removeEventListener("scroll", checkScroll); ro.disconnect() }
+  }, [checkScroll, tabs.length])
+
+  // Auto-scroll active tab into view
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const activeBtn = el.querySelector(`[data-tab-path="${CSS.escape(activeView)}"]`) as HTMLElement | null
+    activeBtn?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" })
+  }, [activeView])
+
+  const scroll = (dir: "left" | "right") => {
+    scrollRef.current?.scrollBy({ left: dir === "left" ? -120 : 120, behavior: "smooth" })
+  }
+
+  return (
+    <div className="flex-1 min-w-0 flex items-center relative">
+      {canScrollLeft && (
+        <button
+          className="shrink-0 size-6 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => scroll("left")}
+        >
+          <CaretLeft size={12} />
+        </button>
+      )}
+      <div
+        ref={scrollRef}
+        className="flex-1 min-w-0 flex items-center gap-1 px-1 overflow-x-auto no-scrollbar"
+      >
+        {tabs.map((file) => {
+          const isSelected = activeView === file.path;
+          return (
+            <button
+              key={file.path}
+              data-tab-path={file.path}
+              className={`flex items-center gap-1 h-6 px-2 rounded text-xs whitespace-nowrap transition-colors shrink-0 ${isSelected ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+              onClick={() => onSelect(file.path)}
+              onMouseDown={(e) => onMiddleClick(e, file.path)}
+            >
+              <span>{fileName(file.path)}</span>
+              <span
+                className="ml-0.5 hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); onClose?.(file.path) }}
+              >
+                <X size={10} />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {canScrollRight && (
+        <button
+          className="shrink-0 size-6 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => scroll("right")}
+        >
+          <CaretRight size={12} />
+        </button>
+      )}
+    </div>
+  )
 }
 
 export interface OpenFile {
@@ -128,10 +235,12 @@ export interface OpenFile {
   language: string
 }
 
-export function ReviewPanel({ onClose, openFiles, onCloseFile }: {
+export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onRequestedTabHandled }: {
   onClose: () => void
   openFiles?: OpenFile[]
-  onCloseFile?: (path: string) => void
+  onCloseFile?: (path: string)=> void
+  requestedTab?: string | null
+  onRequestedTabHandled?: () => void
 }) {
   const chat = useChat();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -151,35 +260,45 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile }: {
     return Array.from(diffs.entries()).map(([path, diff]) => ({ path, diff }));
   }, [chat.messages()]);
 
-  // Build unified tab list: open files first (newest first), then diffs
-  type Tab = { type: "diff"; path: string; diff: FileDiffData } | { type: "file"; path: string; content: string; language: string }
-  const allTabs = useMemo((): Tab[] => {
-    const tabs: Tab[] = []
-    // Open files first (reversed so newest is first)
-    for (const f of [...(openFiles ?? [])].reverse()) {
-      tabs.push({ type: "file", path: f.path, content: f.content, language: f.language })
-    }
-    // Then diffs (skip if already open as file)
-    for (const d of fileDiffs) {
-      if (!tabs.some(t => t.path === d.path)) {
-        tabs.push({ type: "diff" as const, path: d.path, diff: d.diff })
-      }
-    }
-    return tabs
-  }, [fileDiffs, openFiles])
+  const openFileTabs = openFiles ?? [];
 
-  // Auto-select newest open file when new file added
-  const lastOpenFile = openFiles?.[openFiles.length - 1]?.path
+  // Handle requested tab from parent (always switch, even if already in list)
   React.useEffect(() => {
-    if (lastOpenFile) setSelectedTab(lastOpenFile)
-  }, [lastOpenFile])
+    if (requestedTab) {
+      setSelectedTab(requestedTab)
+      onRequestedTabHandled?.()
+    }
+  }, [requestedTab, onRequestedTabHandled])
 
-  const activeTab = selectedTab && allTabs.some(t => t.path === selectedTab)
-    ? selectedTab
-    : allTabs[0]?.path ?? null
-  const currentTab = allTabs.find(t => t.path === activeTab) ?? null
+  // "review" = built-in review tab, or a file path for open file tabs
+  const activeView = selectedTab ?? "review";
+  const currentFile = openFileTabs.find(f => f.path === activeView);
+  // Which diffs are expanded inside the review tab (multiple allowed)
+  const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
+
+  const toggleDiff = (path: string) => {
+    setExpandedDiffs(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
 
   const fileName = (path: string) => path.split("/").pop() || path;
+
+  const handleCodeComment = useCallback((comment: string, code: string, lines: [number, number], file?: string) => {
+    window.dispatchEvent(new CustomEvent("add-code-snippet", {
+      detail: { comment, code, lines, filePath: file },
+    }));
+  }, []);
+
+  const handleMiddleClick = (e: React.MouseEvent, path: string) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      onCloseFile?.(path);
+    }
+  };
 
   return (
     <div
@@ -194,71 +313,101 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile }: {
         max={MAX_WIDTH}
         onResize={setPanelWidth}
       />
-      <div className="shrink-0 flex items-center px-3 h-9 border-b border-border-weak">
-        <span className="text-sm font-medium text-foreground">Review</span>
-        {allTabs.length > 0 && (
-          <span className="text-sm text-muted-foreground ml-2">
-            {allTabs.length} file{allTabs.length !== 1 ? "s" : ""}
-          </span>
+
+      {/* Tab bar: Review fixed + file tabs scrollable */}
+      <div className="shrink-0 flex items-center h-9 border-b border-border-weak">
+        <button
+          className={`flex items-center gap-1.5 px-3 shrink-0 transition-colors ${activeView === "review" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setSelectedTab(null)}
+        >
+          <span className="text-sm font-medium">Review</span>
+          {fileDiffs.length > 0 && (
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-secondary text-foreground">{fileDiffs.length}</span>
+          )}
+        </button>
+        {openFileTabs.length > 0 && (
+          <FileTabsBar
+            tabs={openFileTabs}
+            activeView={activeView}
+            fileName={fileName}
+            onSelect={setSelectedTab}
+            onMiddleClick={handleMiddleClick}
+            onClose={onCloseFile}
+          />
         )}
       </div>
-      {allTabs.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-sm leading-lg text-muted-foreground">
-              No file changes yet
-            </div>
-            <div className="text-sm leading-lg text-foreground-weaker mt-1">
-              Changes will appear as the agent edits files
-            </div>
-          </div>
-        </div>
-      ) : (
+
+      {/* Review tab content */}
+      {activeView === "review" && (
         <>
-          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border-weak overflow-x-auto no-scrollbar flex-shrink-0">
-            {allTabs.map((tab) => {
-              const isSelected = activeTab === tab.path;
-              const isFileTab = tab.type === "file";
-              return (
+          {fileDiffs.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-sm leading-lg text-muted-foreground">
+                  No file changes yet
+                </div>
+                <div className="text-sm leading-lg text-foreground-weaker mt-1">
+                  Changes will appear as the agent edits files
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+              {/* Expand all / Collapse all */}
+              <div className="sticky top-0 z-10 flex items-center px-3 h-8 bg-card border-b border-border-weak">
                 <button
-                  key={tab.path}
-                  className={`flex items-center gap-1 h-6 px-2 rounded text-xs whitespace-nowrap transition-colors ${isSelected ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
-                  onClick={() => setSelectedTab(tab.path)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
+                  onClick={() => {
+                    if (expandedDiffs.size === fileDiffs.length) {
+                      setExpandedDiffs(new Set());
+                    } else {
+                      setExpandedDiffs(new Set(fileDiffs.map(d => d.path)));
+                    }
+                  }}
                 >
-                  <span>{fileName(tab.path)}</span>
-                  {tab.type === "diff" && (
-                    <DiffStats before={tab.diff.before ?? ""} after={tab.diff.after} />
-                  )}
-                  {isFileTab && (
-                    <span
-                      className="ml-0.5 hover:text-foreground"
-                      onClick={(e) => { e.stopPropagation(); onCloseFile?.(tab.path) }}
-                    >
-                      <X size={10} />
-                    </span>
-                  )}
+                  {expandedDiffs.size === fileDiffs.length ? "Collapse all" : "Expand all"}
                 </button>
-              );
-            })}
-          </div>
-          <div className="flex-1 min-h-0 overflow-auto">
-            {currentTab?.type === "diff" && (
-              <DiffView
-                path={currentTab.path}
-                before={currentTab.diff.before ?? ""}
-                after={currentTab.diff.after}
-              />
-            )}
-            {currentTab?.type === "file" && (
-              <FileContentView content={currentTab.content} language={currentTab.language} />
-            )}
-          </div>
+              </div>
+              {fileDiffs.map(({ path, diff }) => {
+                const isExpanded = expandedDiffs.has(path);
+                return (
+                  <div key={path} className="border-b border-border-weak">
+                    <button
+                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs transition-colors hover:bg-accent ${isExpanded ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => toggleDiff(path)}
+                    >
+                      {isExpanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                      <span className="truncate flex-1 text-left">{fileName(path)}</span>
+                      <DiffStats before={diff.before ?? ""} after={diff.after} />
+                    </button>
+                    {isExpanded && (
+                      <div className="overflow-x-auto no-scrollbar">
+                        <DiffView path={path} before={diff.before ?? ""} after={diff.after} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
+      )}
+
+      {/* Open file tab content */}
+      {activeView !== "review" && currentFile && (
+        <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
+          <CodeViewer
+            content={currentFile.content}
+            language={currentFile.language}
+            filePath={currentFile.path}
+            onComment={handleCodeComment}
+          />
+        </div>
       )}
     </div>
   );
 }
 
-function FileContentView({ content, language }: { content: string; language: string }) {
+function _FileContentView({ content, language }: { content: string; language: string }) {
   return <CodeViewer content={content} language={language} />
 }
