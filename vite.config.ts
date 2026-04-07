@@ -83,6 +83,11 @@ export default defineConfig({
       external: [
         "ghostty-web",
       ],
+      output: {
+        manualChunks: {
+          monaco: ["monaco-editor"],
+        },
+      },
     },
   },
   test: {
