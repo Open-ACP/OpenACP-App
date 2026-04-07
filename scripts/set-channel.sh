@@ -69,4 +69,4 @@ sed -i.bak "s/^name = \"openacp-desktop\"/name = \"openacp-desktop-$CHANNEL\"/" 
 rm -f "$ROOT/src-tauri/Cargo.toml.bak"
 echo "  Cargo.toml → openacp-desktop-$CHANNEL"
 
-echo "Done. Build will produce: OpenACP ${CHANNEL^}"
+echo "Done. Build will produce: OpenACP $(echo "$CHANNEL" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
