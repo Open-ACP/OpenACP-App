@@ -793,10 +793,23 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     const sessionID = store.activeSession
     if (!sessionID) return
     abortedSessions.current.add(sessionID)
+    flushBuffers()
     charStream.flush(`${sessionID}:text`)
     charStream.flush(`${sessionID}:thought`)
     charStream.clearStream(`${sessionID}:text`)
     charStream.clearStream(`${sessionID}:thought`)
+    // Mark the assistant message as interrupted
+    const msgId = assistantMsgId.current.get(sessionID)
+    if (msgId) {
+      setStore((draft) => {
+        const msgs = draft.messagesBySession[sessionID]
+        if (msgs) {
+          const msg = msgs.find((m) => m.id === msgId)
+          if (msg) msg.interrupted = true
+        }
+        syncRef(sessionID, draft)
+      })
+    }
     assistantMsgId.current.delete(sessionID)
     setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
     // Tell server to actually cancel the agent's prompt

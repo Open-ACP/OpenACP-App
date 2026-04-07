@@ -134,6 +134,8 @@ export interface Message {
   sourceAdapterId?: string
   /** Token usage and cost info for this assistant response */
   usage?: UsageInfo
+  /** Whether the user interrupted/aborted this response */
+  interrupted?: boolean
 }
 
 // ── Agents ──────────────────────────────────────────────────────────────────
