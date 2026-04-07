@@ -9,15 +9,22 @@ pub async fn run_install(app: &tauri::AppHandle) -> Result<(), String> {
     let os = std::env::consts::OS;
 
     let (mut rx, _child) = match os {
-        "macos" | "linux" => app
-            .shell()
-            .command("bash")
-            .args([
-                "-c",
-                "curl -fsSL https://raw.githubusercontent.com/Open-ACP/OpenACP/main/scripts/install.sh | bash -s -- --no-onboard --no-prompt",
-            ])
-            .spawn()
-            .map_err(|e| e.to_string())?,
+        "macos" | "linux" => {
+            // Use the user's login shell (-l) so that shell rc files (e.g. ~/.zshrc,
+            // ~/.bash_profile) are sourced. This ensures PATH-based tools like nvm,
+            // fnm, and Homebrew node are available — they are invisible when spawning
+            // a bare non-login bash from a GUI app like Tauri.
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+            app.shell()
+                .command(&shell)
+                .args([
+                    "-l",
+                    "-c",
+                    "curl -fsSL https://raw.githubusercontent.com/Open-ACP/OpenACP/main/scripts/install.sh | bash -s -- --no-onboard --no-prompt",
+                ])
+                .spawn()
+                .map_err(|e| e.to_string())?
+        }
         "windows" => app
             .shell()
             .command("powershell")
