@@ -1,4 +1,4 @@
-use super::binary::find_openacp_binary;
+use super::binary::{find_openacp_binary, prepend_path};
 use crate::ServerInfo;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -64,9 +64,7 @@ impl SidecarManager {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
         if let Some(ref extra) = extra_path {
-            let sep = if cfg!(windows) { ";" } else { ":" };
-            let current = std::env::var("PATH").unwrap_or_default();
-            cmd.env("PATH", format!("{extra}{sep}{current}"));
+            cmd.env("PATH", prepend_path(extra));
         }
         let child = cmd
             .spawn()

@@ -11,9 +11,7 @@ pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf)
         .ok_or_else(|| "openacp not found — please install it first".to_string())?;
     let mut cmd = tokio::process::Command::new(&bin);
     if let Some(ref extra) = extra_path {
-        let current = std::env::var("PATH").unwrap_or_default();
-        let sep = if cfg!(windows) { ";" } else { ":" };
-        cmd.env("PATH", format!("{extra}{sep}{current}"));
+        cmd.env("PATH", prepend_path(extra));
     }
     Ok((cmd, bin))
 }

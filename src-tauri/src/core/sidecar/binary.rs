@@ -201,9 +201,48 @@ fn check_known_locations() -> Option<PathBuf> {
     None
 }
 
+/// Resolve the full PATH from the user's login shell.
+///
+/// GUI apps on macOS/Linux inherit a minimal PATH (e.g. /usr/bin:/bin) that
+/// doesn't include tools installed via nvm, fnm, Homebrew, or npm global.
+/// Running a login shell sources ~/.zshrc / ~/.bashrc and returns the full PATH
+/// the user sees in their terminal.
+///
+/// Returns None on Windows (where PATH is managed differently) or if the shell
+/// invocation fails.
+pub fn get_login_shell_path() -> Option<String> {
+    #[cfg(target_os = "windows")]
+    return None;
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        for shell in ["zsh", "bash"] {
+            if let Ok(output) = std::process::Command::new(shell)
+                .args(["-l", "-c", "echo $PATH"])
+                .output()
+            {
+                if output.status.success() {
+                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !path.is_empty() {
+                        tracing::debug!("get_login_shell_path: resolved via {shell}");
+                        return Some(path);
+                    }
+                }
+            }
+        }
+        tracing::warn!("get_login_shell_path: could not resolve PATH from login shell");
+        None
+    }
+}
+
 /// Helper: build PATH string with extra dir prepended (platform-aware separator).
+///
+/// Uses the login shell PATH as the base so that tools installed via nvm, fnm,
+/// npm global, or Homebrew are visible to all openacp subprocesses — not just
+/// the minimal PATH inherited by the GUI app.
 pub fn prepend_path(extra: &str) -> String {
-    let current = std::env::var("PATH").unwrap_or_default();
+    let base = get_login_shell_path()
+        .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
     let sep = if cfg!(windows) { ";" } else { ":" };
-    format!("{extra}{sep}{current}")
+    format!("{extra}{sep}{base}")
 }

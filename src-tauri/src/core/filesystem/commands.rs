@@ -1,4 +1,4 @@
-use crate::core::sidecar::binary::find_openacp_binary;
+use crate::core::sidecar::binary::{find_openacp_binary, prepend_path};
 
 /// Read the current git branch from a workspace directory by parsing .git/HEAD.
 #[tauri::command]
@@ -49,9 +49,7 @@ pub async fn invoke_cli(args: Vec<String>, _app: tauri::AppHandle) -> Result<Str
     let mut cmd = tokio::process::Command::new(&bin);
     cmd.args(&args);
     if let Some(ref extra) = extra_path {
-        let sep = if cfg!(windows) { ";" } else { ":" };
-        let current = std::env::var("PATH").unwrap_or_default();
-        cmd.env("PATH", format!("{extra}{sep}{current}"));
+        cmd.env("PATH", prepend_path(extra));
     }
     let output = cmd.output().await.map_err(|e| e.to_string())?;
     if output.status.success() {
