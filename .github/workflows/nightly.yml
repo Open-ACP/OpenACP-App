@@ -99,17 +99,21 @@ jobs:
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           VERSION="${LATEST_TAG#v}"
           NIGHTLY_VERSION="${VERSION}-nightly.$(date +%Y%m%d)"
+          echo "NIGHTLY_VERSION=$NIGHTLY_VERSION" >> $GITHUB_ENV
           echo "Nightly version: $NIGHTLY_VERSION"
 
           node -e "
             const fs = require('fs');
+            // package.json — accepts any version string
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             pkg.version = '$NIGHTLY_VERSION';
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
 
-          sed -i.bak "s/^version = \".*\"/version = \"0.0.0\"/" src-tauri/Cargo.toml
-          rm -f src-tauri/Cargo.toml.bak
+            // Cargo.toml — use 0.0.0 (Cargo doesn't support date-based semver)
+            let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            cargo = cargo.replace(/^version = \".*\"/m, 'version = \"0.0.0\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+          "
 
       - name: Switch to nightly channel
         shell: bash
