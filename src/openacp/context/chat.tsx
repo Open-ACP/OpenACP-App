@@ -182,6 +182,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const thinkingStartTime = useRef(new Map<string, number>())
   // Maps turnId → userMsgId for cross-adapter messages (message:queued → message:processing pairing)
   const turnIdToUserMsgId = useRef(new Map<string, string>())
+  // turnIds of messages sent by this App instance — used to suppress duplicate SSE echo
+  const ownTurnIds = useRef(new Set<string>())
   // Track whether we had a disconnect so we can reload history on reconnect
   const hadDisconnect = useRef(false)
   const msgCounter = useRef(0)
@@ -666,6 +668,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   }
 
   function handleMessageQueued(ev: MessageQueuedEvent) {
+    // If this message was sent by this App instance, we already added it optimistically.
+    // Still register the turnId mapping so handleMessageProcessing can pair it correctly,
+    // but skip adding a duplicate message to the store.
+    if (ownTurnIds.current.has(ev.turnId)) {
+      ownTurnIds.current.delete(ev.turnId)
+      // Pair the optimistic user message (already in store) with this turnId
+      // so handleMessageProcessing can find it. The optimistic msg has no entry yet —
+      // leave turnIdToUserMsgId empty; handleMessageProcessing will create a new ast stub.
+      return
+    }
     const userMsgId = nextId("usr-ext")
     turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
     const userMsg: Message = {
@@ -757,7 +769,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     connect()
 
     try {
-      await workspace.client.sendPrompt(sessionID, text, attachments)
+      const { turnId } = await workspace.client.sendPrompt(sessionID, text, attachments)
+      // Register turnId so the SSE echo (message:queued) is suppressed for this window
+      if (turnId) ownTurnIds.current.add(turnId)
       return true
     } catch {
       return false

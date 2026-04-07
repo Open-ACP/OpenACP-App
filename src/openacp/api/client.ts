@@ -133,7 +133,7 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
     },
 
     /** Send a prompt to a session, optionally with file attachments */
-    async sendPrompt(sessionID: string, text: string, attachments?: import("../types").FileAttachment[]): Promise<void> {
+    async sendPrompt(sessionID: string, text: string, attachments?: import("../types").FileAttachment[]): Promise<{ turnId?: string }> {
       const body: Record<string, unknown> = { prompt: text }
       if (attachments?.length) {
         body.attachments = attachments.map(a => ({
@@ -142,10 +142,11 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
           data: a.dataUrl.split(",")[1] ?? "", // strip data URL prefix, send raw base64
         }))
       }
-      await api(`/sessions/${encodeURIComponent(sessionID)}/prompt`, {
+      const res = await api(`/sessions/${encodeURIComponent(sessionID)}/prompt`, {
         method: "POST",
         body: JSON.stringify(body),
       })
+      return (res as { turnId?: string }) ?? {}
     },
 
     /** Cancel/abort the current prompt in a session */
