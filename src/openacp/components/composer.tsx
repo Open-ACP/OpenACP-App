@@ -10,6 +10,7 @@ import { DockShellForm, DockTray } from "./ui/dock-surface";
 import { useChat } from "../context/chat";
 import { useSessions } from "../context/sessions";
 import { AgentSelector } from "./agent-selector";
+import { BranchIndicator } from "./branch-indicator";
 import { CommandPalette } from "./command-palette";
 import { ConfigSelector } from "./config-selector";
 import { showToast } from "../lib/toast";
@@ -463,6 +464,7 @@ export function Composer() {
               sessionID={chat.activeSession()}
               refreshKey={configVersion}
             />
+            <BranchIndicator />
             <div className="flex-1" />
             <ConfigSelector
               category="mode"
