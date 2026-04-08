@@ -46,7 +46,18 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
       >
         <span className="shrink-0">{icon}</span>
         <span className="shrink-0" style={{ fontWeight: "500" }}>{label}</span>
-        <span className="truncate min-w-0" style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--muted-foreground)" }}>
+        <span
+          className="truncate min-w-0 hover:underline cursor-pointer"
+          style={{ color: isRejected ? "var(--text-critical-base, #dc2626)" : "var(--muted-foreground)" }}
+          onClick={(e) => {
+            e.stopPropagation()
+            const filePath = block.input?.file_path ?? block.input?.filePath ?? block.input?.path
+            if (typeof filePath === "string" && filePath) {
+              window.dispatchEvent(new CustomEvent("open-file-in-review", { detail: { path: filePath } }))
+            }
+          }}
+          title={block.title}
+        >
           {block.title}
         </span>
         {isRejected && (

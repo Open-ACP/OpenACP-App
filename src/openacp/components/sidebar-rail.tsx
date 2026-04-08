@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { GearSix, PuzzlePiece, Plus, Trash } from "@phosphor-icons/react"
+import { GearSix, PuzzlePiece, Plus, Trash, Globe, Broadcast } from "@phosphor-icons/react"
 import { Button } from "./ui/button"
 import { showToast } from "../lib/toast"
 
@@ -34,7 +34,11 @@ function ContextMenu(props: {
   y: number
   workspace: WorkspaceItem
   isConnected: boolean
+  isSharing: boolean
   onCopyPath: () => void
+  onShare: () => void
+  onCopyShareLink: () => void
+  onStopSharing: () => void
   onReconnect: () => void
   onStart: () => void
   onStop: () => void
@@ -71,6 +75,31 @@ function ContextMenu(props: {
         >
           Copy path
         </button>
+      )}
+      {props.isConnected && props.workspace.type !== "remote" && (
+        props.isSharing ? (
+          <>
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+              onClick={() => { props.onCopyShareLink(); props.onClose() }}
+            >
+              Copy share link
+            </button>
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-warning hover:bg-accent transition-colors"
+              onClick={() => { props.onStopSharing(); props.onClose() }}
+            >
+              Stop sharing
+            </button>
+          </>
+        ) : (
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            onClick={() => { props.onShare(); props.onClose() }}
+          >
+            Share workspace
+          </button>
+        )
       )}
       {props.isConnected ? (
         <button
@@ -113,12 +142,26 @@ export function SidebarRail(props: {
   errorIds?: Set<string>
   onSwitchWorkspace: (id: string) => void
   onRemoveWorkspace?: (id: string) => void
+  onShareWorkspace?: (id: string) => void
+  onCopyShareLink?: (id: string) => void
+  onStopSharing?: (id: string) => void
+  sharingIds?: Set<string>
   onReconnect?: (id: string) => void
   onOpenFolder: () => void
   onOpenPlugins?: () => void
   onOpenSettings?: () => void
 }) {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+
+  // Listen for workspace menu open from sidebar header
+  useEffect(() => {
+    function handleOpenMenu(e: Event) {
+      const { x, y } = (e as CustomEvent).detail
+      if (props.activeId) setContextMenu({ id: props.activeId, x, y })
+    }
+    window.addEventListener("open-workspace-menu", handleOpenMenu)
+    return () => window.removeEventListener("open-workspace-menu", handleOpenMenu)
+  }, [props.activeId])
 
   return (
     <div
@@ -158,9 +201,19 @@ export function SidebarRail(props: {
                     {initial}
                   </div>
                 </button>
-                <div className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-background pointer-events-none"
+                <div className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-background pointer-events-none"
                   style={{ background: hasError ? 'var(--surface-critical-strong)' : isConnected ? 'var(--surface-success-strong)' : 'var(--text-weaker)' }}
                 />
+                {ws.type === "remote" && (
+                  <div className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-background border border-border-weak flex items-center justify-center pointer-events-none">
+                    <Globe size={11} weight="bold" className="text-muted-foreground" />
+                  </div>
+                )}
+                {ws.type === "local" && isConnected && (props.sharingIds?.has(ws.id) ?? false) && (
+                  <div className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-background border border-border-weak flex items-center justify-center pointer-events-none">
+                    <Broadcast size={11} weight="bold" className="text-muted-foreground" />
+                  </div>
+                )}
               </div>
             )
           })}
@@ -209,12 +262,16 @@ export function SidebarRail(props: {
             y={contextMenu.y}
             workspace={ws}
             isConnected={props.connectedIds?.has(ws.id) ?? false}
+            isSharing={props.sharingIds?.has(ws.id) ?? false}
             onCopyPath={async () => {
               try {
                 await navigator.clipboard.writeText(ws.directory)
                 showToast({ description: "Path copied to clipboard" })
               } catch { /* fallback */ }
             }}
+            onShare={() => props.onShareWorkspace?.(contextMenu.id)}
+            onCopyShareLink={() => props.onCopyShareLink?.(contextMenu.id)}
+            onStopSharing={() => props.onStopSharing?.(contextMenu.id)}
             onReconnect={() => props.onSwitchWorkspace(contextMenu.id)}
             onStart={async () => {
               try {
@@ -232,9 +289,10 @@ export function SidebarRail(props: {
                 showToast({ description: "Server stopped" })
               } catch { /* best-effort */ }
             }}
-            onRemove={() => {
-              // Stop server before removing
-              invoke<string>('invoke_cli', { args: ['stop', '--dir', ws.directory] }).catch(() => {})
+            onRemove={async () => {
+              try {
+                await invoke<string>('invoke_cli', { args: ['stop', '--dir', ws.directory] })
+              } catch { /* best-effort */ }
               props.onRemoveWorkspace?.(contextMenu.id)
             }}
             onClose={() => setContextMenu(null)}

@@ -15,7 +15,16 @@ import { CommandPalette } from "./command-palette";
 import { ConfigSelector } from "./config-selector";
 import { Spinner } from "./ui/spinner";
 import { showToast } from "../lib/toast";
-import type { FileAttachment, UsageInfo } from "../types";
+import { Code, ListChecks, Circle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
+import type { FileAttachment, UsageInfo, PlanEntry } from "../types";
+
+export interface CodeSnippet {
+  id: string
+  filePath: string
+  lines: [number, number]
+  code: string
+  comment: string
+}
 import {
   validateFileMime,
   fileToDataUrl,
@@ -43,9 +52,8 @@ function ContextBadge({ usage }: { usage: UsageInfo }) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-1.5 cursor-default mr-2">
-            <span style={{ fontSize: 11, color, fontWeight: 500 }}>{pct.toFixed(1)}%</span>
-            <svg width="18" height="18" viewBox="0 0 18 18">
+          <div className="flex items-center gap-1.5 cursor-default px-1.5 py-0.5">
+            <svg width="14" height="14" viewBox="0 0 18 18">
               <circle cx="9" cy="9" r="7" fill="none" stroke="var(--border-weak)" strokeWidth="2" />
               <circle cx="9" cy="9" r="7" fill="none" stroke={color} strokeWidth="2"
                 strokeDasharray={`${(pct / 100) * 44} 44`}
@@ -53,6 +61,7 @@ function ContextBadge({ usage }: { usage: UsageInfo }) {
                 transform="rotate(-90 9 9)"
               />
             </svg>
+            <span style={{ fontSize: 11, color, fontWeight: 500 }}>{pct.toFixed(1)}%</span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8} className="bg-card border border-border-weak text-foreground px-3 py-2 min-w-[160px]">
@@ -67,6 +76,46 @@ function ContextBadge({ usage }: { usage: UsageInfo }) {
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Remaining</span>
             <span className="text-foreground-weak font-mono">{formatK(Math.max(0, ctx - used))}</span>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function PlanBadge({ entries }: { entries: PlanEntry[] }) {
+  const completed = entries.filter(e => e.status === "completed").length
+  const inProgress = entries.filter(e => e.status === "in_progress").length
+  const total = entries.length
+  const allDone = completed === total
+  const color = allDone ? "var(--surface-success-strong)" : inProgress > 0 ? "var(--primary)" : "var(--muted-foreground)"
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1 cursor-default px-1.5 py-0.5">
+            <ListChecks size={14} style={{ color }} />
+            <span style={{ fontSize: 11, color, fontWeight: 500 }}>{completed}/{total}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={8} className="bg-card border border-border-weak text-foreground px-3 py-2.5 max-w-[280px]">
+          <div className="text-xs font-medium text-foreground mb-2">Plan</div>
+          <div className="flex flex-col gap-1.5">
+            {entries.map((entry, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs">
+                {entry.status === "completed" ? (
+                  <CheckCircle size={14} weight="fill" className="text-green-500 shrink-0 mt-0.5" />
+                ) : entry.status === "in_progress" ? (
+                  <CircleNotch size={14} weight="bold" className="text-primary shrink-0 mt-0.5 animate-spin" />
+                ) : (
+                  <Circle size={14} className="text-muted-foreground shrink-0 mt-0.5" />
+                )}
+                <span className={entry.status === "completed" ? "text-muted-foreground line-through" : "text-foreground"}>
+                  {entry.content}
+                </span>
+              </div>
+            ))}
           </div>
         </TooltipContent>
       </Tooltip>
@@ -99,6 +148,35 @@ export function Composer() {
     return null;
   }, [chat.messages()]);
 
+  // Get latest plan entries from messages
+  // Hide when all done + user sent a new message after (= new task started)
+  const planEntries = useMemo(() => {
+    const messages = chat.messages();
+    let planFound: PlanEntry[] | null = null;
+    let planMsgIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role !== "assistant") continue;
+      for (let j = msg.blocks.length - 1; j >= 0; j--) {
+        const block = msg.blocks[j];
+        if (block.type === "plan" && block.entries.length > 0) {
+          planFound = block.entries;
+          planMsgIndex = i;
+          break;
+        }
+      }
+      if (planFound) break;
+    }
+    if (!planFound) return null;
+    const allDone = planFound.every(e => e.status === "completed");
+    if (allDone) {
+      // Check if user sent a message after the plan message
+      const hasUserMsgAfter = messages.slice(planMsgIndex + 1).some(m => m.role === "user");
+      if (hasUserMsgAfter) return null;
+    }
+    return planFound;
+  }, [chat.messages()]);
+
   // Sync agent from active session (e.g. on reload or session switch)
   useEffect(() => {
     const sessionId = chat.activeSession();
@@ -112,6 +190,7 @@ export function Composer() {
   const [paletteFilter, setPaletteFilter] = useState<string | undefined>();
   const [configVersion, setConfigVersion] = useState(0);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [snippets, setSnippets] = useState<CodeSnippet[]>([]);
   const [dragging, setDragging] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
@@ -164,6 +243,29 @@ export function Composer() {
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const removeSnippet = useCallback((id: string) => {
+    setSnippets((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  // ── Code snippet listener ─────────────────────────────────────────────
+
+  useEffect(() => {
+    function handleSnippet(e: Event) {
+      const { comment, code, lines, filePath } = (e as CustomEvent).detail;
+      const fileName = filePath?.split("/").pop() || "unknown";
+      setSnippets((prev) => [...prev, {
+        id: `snippet-${Date.now()}`,
+        filePath: fileName,
+        lines,
+        code,
+        comment,
+      }]);
+      editorRef.current?.focus();
+    }
+    window.addEventListener("add-code-snippet", handleSnippet);
+    return () => window.removeEventListener("add-code-snippet", handleSnippet);
   }, []);
 
   // ── Drag & drop ────────────────────────────────────────────────────────
@@ -248,19 +350,28 @@ export function Composer() {
       e?.preventDefault();
       if (paletteOpen) return;
       const value = text.trim();
-      if (!value && !attachments.length) return;
+      if (!value && !attachments.length && !snippets.length) return;
       setText("");
       if (editorRef.current) editorRef.current.textContent = "";
       const atts = attachments.length ? [...attachments] : undefined;
+      // Build prompt with snippet context
+      let prompt = value;
+      if (snippets.length > 0) {
+        const snippetContext = snippets.map((s) =>
+          `[${s.filePath}:${s.lines[0]}${s.lines[0] !== s.lines[1] ? `-${s.lines[1]}` : ""}] ${s.comment}\n\`\`\`\n${s.code}\n\`\`\``
+        ).join("\n\n");
+        prompt = prompt ? `${snippetContext}\n\n${prompt}` : snippetContext;
+      }
       setAttachments([]);
+      setSnippets([]);
       setSending(true);
       try {
-        await chat.sendPrompt(value || "See attached files", atts);
+        await chat.sendPrompt(prompt || "See attached files", atts);
       } finally {
         setSending(false);
       }
     },
-    [text, paletteOpen, chat, attachments],
+    [text, paletteOpen, chat, attachments, snippets],
   );
 
   const handleKeyDown = useCallback(
@@ -311,8 +422,9 @@ export function Composer() {
   }
 
   return (
-    <div className="shrink-0 w-full px-4 pb-3 flex flex-col justify-center items-center bg-card">
-      <div className="w-full rounded-xl md:max-w-200 md:mx-auto 2xl:max-w-250 border border-border bg-background-weak relative">
+    <div className="w-full pb-3 flex flex-col justify-center items-center pointer-events-none [&>*]:pointer-events-auto">
+      <div className="w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative">
+        <div className="w-full rounded-xl border border-border bg-background-weak relative">
         {paletteOpen && (
           <div className="absolute bottom-full left-3 right-3 mb-1 z-50">
             <CommandPalette
@@ -326,7 +438,7 @@ export function Composer() {
 
         <DockShellForm
           onSubmit={handleSubmit}
-          className="group/prompt-input border-b border-border bg-card rounded-lg overflow-hidden focus-within:shadow-xs focus-within:border-border-strong"
+          className="group/prompt-input border-b border-border rounded-lg overflow-hidden focus-within:shadow-xs focus-within:border-border-strong"
           style={
             isBypass
               ? { borderColor: "var(--destructive)", borderWidth: "1.5px" }
@@ -342,9 +454,34 @@ export function Composer() {
               editorRef.current?.focus();
             }}
           >
-            {/* Attachment chips (Claude Code style) */}
-            {attachments.length > 0 && (
+            {/* Snippet + Attachment chips */}
+            {(snippets.length > 0 || attachments.length > 0) && (
               <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+                {snippets.map((snip) => (
+                  <div
+                    key={snip.id}
+                    className="group flex flex-col gap-0.5 max-w-[240px] pl-2 pr-1 py-1 rounded-md border border-border-weak bg-muted hover:bg-muted-hover transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Code size={14} className="text-primary flex-shrink-0" />
+                      <span className="text-[12px] text-foreground truncate leading-none font-medium">
+                        {snip.filePath}:{snip.lines[0]}{snip.lines[0] !== snip.lines[1] ? `-${snip.lines[1]}` : ""}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => removeSnippet(snip.id)}
+                        className="size-4 flex-shrink-0 ml-auto"
+                      >
+                        <X size={10} weight="bold" />
+                      </Button>
+                    </div>
+                    <span className="text-[11px] text-foreground-weak truncate leading-none pl-5">
+                      {snip.comment}
+                    </span>
+                  </div>
+                ))}
                 {attachments.map((att) => (
                   <div
                     key={att.id}
@@ -394,7 +531,7 @@ export function Composer() {
                 className="select-text w-full pl-3 pr-2 pt-2 text-base leading-xl text-foreground focus:outline-none whitespace-pre-wrap"
                 style={{ paddingBottom: space }}
               />
-              {!text.trim() && !attachments.length && (
+              {!text.trim() && !attachments.length && !snippets.length && (
                 <div
                   className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-base leading-xl text-muted-foreground pointer-events-none whitespace-nowrap truncate"
                   style={{ paddingBottom: space }}
@@ -415,16 +552,23 @@ export function Composer() {
             />
 
             <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
-              <div className="flex items-center gap-1.5 pointer-events-auto">
-                {contextUsage?.contextSize && !chat.streaming() && (
-                  <ContextBadge usage={contextUsage} />
-                )}
+              {(planEntries?.length || contextUsage?.contextSize) && (
+                <div className="flex items-center rounded-lg border border-border-weak px-0.5 py-0.5 pointer-events-auto">
+                  {planEntries && planEntries.length > 0 && (
+                    <PlanBadge entries={planEntries} />
+                  )}
+                  {contextUsage?.contextSize && (
+                    <ContextBadge usage={contextUsage} />
+                  )}
+                </div>
+              )}
+              <div className="pointer-events-auto">
                 <Button
                   data-action="prompt-submit"
                   type="submit"
                   size="icon-sm"
                   disabled={
-                    !text.trim() && !attachments.length && !chat.streaming()
+                    !text.trim() && !attachments.length && !snippets.length && !chat.streaming()
                   }
                   className="bg-text-strong text-background-stronger hover:bg-text-strong/90"
                   onClick={
@@ -551,6 +695,7 @@ export function Composer() {
             />
           </div>
         </DockTray>
+        </div>
       </div>
 
       {/* Drag overlay */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { WorkspaceProvider, resolveWorkspaceServer } from "./context/workspace";
+import { WorkspaceProvider, useWorkspace, resolveWorkspaceServer } from "./context/workspace";
 import { SessionsProvider } from "./context/sessions";
 import { ChatProvider, useChat } from "./context/chat";
 import { PermissionsProvider, usePermissions } from "./context/permissions";
@@ -18,6 +18,7 @@ import {
 } from "./api/workspace-store";
 import { getKeychainToken } from "./api/keychain";
 import { ReviewPanel } from "./components/review-panel";
+import { ShareWorkspaceDialog } from "./components/share-workspace-dialog";
 import { PluginsModal } from "./components/plugins-modal";
 import {
   SettingsDialog,
@@ -34,26 +35,142 @@ import {
   applyFontSize,
 } from "./lib/settings-store";
 import { Titlebar } from "./components/titlebar";
+import { FileTreePanel } from "./components/file-tree-panel";
 import type { ServerInfo } from "./types";
+
+function NoServerScreen({ directory, isRemote, onStart, onReconnect, onRemove }: { directory: string; isRemote?: boolean; onStart: () => void; onReconnect: () => void; onRemove?: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [action, setAction] = useState<string | null>(null)
+
+  const handleStart = async () => {
+    setBusy(true)
+    setAction("Starting...")
+    await onStart()
+    setBusy(false)
+    setAction(null)
+  }
+
+  const handleReconnect = async () => {
+    setBusy(true)
+    setAction("Connecting...")
+    await onReconnect()
+    setBusy(false)
+    setAction(null)
+  }
+
+  return (
+    <div className="text-center flex flex-col items-center gap-5 max-w-xs">
+      <div className="flex flex-col items-center gap-2">
+        <div className="size-10 rounded-lg bg-secondary flex items-center justify-center mb-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+            <rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01" />
+          </svg>
+        </div>
+        <div className="text-sm font-medium text-foreground">
+          {isRemote ? "Connection Lost" : "No Server Found"}
+        </div>
+        <div className="text-xs text-muted-foreground font-mono">{directory}</div>
+        {isRemote && (
+          <div className="text-xs text-muted-foreground">
+            The host may have stopped sharing this workspace.
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleReconnect}
+          disabled={busy}
+          className="h-8 px-4 rounded-lg border border-border text-foreground text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          Reconnect
+        </button>
+        {!isRemote && (
+          <button
+            onClick={handleStart}
+            disabled={busy}
+            className="h-8 px-4 rounded-lg bg-foreground text-background text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            Start Server
+          </button>
+        )}
+        {isRemote && onRemove && (
+          <button
+            onClick={onRemove}
+            className="h-8 px-4 rounded-lg border border-destructive text-destructive text-xs font-medium transition-opacity hover:opacity-90"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      {busy && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="size-1.5 rounded-full bg-muted-foreground animate-pulse" />
+          {action}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ChatArea() {
   const chat = useChat();
   return (
     <div className="flex flex-1 min-h-0 h-full min-w-0">
-      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-card min-w-0 border-l border-border-weak">
+      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-card min-w-0 border-l border-border-weak overflow-hidden">
         <ChatView />
-        <Composer />
+        <div className="absolute inset-x-0 bottom-0 z-10">
+          <Composer />
+        </div>
       </div>
     </div>
   );
 }
 
-function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview }: {
+function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath }: {
   sidebarCollapsed: boolean
   reviewOpen: boolean
   onToggleReview: () => void
+  setReviewOpen: (open: boolean) => void
+  fileTreeOpen: boolean
+  workspacePath: string
 }) {
   const permissions = usePermissions();
+  const workspaceCtx = useWorkspace();
+  const isRemote = workspaceCtx.workspace.type === "remote";
+  const [openFiles, setOpenFiles] = useState<import("./components/review-panel").OpenFile[]>([]);
+  const [requestedTab, setRequestedTab] = useState<string | null>(null);
+
+  const handleOpenFile = useCallback((path: string, content: string, language: string) => {
+    setOpenFiles(prev => {
+      if (prev.some(f => f.path === path)) return prev
+      return [...prev, { path, content, language }]
+    })
+    setRequestedTab(path)
+    setReviewOpen(true)
+  }, [setReviewOpen])
+
+  const handleCloseFile = useCallback((path: string) => {
+    setOpenFiles(prev => prev.filter(f => f.path !== path))
+  }, [])
+
+  // Listen for file open events from tool blocks in chat (local only)
+  useEffect(() => {
+    if (isRemote) return
+    async function handleOpenFromChat(e: Event) {
+      const { path } = (e as CustomEvent).detail
+      if (!path || typeof path !== "string") return
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        const result = await invoke<{ content: string; language: string }>("read_file_content", { path })
+        handleOpenFile(path, result.content, result.language)
+      } catch (err) {
+        console.error("[open-file-in-review] failed:", err)
+      }
+    }
+    window.addEventListener("open-file-in-review", handleOpenFromChat)
+    return () => window.removeEventListener("open-file-in-review", handleOpenFromChat)
+  }, [handleOpenFile, isRemote])
+
   return (
     <ChatProvider
       onPermissionRequest={permissions.addRequest}
@@ -70,7 +187,23 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview }: {
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            <ReviewPanel onClose={onToggleReview} />
+            <ReviewPanel onClose={onToggleReview} openFiles={openFiles} onCloseFile={handleCloseFile} requestedTab={requestedTab} onRequestedTabHandled={() => setRequestedTab(null)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {fileTreeOpen && workspacePath && !isRemote && (
+          <motion.div
+            className="shrink-0 h-full overflow-hidden"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: "auto", opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <FileTreePanel
+              workspacePath={workspacePath}
+              onOpenFile={handleOpenFile}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -98,6 +231,9 @@ export function OpenACPApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("general");
   const [pluginsOpen, setPluginsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [sharingWorkspaceIds, setSharingWorkspaceIds] = useState<Set<string>>(new Set());
+  const [shareLinks, setShareLinks] = useState<Map<string, string>>(new Map());
   const [setupInfo, setSetupInfo] = useState<{ path: string; instanceId: string } | null>(null);
 
   const updater = useAppUpdater();
@@ -168,13 +304,10 @@ export function OpenACPApp() {
 
   useEffect(() => {
     void loadWorkspaces().then(async (entries) => {
-      const discovered = await discoverLocalInstances();
-      const discoveredIds = new Set(discovered.map((d) => d.id));
-      const valid = entries.filter(
-        (e) => e.type === "remote" || discoveredIds.has(e.id),
-      );
-      if (valid.length > 0) setWorkspaces(valid);
-      const lastId = valid.length > 0 ? valid[valid.length - 1].id : null;
+      // Keep all saved workspaces — don't filter by CLI discovery
+      // resolveServer will handle connection per workspace
+      if (entries.length > 0) setWorkspaces(entries);
+      const lastId = entries.length > 0 ? entries[entries.length - 1].id : null;
       if (lastId) setActive(lastId);
       setReady(true);
     });
@@ -259,7 +392,7 @@ export function OpenACPApp() {
         const entry = findWorkspace(instanceId);
         let info: ServerInfo | null = null;
         if (!entry || entry.type === "local") {
-          info = await resolveWorkspaceServer(instanceId);
+          info = await resolveWorkspaceServer(instanceId, entry?.directory);
         } else {
           const jwt = await getKeychainToken(entry.id);
           if (!jwt) {
@@ -436,6 +569,7 @@ export function OpenACPApp() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [fileTreeOpen, setFileTreeOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
@@ -444,6 +578,9 @@ export function OpenACPApp() {
         onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
         reviewOpen={reviewOpen}
         onToggleReview={() => setReviewOpen((v) => !v)}
+        fileTreeOpen={fileTreeOpen}
+        onToggleFileTree={() => setFileTreeOpen((v) => !v)}
+        hideFileTree={activeWorkspace?.type === "remote"}
       />
       <div className="flex flex-1 min-h-0">
         <SidebarRail
@@ -453,6 +590,34 @@ export function OpenACPApp() {
           errorIds={errorWorkspaceIds}
           onSwitchWorkspace={(id) => switchInstance(id)}
           onRemoveWorkspace={(id) => removeInstance(id)}
+          onShareWorkspace={() => setShareOpen(true)}
+          onCopyShareLink={async (id) => {
+            const link = shareLinks.get(id)
+            if (link) {
+              try {
+                await navigator.clipboard.writeText(link)
+                showToast({ description: "Share link copied" })
+              } catch {
+                showToast({ description: "Failed to copy" })
+              }
+            }
+          }}
+          onStopSharing={async (id) => {
+            if (!server) return
+            try {
+              const { createApiClient } = await import("./api/client")
+              const client = createApiClient(server)
+              const tokens = await client.listTokens()
+              await Promise.all(tokens.map(t => client.revokeToken(t.id)))
+              setSharingWorkspaceIds(prev => { const next = new Set(prev); next.delete(id); return next })
+              setShareLinks(prev => { const next = new Map(prev); next.delete(id); return next })
+              showToast({ description: "Stopped sharing — all tokens revoked" })
+            } catch (e) {
+              console.error("[stop-sharing]", e)
+              showToast({ description: "Failed to revoke tokens" })
+            }
+          }}
+          sharingIds={sharingWorkspaceIds}
           onReconnect={(id) => { switchInstance(id); openAddWorkspaceModal("remote") }}
           onOpenFolder={() => openAddWorkspaceModal("local")}
           onOpenPlugins={() => setPluginsOpen(true)}
@@ -488,37 +653,67 @@ export function OpenACPApp() {
                     sidebarCollapsed={sidebarCollapsed}
                     reviewOpen={reviewOpen}
                     onToggleReview={() => setReviewOpen((v) => !v)}
+                    setReviewOpen={setReviewOpen}
+                    fileTreeOpen={fileTreeOpen}
+                    workspacePath={activeWorkspace?.directory ?? ""}
                   />
                 </PermissionsProvider>
               </SessionsProvider>
               <PluginsModal open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
+              <ShareWorkspaceDialog
+                open={shareOpen}
+                onOpenChange={setShareOpen}
+                onShared={(link) => {
+                  if (active) {
+                    setSharingWorkspaceIds(prev => new Set([...prev, active]))
+                    setShareLinks(prev => new Map(prev).set(active, link))
+                  }
+                }}
+              />
             </WorkspaceProvider>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-card">
             {serverError ? (
-              <div className="text-center flex flex-col items-center gap-4">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="text-lg font-medium leading-xl tracking-tight text-foreground">
-                    No Server Found
-                  </div>
-                  <div className="text-base leading-xl text-muted-foreground">
-                    Run{" "}
-                    <code className="px-1.5 py-0.5 rounded bg-secondary text-sm leading-lg font-mono">
-                      openacp start
-                    </code>{" "}
-                    in your workspace
-                  </div>
-                  <div className="text-sm leading-lg text-muted-foreground font-mono mt-1">
-                    {activeWorkspace?.directory}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm leading-lg text-foreground-weaker">
-                  <div className="w-1.5 h-1.5 rounded-full bg-text-weaker animate-pulse" />
-                  Waiting for server...
-                </div>
-              </div>
+              <NoServerScreen
+                directory={activeWorkspace?.directory || activeWorkspace?.host || ""}
+                isRemote={activeWorkspace?.type === "remote"}
+                onRemove={() => { if (active) removeInstance(active) }}
+                onReconnect={async () => {
+                  if (!active) return
+                  const info = await resolveServerRef.current(active)
+                  if (info) {
+                    setServer(info)
+                    stopRetryRef.current()
+                    showToast({ description: "Connected" })
+                  } else {
+                    showToast({ description: "Could not connect — is the server running?" })
+                    startRetryRef.current(active)
+                  }
+                }}
+                onStart={async () => {
+                  if (!activeWorkspace?.directory || !active) return
+                  try {
+                    const { invoke } = await import("@tauri-apps/api/core")
+                    await invoke<string>("invoke_cli", { args: ["start", "--dir", activeWorkspace.directory, "--daemon"] })
+                    await new Promise(r => setTimeout(r, 2000))
+                  } catch {
+                    // "already running" or other error — either way try connecting
+                  }
+                  // Always try to connect after start attempt
+                  const info = await resolveServerRef.current(active)
+                  if (info) {
+                    setServer(info)
+                    stopRetryRef.current()
+                    showToast({ description: "Server connected" })
+                  } else {
+                    showToast({ description: "Server starting — retrying..." })
+                    startRetryRef.current(active)
+                  }
+                }}
+              />
             ) : (
-              <div className="text-base leading-xl text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="size-1.5 rounded-full bg-muted-foreground animate-pulse" />
                 Connecting...
               </div>
             )}
@@ -527,6 +722,7 @@ export function OpenACPApp() {
       ) : (
         <WelcomeScreen
           onOpenFolder={openFolderPicker}
+          onAddWorkspace={() => openAddWorkspaceModal("local")}
           onSelectWorkspace={(instanceId) => addInstance(instanceId)}
         />
       )}

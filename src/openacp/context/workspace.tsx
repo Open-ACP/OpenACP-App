@@ -22,11 +22,18 @@ export function useWorkspace() {
 /**
  * Resolve workspace server info by instance ID.
  */
-export async function resolveWorkspaceServer(instanceId: string): Promise<ServerInfo | null> {
+export async function resolveWorkspaceServer(instanceId: string, directory?: string): Promise<ServerInfo | null> {
   try {
     const { invoke } = await import("@tauri-apps/api/core")
     return await invoke<ServerInfo>("get_workspace_server_info", { instanceId })
   } catch {
+    // Fallback: try reading .openacp files directly from workspace directory
+    if (directory) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core")
+        return await invoke<ServerInfo>("get_workspace_server_info_from_dir", { directory })
+      } catch { /* fallback also failed */ }
+    }
     return null
   }
 }

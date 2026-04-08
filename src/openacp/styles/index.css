@@ -86,6 +86,15 @@
   --radius-lg: 0.5rem;
   --radius-xl: 0.625rem;
 
+  /* Blur (Tailwind defaults — needed for backdrop-blur) */
+  --blur-xs: 4px;
+  --blur-sm: 8px;
+  --blur-md: 12px;
+  --blur-lg: 16px;
+  --blur-xl: 24px;
+  --blur-2xl: 40px;
+  --blur-3xl: 64px;
+
   /* Shadows (Tailwind defaults) */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -103,7 +112,8 @@
   --shadow-xs-border-critical-base: var(--shadow-xs-border-critical-base);
   --shadow-lg-border-base: var(--shadow-lg-border-base);
 
-  --animate-pulse: var(--animate-pulse);
+  --animate-spin: spin 1s linear infinite;
+  --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* ── Color token registrations ───────────────────────────────────────────── */

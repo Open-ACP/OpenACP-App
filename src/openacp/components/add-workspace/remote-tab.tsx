@@ -1,7 +1,5 @@
 import React, { useState } from 'react'
 import type { WorkspaceEntry } from '../../api/workspace-store'
-import { Button } from '../ui/button'
-import { Textarea } from '../ui/textarea'
 
 interface ConnectionPreview {
   host: string; accessToken: string; tokenId: string; expiresAt: string; refreshDeadline: string
@@ -43,7 +41,7 @@ export function RemoteTab(props: { onAdd: (entry: WorkspaceEntry) => void }) {
 
   async function handleConnect() {
     setError(null); const parsed = parseLink(input.trim())
-    if (!parsed) { setError('Invalid link format. Paste an openacp:// link or https:// URL.'); return }
+    if (!parsed) { setError('Invalid link. Paste an openacp:// or https:// invite link.'); return }
     setLoading(true)
     try { setPreview(await connectWithCode(parsed.host, parsed.code)) } catch (e: any) { setError(e.message ?? 'Connection failed') } finally { setLoading(false) }
   }
@@ -54,62 +52,82 @@ export function RemoteTab(props: { onAdd: (entry: WorkspaceEntry) => void }) {
       const { setKeychainToken } = await import('../../api/keychain')
       await setKeychainToken(p.workspaceId, p.accessToken)
       props.onAdd({ id: p.workspaceId, name: p.workspaceName, directory: p.workspaceDirectory, type: 'remote', host: p.host, tokenId: p.tokenId, role: p.role, expiresAt: p.expiresAt, refreshDeadline: p.refreshDeadline })
-    } catch (e: any) { setError(e.message ?? 'Failed to save workspace') } finally { setSaving(false) }
+    } catch (e: any) { setError(e.message ?? 'Failed to save') } finally { setSaving(false) }
   }
 
   return (
     <div className="space-y-4">
       {!preview ? (
-        <div className="space-y-4">
-          <div><p className="text-base font-medium leading-lg text-foreground mb-1">Connect to a remote workspace</p><p className="text-sm leading-lg text-muted-foreground">Run <code className="font-mono bg-secondary px-1 py-0.5 rounded text-foreground-weak">openacp remote</code> on the remote machine, then paste the invite link below.</p></div>
-          <label className="block"><span className="text-sm font-medium leading-lg text-foreground-weaker uppercase tracking-wider block mb-2">Invite link</span>
-            <Textarea
+        <>
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">Connect to a remote workspace</p>
+            <p className="text-xs text-muted-foreground">
+              Run <code className="font-mono bg-secondary px-1 py-0.5 rounded text-foreground-weak text-xs">openacp remote</code> on the remote machine, then paste the invite link.
+            </p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">Invite link</label>
+            <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="openacp://connect?host=...&code=..."
               rows={3}
-              className="w-full rounded-xl font-mono text-sm leading-lg resize-none"
+              className="w-full rounded-lg border border-border-weak bg-card px-3 py-2 font-mono text-xs text-foreground resize-none outline-none focus:border-foreground/30 placeholder:text-muted-foreground transition-colors"
             />
-          </label>
-          {error && <p className="text-sm leading-lg text-red-500">{error}</p>}
-          <Button
-            type="button"
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <button
             onClick={handleConnect}
             disabled={loading || !input.trim()}
-            className="w-full py-2.5 text-base font-medium leading-lg h-auto"
+            className="w-full h-9 rounded-lg bg-foreground text-background text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-30"
           >
             {loading ? 'Connecting...' : 'Connect'}
-          </Button>
-        </div>
+          </button>
+        </>
       ) : (
-        <div className="space-y-4">
-          <div><p className="text-base font-medium leading-lg text-foreground mb-1">Connection successful</p><p className="text-sm leading-lg text-muted-foreground">Review the details below before adding this workspace.</p></div>
-          <div className="rounded-xl border border-border divide-y divide-border-base overflow-hidden">
-            <div className="flex justify-between items-center px-4 py-3"><span className="text-sm leading-lg text-muted-foreground">Workspace</span><span className="text-base font-medium leading-lg text-foreground">{preview.workspaceName}</span></div>
-            <div className="flex justify-between items-center px-4 py-3"><span className="text-sm leading-lg text-muted-foreground">Server address</span><span className="text-sm leading-lg text-foreground-weak font-mono truncate max-w-48">{preview.host.replace(/^https?:\/\//, '')}</span></div>
-            <div className="flex justify-between items-center px-4 py-3"><span className="text-sm leading-lg text-muted-foreground">Access level</span><span className="text-sm leading-lg text-foreground-weak capitalize">{preview.role}</span></div>
-            <div className="flex justify-between items-center px-4 py-3"><span className="text-sm leading-lg text-muted-foreground">Session expires</span><span className="text-sm leading-lg text-foreground-weak">{new Date(preview.expiresAt).toLocaleString()}</span></div>
+        <>
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">Connection successful</p>
+            <p className="text-xs text-muted-foreground">Review details before adding.</p>
           </div>
-          {error && <p className="text-sm leading-lg text-red-500">{error}</p>}
+          <div className="rounded-lg border border-border-weak overflow-hidden">
+            <div className="flex justify-between items-center px-3 py-2.5">
+              <span className="text-xs text-muted-foreground">Workspace</span>
+              <span className="text-sm font-medium text-foreground">{preview.workspaceName}</span>
+            </div>
+            <div className="border-t border-border-weak" />
+            <div className="flex justify-between items-center px-3 py-2.5">
+              <span className="text-xs text-muted-foreground">Server</span>
+              <span className="text-xs text-foreground-weak font-mono truncate max-w-48">{preview.host.replace(/^https?:\/\//, '')}</span>
+            </div>
+            <div className="border-t border-border-weak" />
+            <div className="flex justify-between items-center px-3 py-2.5">
+              <span className="text-xs text-muted-foreground">Access</span>
+              <span className="text-xs text-foreground-weak capitalize">{preview.role}</span>
+            </div>
+            <div className="border-t border-border-weak" />
+            <div className="flex justify-between items-center px-3 py-2.5">
+              <span className="text-xs text-muted-foreground">Expires</span>
+              <span className="text-xs text-foreground-weak">{new Date(preview.expiresAt).toLocaleString()}</span>
+            </div>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
+            <button
               onClick={() => { setPreview(null); setError(null) }}
-              className="px-4 py-2.5 text-base leading-xl h-auto"
+              className="h-9 px-4 rounded-lg border border-border-weak text-sm font-medium text-foreground-weak hover:bg-accent transition-colors"
             >
               Back
-            </Button>
-            <Button
-              type="button"
+            </button>
+            <button
               onClick={handleConfirm}
               disabled={saving}
-              className="flex-1 px-4 py-2.5 text-base font-medium leading-lg h-auto"
+              className="flex-1 h-9 rounded-lg bg-foreground text-background text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-30"
             >
               {saving ? 'Adding...' : 'Add workspace'}
-            </Button>
+            </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

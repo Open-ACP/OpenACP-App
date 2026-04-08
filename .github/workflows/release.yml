@@ -125,6 +125,23 @@ jobs:
             console.log('App version:', v, '| WiX:', wixVersion);
           "
 
+      # ── Override updater pubkey for forks (if UPDATER_PUBKEY secret is set) ──
+      - name: Override updater pubkey
+        if: env.UPDATER_PUBKEY != ''
+        shell: bash
+        env:
+          UPDATER_PUBKEY: ${{ secrets.UPDATER_PUBKEY }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            if (conf.plugins?.updater) {
+              conf.plugins.updater.pubkey = process.env.UPDATER_PUBKEY;
+            }
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+            console.log('Updated updater pubkey');
+          "
+
       # ── macOS Code Signing & Notarization ──
       # Optional: skip if APPLE_CERTIFICATE secret is not set.
       # To enable, set these GitHub secrets:
@@ -144,24 +161,28 @@ jobs:
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       # ── Build ──
-      # Updater signing: set TAURI_SIGNING_PRIVATE_KEY + PASSWORD secrets.
-      # macOS notarization: set APPLE_* secrets above — tauri-action handles it automatically.
-      # Windows code signing: not yet configured — add AZURE_* or similar secrets when ready.
+      # Currently builds unsigned. To enable signing, add these repo secrets:
+      #   TAURI_SIGNING_PRIVATE_KEY       — updater signing key
+      #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+      #   APPLE_CERTIFICATE              — Base64-encoded .p12 (macOS codesign)
+      #   APPLE_CERTIFICATE_PASSWORD
+      #   APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID — macOS notarization
+      # Then uncomment the env vars below.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS notarization (ignored if secrets are empty)
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+          updaterJsonPreferNsis: true
 
   publish-release:
     needs: [create-release, build-tauri]

@@ -42,6 +42,8 @@ pub fn run() {
             // Sidecar commands
             core::sidecar::commands::get_server_info,
             core::sidecar::commands::get_workspace_server_info,
+            core::sidecar::commands::get_workspace_server_info_from_dir,
+            core::sidecar::commands::remove_instance_registration,
             core::sidecar::commands::start_server,
             core::sidecar::commands::stop_server,
             // Onboarding commands
@@ -59,9 +61,13 @@ pub fn run() {
             core::keychain::commands::keychain_delete,
             // Filesystem commands
             core::filesystem::commands::path_exists,
+            core::filesystem::commands::remove_directory,
             core::filesystem::commands::invoke_cli,
             core::filesystem::commands::get_git_branch,
             core::filesystem::commands::get_git_branches,
+            core::filesystem::commands::read_directory,
+            core::filesystem::commands::read_file_content,
+            core::filesystem::commands::get_workspace_changes,
         ])
         .setup(move |app| {
             app.manage(AppState {

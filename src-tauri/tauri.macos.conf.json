@@ -4,10 +4,15 @@
       {
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
+        "decorations": true,
         "transparent": true,
         "trafficLightPosition": {
           "x": 20,
-          "y": 24
+          "y": 23.5
+        },
+        "windowEffects": {
+          "effects": ["fullScreenUI", "blur"],
+          "state": "active"
         }
       }
     ]

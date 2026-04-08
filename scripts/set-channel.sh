@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Switch app identity for channel builds.
+# Switch app identity + updater endpoint for channel builds.
 # Usage: ./scripts/set-channel.sh nightly
 #        ./scripts/set-channel.sh stable   (no-op, default state)
+#
+# Environment variables (optional):
+#   UPDATER_ENDPOINT — override the update check URL
+#   UPDATER_PUBKEY   — override the signing public key
 
 set -euo pipefail
 
@@ -23,13 +27,23 @@ node -e "
   conf.productName = 'OpenACP ' + '$CHANNEL'.charAt(0).toUpperCase() + '$CHANNEL'.slice(1);
   conf.identifier = 'com.openacp.desktop.$CHANNEL';
 
-  // Disable auto-updater for non-stable channels
+  // Override updater endpoint for non-stable channels
+  const customEndpoint = process.env.UPDATER_ENDPOINT;
+  const customPubkey = process.env.UPDATER_PUBKEY;
+
   if (conf.plugins && conf.plugins.updater) {
-    delete conf.plugins.updater;
-  }
-  // No updater artifacts needed
-  if (conf.bundle) {
-    delete conf.bundle.createUpdaterArtifacts;
+    if (customEndpoint) {
+      conf.plugins.updater.endpoints = [customEndpoint];
+      console.log('  Updater endpoint: ' + customEndpoint);
+    } else {
+      // Default: use fork's GitHub releases for this channel
+      // Fork owner can set UPDATER_ENDPOINT in CI secrets
+      delete conf.plugins.updater;
+      console.log('  Updater: disabled (no UPDATER_ENDPOINT set)');
+    }
+    if (customPubkey) {
+      conf.plugins.updater.pubkey = customPubkey;
+    }
   }
 
   // Use channel icons if they exist (fall back to default)
@@ -48,7 +62,6 @@ node -e "
   fs.writeFileSync('$ROOT/src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
   console.log('  tauri.conf.json → ' + conf.productName + ' (' + conf.identifier + ')');
   console.log('  Icons: ' + (hasChannelIcons ? '$CHANNEL' : 'default (no $CHANNEL icons found)'));
-  console.log('  Updater: disabled');
 "
 
 # ── Patch Cargo.toml — update package name for unique binary ──
@@ -56,4 +69,4 @@ sed -i.bak "s/^name = \"openacp-desktop\"/name = \"openacp-desktop-$CHANNEL\"/" 
 rm -f "$ROOT/src-tauri/Cargo.toml.bak"
 echo "  Cargo.toml → openacp-desktop-$CHANNEL"
 
-echo "Done. Build will produce: OpenACP ${CHANNEL^}"
+echo "Done. Build will produce: OpenACP $(echo "$CHANNEL" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
