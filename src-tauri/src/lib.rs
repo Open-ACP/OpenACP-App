@@ -8,6 +8,17 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 
+#[tauri::command]
+fn toggle_devtools(app: tauri::AppHandle, open: bool) {
+    if let Some(window) = app.get_webview_window("main") {
+        if open {
+            window.open_devtools();
+        } else {
+            window.close_devtools();
+        }
+    }
+}
+
 #[derive(Clone, serde::Serialize)]
 pub struct ServerInfo {
     pub url: String,
@@ -68,6 +79,7 @@ pub fn run() {
             core::filesystem::commands::read_directory,
             core::filesystem::commands::read_file_content,
             core::filesystem::commands::get_workspace_changes,
+            toggle_devtools,
         ])
         .setup(move |app| {
             app.manage(AppState {

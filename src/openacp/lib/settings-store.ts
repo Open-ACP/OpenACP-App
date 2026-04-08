@@ -6,12 +6,14 @@ export interface AppSettings {
   theme: "dark" | "light" | "system"
   fontSize: "small" | "medium" | "large"
   language: string
+  devMode: boolean
 }
 
 const defaults: AppSettings = {
   theme: "dark",
   fontSize: "medium",
   language: "en",
+  devMode: false,
 }
 
 let store: Awaited<ReturnType<typeof load>> | null = null
@@ -36,7 +38,8 @@ export async function getAllSettings(): Promise<AppSettings> {
   const theme = ((await s.get("theme")) as AppSettings["theme"]) ?? defaults.theme
   const fontSize = ((await s.get("fontSize")) as AppSettings["fontSize"]) ?? defaults.fontSize
   const language = ((await s.get("language")) as AppSettings["language"]) ?? defaults.language
-  return { theme, fontSize, language }
+  const devMode = ((await s.get("devMode")) as AppSettings["devMode"]) ?? defaults.devMode
+  return { theme, fontSize, language, devMode }
 }
 
 /** Apply theme to document element */

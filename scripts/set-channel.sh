@@ -22,10 +22,14 @@ echo "Switching to channel: $CHANNEL"
 # ── Patch tauri.conf.json ──
 node -e "
   const fs = require('fs');
-  const conf = JSON.parse(fs.readFileSync('$ROOT/src-tauri/tauri.conf.json', 'utf8'));
+  const path = require('path');
+  const root = path.resolve(process.cwd());
+  const channel = '$CHANNEL';
+  const confPath = path.join(root, 'src-tauri', 'tauri.conf.json');
+  const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
 
-  conf.productName = 'OpenACP ' + '$CHANNEL'.charAt(0).toUpperCase() + '$CHANNEL'.slice(1);
-  conf.identifier = 'com.openacp.desktop.$CHANNEL';
+  conf.productName = 'OpenACP ' + channel.charAt(0).toUpperCase() + channel.slice(1);
+  conf.identifier = 'com.openacp.desktop.' + channel;
 
   // Override updater endpoint for non-stable channels
   const customEndpoint = process.env.UPDATER_ENDPOINT;
@@ -36,37 +40,41 @@ node -e "
       conf.plugins.updater.endpoints = [customEndpoint];
       console.log('  Updater endpoint: ' + customEndpoint);
     } else {
-      // Default: use fork's GitHub releases for this channel
-      // Fork owner can set UPDATER_ENDPOINT in CI secrets
       delete conf.plugins.updater;
       console.log('  Updater: disabled (no UPDATER_ENDPOINT set)');
     }
-    if (customPubkey) {
+    if (customPubkey && conf.plugins.updater) {
       conf.plugins.updater.pubkey = customPubkey;
     }
   }
 
   // Use channel icons if they exist (fall back to default)
-  const channelIconDir = '$ROOT/src-tauri/icons/$CHANNEL';
-  const hasChannelIcons = fs.existsSync(channelIconDir + '/icon.icns');
+  const iconDir = path.join(root, 'src-tauri', 'icons', channel);
+  const hasChannelIcons = fs.existsSync(path.join(iconDir, 'icon.icns'));
   if (hasChannelIcons) {
     conf.bundle.icon = [
-      'icons/$CHANNEL/32x32.png',
-      'icons/$CHANNEL/128x128.png',
-      'icons/$CHANNEL/128x128@2x.png',
-      'icons/$CHANNEL/icon.icns',
-      'icons/$CHANNEL/icon.ico'
+      'icons/' + channel + '/32x32.png',
+      'icons/' + channel + '/128x128.png',
+      'icons/' + channel + '/128x128@2x.png',
+      'icons/' + channel + '/icon.icns',
+      'icons/' + channel + '/icon.ico'
     ];
   }
 
-  fs.writeFileSync('$ROOT/src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+  fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
   console.log('  tauri.conf.json → ' + conf.productName + ' (' + conf.identifier + ')');
-  console.log('  Icons: ' + (hasChannelIcons ? '$CHANNEL' : 'default (no $CHANNEL icons found)'));
+  console.log('  Icons: ' + (hasChannelIcons ? channel : 'default (no ' + channel + ' icons found)'));
 "
 
 # ── Patch Cargo.toml — update package name for unique binary ──
-sed -i.bak "s/^name = \"openacp-desktop\"/name = \"openacp-desktop-$CHANNEL\"/" "$ROOT/src-tauri/Cargo.toml"
-rm -f "$ROOT/src-tauri/Cargo.toml.bak"
-echo "  Cargo.toml → openacp-desktop-$CHANNEL"
+node -e "
+  const fs = require('fs');
+  const path = require('path');
+  const cargoPath = path.join(process.cwd(), 'src-tauri', 'Cargo.toml');
+  let cargo = fs.readFileSync(cargoPath, 'utf8');
+  cargo = cargo.replace(/^name = \"openacp-desktop\"/m, 'name = \"openacp-desktop-$CHANNEL\"');
+  fs.writeFileSync(cargoPath, cargo);
+  console.log('  Cargo.toml → openacp-desktop-$CHANNEL');
+"
 
 echo "Done. Build will produce: OpenACP $(echo "$CHANNEL" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"

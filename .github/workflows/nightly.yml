@@ -41,9 +41,20 @@ jobs:
             echo "should_build=true" >> $GITHUB_OUTPUT
           fi
 
+  # ── Clean old nightly release ──
+  clean-release:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete existing nightly release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete nightly --repo ${{ github.repository }} --yes --cleanup-tag 2>/dev/null || true
+
   # ── Build matrix (only if check passes) ──
   nightly:
-    needs: check
+    needs: [check, clean-release]
     if: needs.check.outputs.should_build == 'true'
     strategy:
       fail-fast: false
@@ -67,6 +78,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: develop
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -98,20 +110,21 @@ jobs:
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           VERSION="${LATEST_TAG#v}"
-          NIGHTLY_VERSION="${VERSION}-nightly.$(date +%Y%m%d)"
+          NIGHTLY_VERSION="${VERSION}-nightly.${GITHUB_RUN_NUMBER}"
           echo "NIGHTLY_VERSION=$NIGHTLY_VERSION" >> $GITHUB_ENV
           echo "Nightly version: $NIGHTLY_VERSION"
 
           node -e "
             const fs = require('fs');
-            // package.json — accepts any version string
+            const v = '$NIGHTLY_VERSION';
+            // package.json
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$NIGHTLY_VERSION';
+            pkg.version = v;
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 
-            // Cargo.toml — use 0.0.0 (Cargo doesn't support date-based semver)
+            // Cargo.toml — semver pre-release is valid (e.g. 2026.407.1-nightly.42)
             let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
-            cargo = cargo.replace(/^version = \".*\"/m, 'version = \"0.0.0\"');
+            cargo = cargo.replace(/^version = \".*\"/m, 'version = \"' + v + '\"');
             fs.writeFileSync('src-tauri/Cargo.toml', cargo);
           "
 
@@ -131,8 +144,8 @@ jobs:
         with:
           args: ${{ matrix.args }}
           tagName: nightly
-          releaseName: "Nightly"
-          releaseBody: "Automated nightly build from develop branch."
+          releaseName: "Nightly ${{ env.NIGHTLY_VERSION }}"
+          releaseBody: "Automated nightly build from develop branch. Version: ${{ env.NIGHTLY_VERSION }}"
           prerelease: true
           updaterJsonPreferNsis: true
 
