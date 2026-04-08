@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Button } from "../ui/button"
 import { SettingCard } from "./setting-card"
 import { SettingRow } from "./setting-row"
+import { showToast } from "../../lib/toast"
 
 const APP_VERSION = __APP_VERSION__
 const GITHUB_URL = "https://github.com/Open-ACP/OpenACP-App"
@@ -18,12 +19,17 @@ export function SettingsAbout() {
       const { check } = await import("@tauri-apps/plugin-updater")
       const update = await check()
       if (update) {
-        window.alert(`Update available: ${update.version}`)
+        // Dispatch event so UpdateNotification picks it up
+        window.dispatchEvent(new CustomEvent("app-update-available", {
+          detail: { version: update.version, update }
+        }))
+        showToast({ description: `Update available: v${update.version}` })
       } else {
-        window.alert("You are on the latest version.")
+        showToast({ description: "You are on the latest version." })
       }
-    } catch {
-      window.alert("Failed to check for updates.")
+    } catch (e) {
+      console.error("[settings] update check failed:", e)
+      showToast({ description: "Failed to check for updates." })
     } finally {
       setChecking(false)
     }

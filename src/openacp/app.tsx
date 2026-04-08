@@ -25,8 +25,6 @@ import {
   type SettingsPage,
 } from "./components/settings/settings-dialog";
 import { SetupModal } from "./components/add-workspace/setup-modal";
-import { UpdateNotification } from "./components/update-notification";
-import { useAppUpdater } from "./hooks/use-app-updater";
 import { showToast } from "./lib/toast";
 import { Toaster } from "./components/ui/toaster";
 import {
@@ -236,8 +234,6 @@ export function OpenACPApp() {
   const [shareLinks, setShareLinks] = useState<Map<string, string>>(new Map());
   const [setupInfo, setSetupInfo] = useState<{ path: string; instanceId: string } | null>(null);
 
-  const updater = useAppUpdater();
-
   const retryRef = useRef<ReturnType<typeof setInterval>>();
   const retryCountRef = useRef(0);
 
@@ -323,7 +319,30 @@ export function OpenACPApp() {
     void getAllSettings().then((settings) => {
       applyTheme(settings.theme);
       applyFontSize(settings.fontSize);
+      // Apply devMode: block right-click context menu unless enabled
+      if (!settings.devMode) {
+        document.addEventListener("contextmenu", blockContextMenu);
+      }
     });
+    function blockContextMenu(e: MouseEvent) {
+      // Allow context menu on inputs/textareas
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+      e.preventDefault();
+    }
+    function handleDevModeChange(e: Event) {
+      const enabled = (e as CustomEvent).detail;
+      if (enabled) {
+        document.removeEventListener("contextmenu", blockContextMenu);
+      } else {
+        document.addEventListener("contextmenu", blockContextMenu);
+      }
+    }
+    window.addEventListener("devmode-changed", handleDevModeChange);
+    return () => {
+      document.removeEventListener("contextmenu", blockContextMenu);
+      window.removeEventListener("devmode-changed", handleDevModeChange);
+    };
   }, []);
 
   // Listen for open-settings custom event (e.g. from Composer "Install agent...")
@@ -761,16 +780,6 @@ export function OpenACPApp() {
         serverConnected={!!server}
         initialPage={settingsPage}
       />
-      {updater.available && updater.version && (
-        <UpdateNotification
-          version={updater.version}
-          downloading={updater.downloading}
-          progress={updater.progress}
-          error={updater.error}
-          onUpdate={updater.downloadAndInstall}
-          onDismiss={updater.dismiss}
-        />
-      )}
       <Toaster />
     </div>
   );

@@ -96,6 +96,17 @@ export function useAppUpdater() {
     return () => clearTimeout(timer)
   }, [checkForUpdate])
 
+  // Listen for manual check from settings
+  useEffect(() => {
+    function handleManualCheck(e: Event) {
+      const { version, update } = (e as CustomEvent).detail
+      updateRef.current = update
+      setState((s) => ({ ...s, available: true, version, checking: false }))
+    }
+    window.addEventListener("app-update-available", handleManualCheck)
+    return () => window.removeEventListener("app-update-available", handleManualCheck)
+  }, [])
+
   return {
     ...state,
     checkForUpdate,
