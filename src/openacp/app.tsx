@@ -27,6 +27,7 @@ import {
 import { SetupModal } from "./components/add-workspace/setup-modal";
 import { showToast } from "./lib/toast";
 import { Toaster } from "./components/ui/toaster";
+import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
 import {
   getAllSettings,
   applyTheme,
@@ -34,6 +35,7 @@ import {
 } from "./lib/settings-store";
 import { Titlebar } from "./components/titlebar";
 import { FileTreePanel } from "./components/file-tree-panel";
+import { BrowserPanel } from "./components/browser-panel";
 import type { ServerInfo } from "./types";
 
 function NoServerScreen({ directory, isRemote, onStart, onReconnect, onRemove }: { directory: string; isRemote?: boolean; onStart: () => void; onReconnect: () => void; onRemove?: () => void }) {
@@ -124,13 +126,17 @@ function ChatArea() {
   );
 }
 
-function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath }: {
+function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath, browserOpen, browserUrl, onCloseBrowser, onBrowserUrlChange }: {
   sidebarCollapsed: boolean
   reviewOpen: boolean
   onToggleReview: () => void
   setReviewOpen: (open: boolean) => void
   fileTreeOpen: boolean
   workspacePath: string
+  browserOpen: boolean
+  browserUrl: string | null
+  onCloseBrowser: () => void
+  onBrowserUrlChange: (url: string) => void
 }) {
   const permissions = usePermissions();
   const workspaceCtx = useWorkspace();
@@ -205,6 +211,23 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {browserOpen && (
+          <motion.div
+            className="shrink-0 h-full overflow-hidden"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: "auto", opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <BrowserPanel
+              url={browserUrl}
+              onClose={onCloseBrowser}
+              onUrlChange={onBrowserUrlChange}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </ChatProvider>
   );
 }
@@ -238,6 +261,8 @@ export function OpenACPApp() {
   const retryCountRef = useRef(0);
 
   // ── Helpers ────────────────────────────────────────────────────────────
+
+  const { sorted: sortedWorkspaces, pinnedIds, togglePin, reorder, rename: renameWorkspace, touchLastActive } = useSortedWorkspaces(workspaces, setWorkspaces);
 
   const findWorkspace = useCallback(
     (id: string) => workspaces.find((w) => w.id === id),
@@ -303,7 +328,14 @@ export function OpenACPApp() {
       // Keep all saved workspaces — don't filter by CLI discovery
       // resolveServer will handle connection per workspace
       if (entries.length > 0) setWorkspaces(entries);
-      const lastId = entries.length > 0 ? entries[entries.length - 1].id : null;
+      // Pick the most recently active workspace, or fall back to last in array
+      const sorted = [...entries].sort((a, b) => {
+        if (a.lastActiveAt && b.lastActiveAt) return b.lastActiveAt.localeCompare(a.lastActiveAt)
+        if (a.lastActiveAt) return -1
+        if (b.lastActiveAt) return 1
+        return 0
+      })
+      const lastId = sorted.length > 0 ? sorted[0].id : null;
       if (lastId) setActive(lastId);
       setReady(true);
     });
@@ -387,6 +419,7 @@ export function OpenACPApp() {
   }
 
   function switchInstance(instanceId: string) {
+    touchLastActive(instanceId);
     setActive(instanceId);
   }
 
@@ -589,6 +622,37 @@ export function OpenACPApp() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
+  const [browserPanelEnabled, setBrowserPanelEnabled] = useState(false);
+
+  // Load browser panel setting
+  useEffect(() => {
+    void getAllSettings().then((settings) => {
+      setBrowserPanelEnabled(settings.browserPanel);
+    });
+    function handleBrowserSettingChanged(e: Event) {
+      setBrowserPanelEnabled((e as CustomEvent).detail);
+    }
+    window.addEventListener("browser-panel-changed", handleBrowserSettingChanged);
+    return () => window.removeEventListener("browser-panel-changed", handleBrowserSettingChanged);
+  }, []);
+
+  // Listen for open-in-browser events (from link interceptor)
+  useEffect(() => {
+    function handleOpenInBrowser(e: Event) {
+      const { url } = (e as CustomEvent).detail;
+      if (!url) return;
+      if (browserPanelEnabled) {
+        setBrowserUrl(url);
+        setBrowserOpen(true);
+      } else {
+        import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch(console.error);
+      }
+    }
+    window.addEventListener("open-in-browser-panel", handleOpenInBrowser);
+    return () => window.removeEventListener("open-in-browser-panel", handleOpenInBrowser);
+  }, [browserPanelEnabled]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
@@ -599,16 +663,23 @@ export function OpenACPApp() {
         onToggleReview={() => setReviewOpen((v) => !v)}
         fileTreeOpen={fileTreeOpen}
         onToggleFileTree={() => setFileTreeOpen((v) => !v)}
+        browserOpen={browserOpen}
+        onToggleBrowser={() => setBrowserOpen((v) => !v)}
         hideFileTree={activeWorkspace?.type === "remote"}
+        hideBrowser={!browserPanelEnabled}
       />
       <div className="flex flex-1 min-h-0">
         <SidebarRail
-          workspaces={workspaces.map((w) => ({ id: w.id, directory: w.directory, name: w.name, type: w.type }))}
+          workspaces={sortedWorkspaces.map((w) => ({ id: w.id, directory: w.directory, name: w.name, type: w.type, pinned: w.pinned, customName: w.customName }))}
           activeId={active}
           connectedIds={connectedWorkspaceIds}
           errorIds={errorWorkspaceIds}
+          pinnedIds={pinnedIds}
           onSwitchWorkspace={(id) => switchInstance(id)}
           onRemoveWorkspace={(id) => removeInstance(id)}
+          onTogglePin={togglePin}
+          onReorder={reorder}
+          onRename={renameWorkspace}
           onShareWorkspace={() => setShareOpen(true)}
           onCopyShareLink={async (id) => {
             const link = shareLinks.get(id)
@@ -675,6 +746,10 @@ export function OpenACPApp() {
                     setReviewOpen={setReviewOpen}
                     fileTreeOpen={fileTreeOpen}
                     workspacePath={activeWorkspace?.directory ?? ""}
+                    browserOpen={browserOpen && browserPanelEnabled}
+                    browserUrl={browserUrl}
+                    onCloseBrowser={() => setBrowserOpen(false)}
+                    onBrowserUrlChange={setBrowserUrl}
                   />
                 </PermissionsProvider>
               </SessionsProvider>

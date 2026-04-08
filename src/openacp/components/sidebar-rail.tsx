@@ -1,32 +1,46 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { GearSix, PuzzlePiece, Plus, Trash, Globe, Broadcast } from "@phosphor-icons/react"
+import {
+  GearSix,
+  PuzzlePiece,
+  Plus,
+  Trash,
+  PushPin,
+  PencilSimple,
+} from "@phosphor-icons/react"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import type { Modifier } from "@dnd-kit/core"
 import { Button } from "./ui/button"
+import { SortableWorkspaceItem } from "./sortable-workspace-item"
+import { RenameWorkspaceDialog } from "./rename-workspace-popover"
 import { showToast } from "../lib/toast"
-
-const AVATAR_COLORS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
-
-function avatarColor(dir: string) {
-  let hash = 0
-  for (let i = 0; i < dir.length; i++) hash = ((hash << 5) - hash + dir.charCodeAt(i)) | 0
-  const key = AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-  return {
-    background: `var(--avatar-background-${key})`,
-    foreground: `var(--avatar-text-${key})`,
-  }
-}
-
-/** Get display name: prefer directory folder name over raw name/id */
-function displayName(ws: WorkspaceItem) {
-  const folderName = ws.directory ? ws.directory.split("/").pop() : null
-  return folderName || ws.name || ws.id
-}
 
 export interface WorkspaceItem {
   id: string
   directory: string
   name: string
   type: "local" | "remote"
+  pinned?: boolean
+  customName?: string
+}
+
+function displayName(ws: WorkspaceItem) {
+  if (ws.customName) return ws.customName
+  const folderName = ws.directory ? ws.directory.split("/").pop() : null
+  return folderName || ws.name || ws.id
 }
 
 function ContextMenu(props: {
@@ -35,6 +49,7 @@ function ContextMenu(props: {
   workspace: WorkspaceItem
   isConnected: boolean
   isSharing: boolean
+  isPinned: boolean
   onCopyPath: () => void
   onShare: () => void
   onCopyShareLink: () => void
@@ -43,6 +58,8 @@ function ContextMenu(props: {
   onStart: () => void
   onStop: () => void
   onRemove: () => void
+  onTogglePin: () => void
+  onRename: () => void
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -62,15 +79,31 @@ function ContextMenu(props: {
     }
   }, [props.onClose])
 
+  const menuBtnClass = "w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors flex items-center gap-2"
+
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[160px] rounded-md border border-border-weak bg-popover shadow-lg py-1"
+      className="fixed z-50 min-w-[180px] rounded-md border border-border-weak bg-popover shadow-lg py-1"
       style={{ left: props.x, top: props.y }}
     >
+      {/* Pin / Unpin */}
+      <button className={menuBtnClass} onClick={() => { props.onTogglePin(); props.onClose() }}>
+        <PushPin size={14} weight={props.isPinned ? "fill" : "regular"} />
+        {props.isPinned ? "Unpin" : "Pin to top"}
+      </button>
+
+      {/* Rename */}
+      <button className={menuBtnClass} onClick={() => { props.onRename(); props.onClose() }}>
+        <PencilSimple size={14} />
+        Rename
+      </button>
+
+      <div className="my-1 border-t border-border-weak" />
+
       {props.workspace.directory && (
         <button
-          className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+          className={menuBtnClass}
           onClick={() => { props.onCopyPath(); props.onClose() }}
         >
           Copy path
@@ -80,7 +113,7 @@ function ContextMenu(props: {
         props.isSharing ? (
           <>
             <button
-              className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+              className={menuBtnClass}
               onClick={() => { props.onCopyShareLink(); props.onClose() }}
             >
               Copy share link
@@ -94,7 +127,7 @@ function ContextMenu(props: {
           </>
         ) : (
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            className={menuBtnClass}
             onClick={() => { props.onShare(); props.onClose() }}
           >
             Share workspace
@@ -103,7 +136,7 @@ function ContextMenu(props: {
       )}
       {props.isConnected ? (
         <button
-          className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+          className={menuBtnClass}
           onClick={() => { props.onStop(); props.onClose() }}
         >
           Stop server
@@ -111,13 +144,13 @@ function ContextMenu(props: {
       ) : (
         <>
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            className={menuBtnClass}
             onClick={() => { props.onStart(); props.onClose() }}
           >
             Start server
           </button>
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            className={menuBtnClass}
             onClick={() => { props.onReconnect(); props.onClose() }}
           >
             Reconnect
@@ -140,6 +173,7 @@ export function SidebarRail(props: {
   activeId: string | null
   connectedIds?: Set<string>
   errorIds?: Set<string>
+  pinnedIds: Set<string>
   onSwitchWorkspace: (id: string) => void
   onRemoveWorkspace?: (id: string) => void
   onShareWorkspace?: (id: string) => void
@@ -150,8 +184,14 @@ export function SidebarRail(props: {
   onOpenFolder: () => void
   onOpenPlugins?: () => void
   onOpenSettings?: () => void
+  onTogglePin: (id: string) => void
+  onReorder: (activeId: string, overId: string) => void
+  onRename: (id: string, name: string) => void
 }) {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [renameTarget, setRenameTarget] = useState<string | null>(null)
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const sortableContainerRef = useRef<HTMLDivElement>(null)
 
   // Listen for workspace menu open from sidebar header
   useEffect(() => {
@@ -163,6 +203,45 @@ export function SidebarRail(props: {
     return () => window.removeEventListener("open-workspace-menu", handleOpenMenu)
   }, [props.activeId])
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  const restrictToContainer: Modifier = useCallback(
+    ({ transform, draggingNodeRect, containerNodeRect: _ignore }) => {
+      const container = sortableContainerRef.current
+      if (!container || !draggingNodeRect) return transform
+      const containerRect = container.getBoundingClientRect()
+      const clampedY = Math.min(
+        Math.max(transform.y, containerRect.top - draggingNodeRect.top),
+        containerRect.bottom - draggingNodeRect.bottom,
+      )
+      return { ...transform, x: 0, y: clampedY }
+    },
+    [],
+  )
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (over && active.id !== over.id) {
+        props.onReorder(String(active.id), String(over.id))
+      }
+    },
+    [props.onReorder],
+  )
+
+  const handleRename = useCallback(
+    (id: string) => setRenameTarget(id),
+    [],
+  )
+
+  // Find the boundary index between pinned and unpinned
+  const firstUnpinnedIdx = props.workspaces.findIndex(ws => !props.pinnedIds.has(ws.id))
+  const hasPinned = props.pinnedIds.size > 0
+  const hasUnpinned = firstUnpinnedIdx >= 0
+
   return (
     <div
       data-component="sidebar-rail"
@@ -170,53 +249,52 @@ export function SidebarRail(props: {
     >
       <div className="flex-1 min-h-0 w-full">
         <div className="h-full w-full flex flex-col items-center gap-3 px-2 overflow-y-auto no-scrollbar pt-5">
-          {props.workspaces.map((ws) => {
-            const isActive = ws.id === props.activeId
-            const hasError = props.errorIds?.has(ws.id) ?? false
-            const isConnected = props.connectedIds?.has(ws.id) ?? false
-            const colors = avatarColor(ws.directory || ws.id)
-            const label = displayName(ws)
-            const initial = label.charAt(0).toUpperCase()
-            return (
-              <div
-                key={ws.id}
-                className="relative"
-                title={`${label}${ws.type === "remote" ? " (remote)" : ""}${hasError ? " — reconnect needed" : ""}`}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setContextMenu({ id: ws.id, x: e.clientX, y: e.clientY })
-                }}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToContainer]}
+            onDragEnd={handleDragEnd}
+          >
+            <div ref={sortableContainerRef} className="flex flex-col items-center gap-3">
+              <SortableContext
+                items={props.workspaces.map(ws => ws.id)}
+                strategy={verticalListSortingStrategy}
               >
-                <button
-                  type="button"
-                  className={`flex items-center justify-center size-9 rounded-lg overflow-hidden transition-all cursor-default ${
-                    isActive ? "ring-2 ring-foreground-weak ring-offset-1 ring-offset-background" : "opacity-60 hover:opacity-100"
-                  }`}
-                  onClick={() => hasError && props.onReconnect ? props.onReconnect(ws.id) : props.onSwitchWorkspace(ws.id)}
-                >
-                  <div
-                    className="size-full rounded-lg flex items-center justify-center text-sm font-medium leading-lg"
-                    style={{ background: colors.background, color: colors.foreground }}
-                  >
-                    {initial}
-                  </div>
-                </button>
-                <div className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-background pointer-events-none"
-                  style={{ background: hasError ? 'var(--surface-critical-strong)' : isConnected ? 'var(--surface-success-strong)' : 'var(--text-weaker)' }}
-                />
-                {ws.type === "remote" && (
-                  <div className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-background border border-border-weak flex items-center justify-center pointer-events-none">
-                    <Globe size={11} weight="bold" className="text-muted-foreground" />
-                  </div>
-                )}
-                {ws.type === "local" && isConnected && (props.sharingIds?.has(ws.id) ?? false) && (
-                  <div className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-background border border-border-weak flex items-center justify-center pointer-events-none">
-                    <Broadcast size={11} weight="bold" className="text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                {props.workspaces.map((ws, index) => {
+                  const showSeparator =
+                    hasPinned && hasUnpinned && index === firstUnpinnedIdx
+
+                  return (
+                    <React.Fragment key={ws.id}>
+                      {showSeparator && (
+                        <div className="w-6 border-t border-border-weak" />
+                      )}
+                      <div ref={(el) => { if (el) itemRefs.current.set(ws.id, el); else itemRefs.current.delete(ws.id) }}>
+                        <SortableWorkspaceItem
+                          id={ws.id}
+                          directory={ws.directory}
+                          name={ws.name}
+                          type={ws.type}
+                          customName={ws.customName}
+                          pinned={props.pinnedIds.has(ws.id)}
+                          isActive={ws.id === props.activeId}
+                          hasError={props.errorIds?.has(ws.id) ?? false}
+                          isConnected={props.connectedIds?.has(ws.id) ?? false}
+                          isSharing={props.sharingIds?.has(ws.id) ?? false}
+                          onSwitch={() => props.onSwitchWorkspace(ws.id)}
+                          onReconnect={props.onReconnect ? () => props.onReconnect!(ws.id) : undefined}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            setContextMenu({ id: ws.id, x: e.clientX, y: e.clientY })
+                          }}
+                        />
+                      </div>
+                    </React.Fragment>
+                  )
+                })}
+              </SortableContext>
+            </div>
+          </DndContext>
 
           <div>
             <Button
@@ -263,6 +341,7 @@ export function SidebarRail(props: {
             workspace={ws}
             isConnected={props.connectedIds?.has(ws.id) ?? false}
             isSharing={props.sharingIds?.has(ws.id) ?? false}
+            isPinned={props.pinnedIds.has(ws.id)}
             onCopyPath={async () => {
               try {
                 await navigator.clipboard.writeText(ws.directory)
@@ -295,10 +374,19 @@ export function SidebarRail(props: {
               } catch { /* best-effort */ }
               props.onRemoveWorkspace?.(contextMenu.id)
             }}
+            onTogglePin={() => props.onTogglePin(contextMenu.id)}
+            onRename={() => handleRename(contextMenu.id)}
             onClose={() => setContextMenu(null)}
           />
         )
       })()}
+
+      <RenameWorkspaceDialog
+        open={renameTarget !== null}
+        currentName={renameTarget ? displayName(props.workspaces.find(w => w.id === renameTarget) ?? { directory: "", name: "", id: renameTarget }) : ""}
+        onSave={(name) => { if (renameTarget) props.onRename(renameTarget, name) }}
+        onClose={() => setRenameTarget(null)}
+      />
     </div>
   )
 }

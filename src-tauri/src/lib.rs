@@ -59,6 +59,7 @@ pub fn run() {
             core::sidecar::commands::stop_server,
             // Onboarding commands
             core::onboarding::commands::check_openacp_installed,
+            core::onboarding::commands::get_openacp_binary_path,
             core::onboarding::commands::check_openacp_config,
             core::onboarding::commands::check_core_update,
             core::onboarding::commands::run_install_script,
@@ -79,6 +80,16 @@ pub fn run() {
             core::filesystem::commands::read_directory,
             core::filesystem::commands::read_file_content,
             core::filesystem::commands::get_workspace_changes,
+            // Browser panel commands
+            core::browser::browser_open,
+            core::browser::browser_navigate,
+            core::browser::browser_eval,
+            core::browser::browser_close,
+            core::browser::browser_set_bounds,
+            core::browser::browser_show,
+            core::browser::browser_hide,
+            core::browser::browser_float,
+            core::browser::browser_dock,
             toggle_devtools,
         ])
         .setup(move |app| {

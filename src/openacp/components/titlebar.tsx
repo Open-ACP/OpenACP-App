@@ -1,4 +1,4 @@
-import { Sidebar, TextAlignLeft, FolderOpen } from "@phosphor-icons/react"
+import { Sidebar, TextAlignLeft, FolderOpen, Globe } from "@phosphor-icons/react"
 
 interface TitlebarProps {
   sidebarCollapsed: boolean
@@ -7,10 +7,13 @@ interface TitlebarProps {
   onToggleReview: () => void
   fileTreeOpen: boolean
   onToggleFileTree: () => void
+  browserOpen: boolean
+  onToggleBrowser: () => void
   hideFileTree?: boolean
+  hideBrowser?: boolean
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, hideFileTree }: TitlebarProps) {
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, hideFileTree, hideBrowser }: TitlebarProps) {
   return (
     <header
       className="h-12 shrink-0 relative grid items-center border-b border-border-weak px-2"
@@ -51,6 +54,16 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
             onClick={onToggleFileTree}
           >
             <FolderOpen size={18} />
+          </button>
+        )}
+        {!hideBrowser && (
+          <button
+            type="button"
+            className={`oac-titlebar-btn ${browserOpen ? "oac-titlebar-btn--active" : ""}`}
+            title="Browser"
+            onClick={onToggleBrowser}
+          >
+            <Globe size={18} />
           </button>
         )}
       </div>

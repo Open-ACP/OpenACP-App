@@ -21,8 +21,8 @@ export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
   const [panelWidth, setPanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
 
   const workspaceName = useMemo(
-    () => workspace.directory.split("/").pop() || "Workspace",
-    [workspace.directory],
+    () => workspace.workspace.customName || workspace.directory.split("/").pop() || "Workspace",
+    [workspace.workspace.customName, workspace.directory],
   );
   const workspacePath = useMemo(() => {
     const parts = workspace.directory.split("/");

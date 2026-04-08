@@ -8,6 +8,13 @@ pub async fn check_openacp_installed(_app: tauri::AppHandle) -> Result<Option<St
     setup::check_installed().await
 }
 
+/// Returns the resolved path to the openacp binary, or None if not found.
+#[tauri::command]
+pub async fn get_openacp_binary_path() -> Result<Option<String>, String> {
+    use crate::core::sidecar::binary::find_openacp_binary;
+    Ok(find_openacp_binary().map(|(path, _)| path.to_string_lossy().to_string()))
+}
+
 /// Returns true if ~/.openacp/config.json exists.
 #[tauri::command]
 pub async fn check_openacp_config() -> Result<bool, String> {

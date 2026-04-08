@@ -24,10 +24,12 @@ const LOCALE_LABELS: Record<string, string> = {
 export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
   const [language, setLanguage] = useState("en")
   const [devMode, setDevMode] = useState(false)
+  const [browserPanel, setBrowserPanel] = useState(false)
 
   useEffect(() => {
     void getSetting("language").then(setLanguage)
     void getSetting("devMode").then(setDevMode)
+    void getSetting("browserPanel").then(setBrowserPanel)
   }, [])
 
   async function handleLanguageChange(value: string) {
@@ -55,6 +57,25 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
           <code className="text-sm text-foreground-weak font-mono bg-secondary px-2 py-1 rounded-md max-w-[200px] truncate block">
             {workspacePath || "No workspace selected"}
           </code>
+        </SettingRow>
+      </SettingCard>
+
+      <SettingCard title="Browser (Experimental)">
+        <SettingRow label="In-app browser" description="Open links in a built-in browser panel instead of the system browser">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={browserPanel}
+            onClick={async () => {
+              const next = !browserPanel
+              setBrowserPanel(next)
+              await setSetting("browserPanel", next)
+              window.dispatchEvent(new CustomEvent("browser-panel-changed", { detail: next }))
+            }}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${browserPanel ? "bg-primary" : "bg-secondary"}`}
+          >
+            <span className={`pointer-events-none inline-block size-4 rounded-full bg-background shadow-sm ring-0 transition-transform ${browserPanel ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
         </SettingRow>
       </SettingCard>
 

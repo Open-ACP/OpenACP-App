@@ -12,6 +12,19 @@ import { UpdateToasts } from "../onboarding/update-toast"
 import { determineStartupScreen, type StartupScreen } from "../onboarding/startup"
 import { saveWorkspaces, type WorkspaceEntry } from "./api/workspace-store"
 
+// Intercept all external link clicks — open in browser panel or system browser
+document.addEventListener("click", (e) => {
+  const anchor = (e.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null
+  if (!anchor) return
+  const href = anchor.getAttribute("href")
+  if (!href) return
+  if (href.startsWith("http://") || href.startsWith("https://")) {
+    e.preventDefault()
+    // Check if browser panel is enabled via custom event
+    window.dispatchEvent(new CustomEvent("open-in-browser-panel", { detail: { url: href } }))
+  }
+})
+
 function App() {
   const [screen, setScreen] = useState<StartupScreen>('splash')
 
