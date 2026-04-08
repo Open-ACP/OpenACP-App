@@ -9,7 +9,7 @@ export function SettingCard({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      {title && <h3 className="text-md-medium text-foreground">{title}</h3>}
+      {title && <h3 className="text-base font-medium text-foreground">{title}</h3>}
       <div className="rounded-lg bg-muted overflow-hidden">{children}</div>
     </div>
   );

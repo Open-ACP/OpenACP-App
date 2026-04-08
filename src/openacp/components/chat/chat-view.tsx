@@ -1,7 +1,10 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { DotsThree } from "@phosphor-icons/react";
+import { DotsThree, GitBranch } from "@phosphor-icons/react";
+import { invoke } from "@tauri-apps/api/core";
+import { BrandIcon } from "../brand-loader";
 import { useChat } from "../../context/chat";
 import { useSessions } from "../../context/sessions";
+import { useWorkspace } from "../../context/workspace";
 import { usePermissions } from "../../context/permissions";
 import { useAutoScroll } from "../../hooks/use-auto-scroll";
 import { UserMessage } from "./user-message";
@@ -28,7 +31,10 @@ import {
 function EmptyState() {
   return (
     <div className="h-full flex flex-col items-center justify-center">
-      <div className="text-xl-medium text-foreground" style={{ fontSize: 24 }}>How can I help you today?</div>
+      <div className="flex flex-col items-center gap-5">
+        <BrandIcon className="w-12 h-8 text-foreground" />
+        <div className="text-xl font-medium text-foreground">How can I help you today?</div>
+      </div>
     </div>
   );
 }

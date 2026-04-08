@@ -52,9 +52,9 @@ export function InstalledTab({ workspace }: { workspace: WorkspaceCtx }) {
     <div className="p-4 flex flex-col gap-2">
       {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /></div>}
       {error && (
-        <div className="text-red-500 text-base leading-xl text-center py-8">
+        <div className="text-red-500 text-base leading-relaxed text-center py-8">
           Failed to load plugins.{" "}
-          <Button variant="link" className="ml-1 p-0 h-auto text-base leading-xl" onClick={refetch}>Retry</Button>
+          <Button variant="link" className="ml-1 p-0 h-auto text-base leading-relaxed" onClick={refetch}>Retry</Button>
         </div>
       )}
       {plugins?.plugins.map((plugin) => (
@@ -62,16 +62,16 @@ export function InstalledTab({ workspace }: { workspace: WorkspaceCtx }) {
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-base font-medium leading-lg text-foreground truncate">{plugin.name}</span>
+                <span className="text-base font-medium leading-normal text-foreground truncate">{plugin.name}</span>
                 {plugin.source === 'builtin'
-                  ? <Badge variant="secondary" className="text-sm leading-lg">Built-in</Badge>
-                  : <Badge variant="outline" className="text-sm leading-lg bg-blue-500/10 text-blue-500 border-transparent">{plugin.source}</Badge>
+                  ? <Badge variant="secondary" className="text-sm leading-normal">Built-in</Badge>
+                  : <Badge variant="outline" className="text-sm leading-normal bg-blue-500/10 text-blue-500 border-transparent">{plugin.source}</Badge>
                 }
-                {plugin.failed && <Badge variant="destructive" className="text-sm leading-lg">Failed</Badge>}
-                {!plugin.failed && plugin.loaded && <Badge variant="outline" className="text-sm leading-lg text-green-500 border-transparent">Running</Badge>}
-                {!plugin.failed && !plugin.loaded && <Badge variant="secondary" className="text-sm leading-lg text-muted-foreground">Disabled</Badge>}
+                {plugin.failed && <Badge variant="destructive" className="text-sm leading-normal">Failed</Badge>}
+                {!plugin.failed && plugin.loaded && <Badge variant="outline" className="text-sm leading-normal text-green-500 border-transparent">Running</Badge>}
+                {!plugin.failed && !plugin.loaded && <Badge variant="secondary" className="text-sm leading-normal text-muted-foreground">Disabled</Badge>}
               </div>
-              {plugin.description && <span className="text-sm leading-lg text-muted-foreground mt-0.5">{plugin.description}</span>}
+              {plugin.description && <span className="text-sm leading-normal text-muted-foreground mt-0.5">{plugin.description}</span>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {plugin.hasConfigure && (
@@ -96,7 +96,7 @@ export function InstalledTab({ workspace }: { workspace: WorkspaceCtx }) {
             <div className="mt-1 p-3 bg-surface-base rounded-md flex flex-col gap-2 border border-border">
               <CommandBlock label="Run in your terminal:" command={getConfigureCommand(plugin.name)} />
               <CommandBlock label="Restart the server to apply changes:" command={getRestartCommand()} />
-              <Button variant="ghost" size="xs" className="text-sm leading-lg text-muted-foreground hover:text-foreground-weak self-start px-0" onClick={() => setConfiguringPlugin(null)}>Close</Button>
+              <Button variant="ghost" size="xs" className="self-start px-0" onClick={() => setConfiguringPlugin(null)}>Close</Button>
             </div>
           )}
         </div>

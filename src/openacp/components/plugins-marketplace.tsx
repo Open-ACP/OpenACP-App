@@ -65,15 +65,15 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
       {installingPlugin && (
         <div className="border border-border rounded-lg p-4 flex flex-col gap-3 bg-surface-base">
           <div className="flex items-center justify-between">
-            <span className="text-base font-medium leading-lg text-foreground">Installing {installingPlugin.displayName ?? installingPlugin.name}</span>
-            <Button variant="ghost" size="xs" className="text-sm leading-lg text-muted-foreground" onClick={() => { stopPolling(); setInstallingPlugin(null) }}>Close</Button>
+            <span className="text-base font-medium leading-normal text-foreground">Installing {installingPlugin.displayName ?? installingPlugin.name}</span>
+            <Button variant="ghost" size="xs" onClick={() => { stopPolling(); setInstallingPlugin(null) }}>Close</Button>
           </div>
           <CommandBlock label="Run in your terminal:" command={getInstallCommand(installingPlugin)} />
           <CommandBlock label="After install completes, restart the server:" command={getRestartCommand()} />
-          {isRemote && <p className="text-sm leading-lg text-muted-foreground italic">Run this on the machine hosting the server.</p>}
-          <div className="flex items-center gap-2 text-sm leading-lg text-muted-foreground">
+          {isRemote && <p className="text-sm leading-normal text-muted-foreground italic">Run this on the machine hosting the server.</p>}
+          <div className="flex items-center gap-2 text-sm leading-normal text-muted-foreground">
             {pollTimedOut
-              ? <span>Install not detected. <Button variant="link" className="p-0 h-auto text-sm leading-lg text-foreground-weak" onClick={() => { setPollTimedOut(false); refetch() }}>Refresh</Button></span>
+              ? <span>Install not detected. <Button variant="link" className="p-0 h-auto" onClick={() => { setPollTimedOut(false); refetch() }}>Refresh</Button></span>
               : <><div className="w-4 h-4 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /><span>Waiting for install...</span></>
             }
           </div>
@@ -84,11 +84,11 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
         placeholder="Search plugins..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full text-base leading-xl"
+        className="w-full text-base leading-relaxed"
       />
       {loading && <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 rounded-full oac-spinner" style={{ borderColor: "var(--muted-foreground)", borderTopColor: "transparent" }} /></div>}
       {error && (
-        <div className="text-red-500 text-base leading-xl text-center py-8 flex flex-col items-center gap-2">
+        <div className="text-red-500 text-base leading-relaxed text-center py-8 flex flex-col items-center gap-2">
           <span>Marketplace unavailable</span>
           <Button variant="outline" size="sm" onClick={refetch}>Retry</Button>
         </div>
@@ -99,27 +99,27 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
             <span className="text-2xl shrink-0 mt-0.5">{plugin.icon}</span>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-base font-medium leading-lg text-foreground">{plugin.displayName ?? plugin.name}</span>
+                <span className="text-base font-medium leading-normal text-foreground">{plugin.displayName ?? plugin.name}</span>
                 {plugin.verified
-                  ? <Badge variant="outline" className="text-sm leading-lg text-green-500 border-transparent">Verified</Badge>
-                  : <Badge variant="outline" className="text-sm leading-lg text-yellow-500 border-transparent">Unverified</Badge>
+                  ? <Badge variant="outline" className="text-sm leading-normal text-green-500 border-transparent">Verified</Badge>
+                  : <Badge variant="outline" className="text-sm leading-normal text-yellow-500 border-transparent">Unverified</Badge>
                 }
                 {plugin.minCliVersion && isVersionTooLow(plugin.minCliVersion) && (
-                  <Badge variant="outline" className="text-sm leading-lg text-yellow-500 border-transparent">Requires v{plugin.minCliVersion}</Badge>
+                  <Badge variant="outline" className="text-sm leading-normal text-yellow-500 border-transparent">Requires v{plugin.minCliVersion}</Badge>
                 )}
               </div>
-              <span className="text-sm leading-lg text-muted-foreground mt-0.5">{plugin.description}</span>
-              <span className="text-sm leading-lg text-muted-foreground mt-1">by {plugin.author} · {plugin.category}</span>
+              <span className="text-sm leading-normal text-muted-foreground mt-0.5">{plugin.description}</span>
+              <span className="text-sm leading-normal text-muted-foreground mt-1">by {plugin.author} · {plugin.category}</span>
             </div>
           </div>
           <div className="shrink-0">
             {plugin.installed
-              ? <Badge variant="outline" className="text-sm leading-lg text-green-500 border-transparent">Installed</Badge>
+              ? <Badge variant="outline" className="text-sm leading-normal text-green-500 border-transparent">Installed</Badge>
               : (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-sm leading-lg"
+                  className="text-sm leading-normal"
                   disabled={isVersionTooLow(plugin.minCliVersion)}
                   onClick={() => { setInstallingPlugin(plugin); startPolling(plugin.name) }}
                 >

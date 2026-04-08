@@ -302,7 +302,7 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
 
   return (
     <div
-      className="relative flex flex-col h-full bg-card border-l border-border-weak"
+      className="relative flex flex-col h-full bg-background border-l border-border-weak"
       style={{ width: `${panelWidth}px` }}
     >
       <ResizeHandle
@@ -354,7 +354,7 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
           ) : (
             <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
               {/* Expand all / Collapse all */}
-              <div className="sticky top-0 z-10 flex items-center px-3 h-8 bg-card border-b border-border-weak">
+              <div className="sticky top-0 z-10 flex items-center px-3 h-8 bg-background border-b border-border-weak">
                 <button
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
                   onClick={() => {

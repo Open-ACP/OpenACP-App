@@ -71,7 +71,7 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
 
   return (
     <div
-      className="relative flex flex-col min-h-0 bg-card border-l border-border-weak shrink-0 h-full"
+      className="relative flex flex-col min-h-0 bg-background border-l border-border-weak shrink-0 h-full"
       style={{ width: `${width}px` }}
     >
       <ResizeHandle

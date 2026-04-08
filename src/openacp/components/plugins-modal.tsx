@@ -51,13 +51,13 @@ export function PluginsModal(props: Props) {
           >
             <TabsTrigger
               value="installed"
-              className="text-base font-medium leading-lg px-4 py-2.5"
+              className="text-base font-medium leading-normal px-4 py-2.5"
             >
               Installed
             </TabsTrigger>
             <TabsTrigger
               value="marketplace"
-              className="text-base font-medium leading-lg px-4 py-2.5"
+              className="text-base font-medium leading-normal px-4 py-2.5"
             >
               Marketplace
             </TabsTrigger>

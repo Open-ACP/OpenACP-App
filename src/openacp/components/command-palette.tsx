@@ -192,7 +192,7 @@ export function CommandPalette(props: {
             <Button variant="ghost" size="icon-xs" onClick={() => setSubPicker(null)}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M12.5 15.8337L6.66667 10.0003L12.5 4.16699" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </Button>
-            <span className="text-sm font-medium leading-lg text-foreground">{subPicker.title}</span>
+            <span className="text-sm font-medium leading-normal text-foreground">{subPicker.title}</span>
           </div>
           <div className="max-h-64 overflow-y-auto py-1">
             {subPicker.choices.map((choice, index) => (
@@ -211,10 +211,10 @@ export function CommandPalette(props: {
       ) : (
         <>
           <div className="px-3 py-2 border-b border-border-weak/50">
-            <Input ref={inputRef} type="text" placeholder="Filter actions..." className="bg-transparent text-sm leading-lg text-foreground placeholder:text-muted-foreground border-none shadow-none focus-visible:ring-0 h-auto px-0 py-0" value={query} onChange={(e) => { setQuery(e.target.value); setHighlighted(0) }} />
+            <Input ref={inputRef} type="text" placeholder="Filter actions..." className="bg-transparent text-sm leading-normal text-foreground placeholder:text-muted-foreground border-none shadow-none focus-visible:ring-0 h-auto px-0 py-0" value={query} onChange={(e) => { setQuery(e.target.value); setHighlighted(0) }} />
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
-            {filtered.length === 0 && <div className="px-3 py-3 text-sm leading-lg text-muted-foreground text-center">No actions found</div>}
+            {filtered.length === 0 && <div className="px-3 py-3 text-sm leading-normal text-muted-foreground text-center">No actions found</div>}
             {groups.map(([group, groupItems]) => (
               <div key={group}>
                 <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--foreground-weaker)" }}>{group}</div>
@@ -228,7 +228,7 @@ export function CommandPalette(props: {
                       onClick={() => !disabled && item.action()}
                       disabled={disabled}
                     >
-                      <span className="text-sm font-medium leading-lg text-foreground flex-1 min-w-0">{item.label}</span>
+                      <span className="text-sm font-medium leading-normal text-foreground flex-1 min-w-0">{item.label}</span>
                       {item.description && <span className="text-muted-foreground truncate" style={{ fontSize: "11px" }}>{item.description}</span>}
                       {item.rightLabel && <span className="text-muted-foreground" style={{ fontSize: "11px" }}>{item.rightLabel}</span>}
                       {item.type === "sub-picker" && <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="text-foreground-weakerer"><path d="M7.5 4.16699L13.3333 10.0003L7.5 15.8337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}

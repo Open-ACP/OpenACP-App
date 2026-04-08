@@ -2,34 +2,7 @@ import React, { useEffect, useState } from "react"
 import { getSetting, setSetting, applyTheme, applyFontSize, type AppSettings } from "../../lib/settings-store"
 import { SettingCard } from "./setting-card"
 import { SettingRow } from "./setting-row"
-
-function ToggleGroup<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (value: T) => void
-}) {
-  return (
-    <div className="flex items-center gap-0 rounded-md border border-border overflow-hidden">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          className={`px-3 py-1 text-sm font-medium transition-colors border-r border-border last:border-r-0 ${
-            value === opt.value
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground-weak bg-background"
-          }`}
-          onClick={() => onChange(opt.value)}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs"
 
 export function SettingsAppearance() {
   const [theme, setTheme] = useState<AppSettings["theme"]>("dark")
@@ -56,28 +29,24 @@ export function SettingsAppearance() {
     <div className="flex flex-col gap-6">
       <SettingCard title="Theme">
         <SettingRow label="Color scheme" description="Choose light, dark, or system theme">
-          <ToggleGroup
-            options={[
-              { value: "light", label: "Light" },
-              { value: "dark", label: "Dark" },
-              { value: "system", label: "System" },
-            ]}
-            value={theme}
-            onChange={(v) => void handleThemeChange(v)}
-          />
+          <Tabs value={theme} onValueChange={(v) => void handleThemeChange(v as AppSettings["theme"])}>
+            <TabsList>
+              <TabsTrigger value="light">Light</TabsTrigger>
+              <TabsTrigger value="dark">Dark</TabsTrigger>
+              <TabsTrigger value="system">System</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </SettingRow>
       </SettingCard>
       <SettingCard title="Typography">
         <SettingRow label="Font size" description="Adjust the interface font size">
-          <ToggleGroup
-            options={[
-              { value: "small", label: "Small" },
-              { value: "medium", label: "Medium" },
-              { value: "large", label: "Large" },
-            ]}
-            value={fontSize}
-            onChange={(v) => void handleFontSizeChange(v)}
-          />
+          <Tabs value={fontSize} onValueChange={(v) => void handleFontSizeChange(v as AppSettings["fontSize"])}>
+            <TabsList>
+              <TabsTrigger value="small">Small</TabsTrigger>
+              <TabsTrigger value="medium">Medium</TabsTrigger>
+              <TabsTrigger value="large">Large</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </SettingRow>
       </SettingCard>
     </div>

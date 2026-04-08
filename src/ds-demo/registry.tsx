@@ -21,6 +21,7 @@ import {
 import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "../openacp/components/ui/sheet"
+import { BrandLoader, BrandIcon } from "../openacp/components/brand-loader"
 
 export interface DemoEntry {
   id: string
@@ -43,8 +44,8 @@ function ColorSwatch({ name, variable }: { name: string; variable: string }) {
         style={{ backgroundColor: `var(${variable})` }}
       />
       <div>
-        <div className="text-sm-regular text-foreground">{name}</div>
-        <div className="text-sm-regular text-muted-foreground font-mono">{variable}</div>
+        <div className="text-sm font-normal text-foreground">{name}</div>
+        <div className="text-sm font-normal text-muted-foreground font-mono">{variable}</div>
       </div>
     </div>
   )
@@ -57,19 +58,18 @@ function ShadowBox({ name, variable }: { name: string; variable: string }) {
         className="size-20 rounded-lg bg-card"
         style={{ boxShadow: `var(${variable})` }}
       />
-      <span className="text-sm-regular text-muted-foreground">{name}</span>
+      <span className="text-sm font-normal text-muted-foreground">{name}</span>
     </div>
   )
 }
 
-function RadiusBox({ name, variable }: { name: string; variable: string }) {
+function RadiusBox({ name, className }: { name: string; className: string }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div
-        className="size-16 bg-accent border border-border-weak"
-        style={{ borderRadius: `var(${variable})` }}
+        className={`size-16 bg-accent border border-border-weak ${className}`}
       />
-      <span className="text-sm-regular text-muted-foreground">{name}</span>
+      <span className="text-sm font-normal text-muted-foreground">{name}</span>
     </div>
   )
 }
@@ -87,7 +87,7 @@ export const registry: DemoEntry[] = [
     render: () => (
       <div className="space-y-8">
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">Variants</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">Variants</div>
           <div className="flex flex-wrap gap-3">
             <Button variant="default">Default</Button>
             <Button variant="secondary">Secondary</Button>
@@ -98,7 +98,7 @@ export const registry: DemoEntry[] = [
           </div>
         </div>
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">Sizes</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">Sizes</div>
           <div className="flex flex-wrap items-center gap-3">
             <Button size="xs">Extra Small</Button>
             <Button size="sm">Small</Button>
@@ -107,7 +107,7 @@ export const registry: DemoEntry[] = [
           </div>
         </div>
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">Icon sizes</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">Icon sizes</div>
           <div className="flex flex-wrap items-center gap-3">
             <Button size="icon-xs">X</Button>
             <Button size="icon-sm">S</Button>
@@ -116,7 +116,7 @@ export const registry: DemoEntry[] = [
           </div>
         </div>
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">With icons</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">With icons</div>
           <div className="flex flex-wrap items-center gap-3">
             <Button><Plus /> Create New</Button>
             <Button variant="outline"><MagnifyingGlass /> Search</Button>
@@ -126,7 +126,7 @@ export const registry: DemoEntry[] = [
           </div>
         </div>
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">Icon only — all sizes</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">Icon only — all sizes</div>
           <div className="flex flex-wrap items-end gap-4">
             <div className="flex flex-col items-center gap-1">
               <Button size="icon-xs" variant="outline"><Plus /></Button>
@@ -147,7 +147,7 @@ export const registry: DemoEntry[] = [
           </div>
         </div>
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">Icon only — variants</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">Icon only — variants</div>
           <div className="flex flex-wrap items-center gap-3">
             <Button size="icon-md" variant="default"><Plus /></Button>
             <Button size="icon-md" variant="secondary"><GearSix /></Button>
@@ -157,7 +157,7 @@ export const registry: DemoEntry[] = [
           </div>
         </div>
         <div>
-          <div className="text-sm-medium text-muted-foreground mb-2">States</div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">States</div>
           <div className="flex flex-wrap gap-3">
             <Button>Enabled</Button>
             <Button disabled>Disabled</Button>
@@ -253,13 +253,13 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
     type: "component",
     render: () => (
       <div className="space-y-4">
-        <div className="text-md-regular text-foreground">Above separator</div>
+        <div className="text-base font-normal text-foreground">Above separator</div>
         <Separator />
-        <div className="text-md-regular text-foreground">Below separator</div>
+        <div className="text-base font-normal text-foreground">Below separator</div>
         <div className="flex items-center gap-4 h-5">
-          <span className="text-md-regular">Left</span>
+          <span className="text-base font-normal">Left</span>
           <Separator orientation="vertical" />
-          <span className="text-md-regular">Right</span>
+          <span className="text-base font-normal">Right</span>
         </div>
       </div>
     ),
@@ -288,6 +288,137 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
 <Skeleton className="h-4 w-[200px]" />`,
   },
 
+  {
+    id: "brand-loader",
+    name: "Brand Loader",
+    group: "General",
+    description: "Branded loading indicator using the OpenACP octopus symbol.",
+    type: "component",
+    render: () => (
+      <div className="space-y-10">
+        <div>
+          <div className="text-sm font-medium text-muted-foreground mb-2">Animation styles</div>
+          <p className="text-sm leading-relaxed text-foreground-weaker mb-4">Pick an animation for the octopus loader.</p>
+          <div className="grid grid-cols-4 gap-5">
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-wobble" />
+              <div className="text-sm font-medium text-foreground">Wobble</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-wobble</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-jelly" />
+              <div className="text-sm font-medium text-foreground">Jelly</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-jelly</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-swim" />
+              <div className="text-sm font-medium text-foreground">Swim</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-swim</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-bounce-squash" />
+              <div className="text-sm font-medium text-foreground">Bounce</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-bounce-squash</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-breathe" />
+              <div className="text-sm font-medium text-foreground">Breathe</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-breathe</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-float" />
+              <div className="text-sm font-medium text-foreground">Float</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-float</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 text-muted-foreground animate-pulse-glow" />
+              <div className="text-sm font-medium text-foreground">Pulse Glow</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-pulse-glow</code>
+            </div>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+              <BrandIcon className="w-10 h-7 animate-color-cycle" />
+              <div className="text-sm font-medium text-foreground">Color Cycle</div>
+              <code className="text-2xs font-normal text-muted-foreground">animate-color-cycle</code>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-muted-foreground mb-3">BrandLoader — with label</div>
+          <div className="flex items-center gap-8">
+            <BrandLoader label="Connecting..." />
+            <BrandLoader label="Loading sessions..." />
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-muted-foreground mb-3">Inline sizes</div>
+          <div className="flex items-center gap-5">
+            <div className="flex flex-col items-center gap-1">
+              <BrandIcon className="size-3 text-muted-foreground animate-breathe" />
+              <span className="text-2xs font-normal text-foreground-weaker">12px</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <BrandIcon className="size-4 text-muted-foreground animate-breathe" />
+              <span className="text-2xs font-normal text-foreground-weaker">16px</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <BrandIcon className="size-6 text-muted-foreground animate-breathe" />
+              <span className="text-2xs font-normal text-foreground-weaker">24px</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <BrandIcon className="size-8 text-muted-foreground animate-breathe" />
+              <span className="text-2xs font-normal text-foreground-weaker">32px</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <BrandIcon className="w-12 h-8 text-muted-foreground animate-breathe" />
+              <span className="text-2xs font-normal text-foreground-weaker">48x32</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-muted-foreground mb-3">Static (no animation)</div>
+          <div className="flex items-center gap-4">
+            <BrandIcon className="size-4 text-foreground" />
+            <BrandIcon className="size-6 text-muted-foreground" />
+            <BrandIcon className="size-8 text-foreground-weaker" />
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-muted-foreground mb-3">Context — Sidebar session loading</div>
+          <div className="w-64 rounded-lg border border-border bg-card p-3 space-y-2">
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-secondary">
+              <BrandIcon className="size-[15px] text-muted-foreground animate-breathe" />
+              <span className="text-base leading-relaxed text-foreground truncate">Creating session...</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+                <path d="M5 10H15" stroke="currentColor" strokeLinecap="round" className="text-muted-foreground" />
+              </svg>
+              <span className="text-base leading-relaxed text-foreground truncate">Regular session</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+    code: `import { BrandLoader, BrandIcon } from "@/components/brand-loader"
+
+// Full loader with label
+<BrandLoader label="Connecting..." />
+
+// Inline icon — pick an animation class:
+//   animate-breathe     scale pulse (default)
+//   animate-float       gentle vertical bob
+//   animate-pulse-glow  opacity + glow
+//   animate-color-cycle cycle through theme colors
+<BrandIcon className="size-[15px] text-muted-foreground animate-breathe" />
+
+// Static icon (no animation)
+<BrandIcon className="size-6 text-foreground" />`,
+    props: [
+      { name: "className", type: "string", default: '—' },
+      { name: "label", type: "string (BrandLoader only)", default: '—' },
+    ],
+  },
+
   // ── Overlay ─────────────────────────────────────────────────────────────
   {
     id: "dialog",
@@ -305,7 +436,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
             <DialogTitle>Dialog Title</DialogTitle>
             <DialogDescription>This is a dialog description.</DialogDescription>
           </DialogHeader>
-          <div className="text-md-regular text-foreground-weak py-4">Dialog body content goes here.</div>
+          <div className="text-base font-normal text-foreground-weak py-4">Dialog body content goes here.</div>
         </DialogContent>
       </Dialog>
     ),
@@ -456,9 +587,9 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           <TabsTrigger value="tab2">Tab 2</TabsTrigger>
           <TabsTrigger value="tab3">Tab 3</TabsTrigger>
         </TabsList>
-        <TabsContent value="tab1" className="text-md-regular text-foreground-weak p-4">Content for Tab 1</TabsContent>
-        <TabsContent value="tab2" className="text-md-regular text-foreground-weak p-4">Content for Tab 2</TabsContent>
-        <TabsContent value="tab3" className="text-md-regular text-foreground-weak p-4">Content for Tab 3</TabsContent>
+        <TabsContent value="tab1" className="text-base font-normal text-foreground-weak p-4">Content for Tab 1</TabsContent>
+        <TabsContent value="tab2" className="text-base font-normal text-foreground-weak p-4">Content for Tab 2</TabsContent>
+        <TabsContent value="tab3" className="text-base font-normal text-foreground-weak p-4">Content for Tab 3</TabsContent>
       </Tabs>
     ),
     code: `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -482,15 +613,15 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
       <div className="space-y-3">
         <div className="flex items-center gap-3">
           <Switch id="s1" />
-          <label htmlFor="s1" className="text-md-regular text-foreground">Default</label>
+          <label htmlFor="s1" className="text-base font-normal text-foreground">Default</label>
         </div>
         <div className="flex items-center gap-3">
           <Switch id="s2" defaultChecked />
-          <label htmlFor="s2" className="text-md-regular text-foreground">Checked</label>
+          <label htmlFor="s2" className="text-base font-normal text-foreground">Checked</label>
         </div>
         <div className="flex items-center gap-3">
           <Switch id="s3" disabled />
-          <label htmlFor="s3" className="text-md-regular text-muted-foreground">Disabled</label>
+          <label htmlFor="s3" className="text-base font-normal text-muted-foreground">Disabled</label>
         </div>
       </div>
     ),
@@ -509,7 +640,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
     render: () => (
       <div className="space-y-8">
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Core</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Core</h3>
           <div className="grid grid-cols-2 gap-4">
             <ColorSwatch name="Background" variable="--background" />
             <ColorSwatch name="Foreground" variable="--foreground" />
@@ -520,7 +651,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           </div>
         </div>
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Semantic</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Semantic</h3>
           <div className="grid grid-cols-2 gap-4">
             <ColorSwatch name="Primary" variable="--primary" />
             <ColorSwatch name="Primary Foreground" variable="--primary-foreground" />
@@ -535,7 +666,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           </div>
         </div>
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Extensions</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Extensions</h3>
           <div className="grid grid-cols-2 gap-4">
             <ColorSwatch name="Border" variable="--border" />
             <ColorSwatch name="Border Weak" variable="--border-weak" />
@@ -546,7 +677,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           </div>
         </div>
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Sidebar</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Sidebar</h3>
           <div className="grid grid-cols-2 gap-4">
             <ColorSwatch name="Sidebar Background" variable="--sidebar-background" />
             <ColorSwatch name="Sidebar Foreground" variable="--sidebar-foreground" />
@@ -555,7 +686,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           </div>
         </div>
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Avatar</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Avatar</h3>
           <div className="grid grid-cols-3 gap-4">
             {["pink", "mint", "orange", "purple", "cyan", "lime"].map((c) => (
               <div key={c} className="flex items-center gap-2">
@@ -565,7 +696,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
                 >
                   {c[0].toUpperCase()}
                 </div>
-                <span className="text-sm-regular text-muted-foreground capitalize">{c}</span>
+                <span className="text-sm font-normal text-muted-foreground capitalize">{c}</span>
               </div>
             ))}
           </div>
@@ -582,30 +713,30 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
     render: () => (
       <div className="space-y-6">
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Font Families</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Font Families</h3>
           <div className="space-y-2">
             <p style={{ fontFamily: "var(--font-family-sans)" }} className="text-foreground">Sans — The quick brown fox jumps over the lazy dog</p>
             <p style={{ fontFamily: "var(--font-family-mono)" }} className="text-foreground">Mono — The quick brown fox jumps over the lazy dog</p>
           </div>
         </div>
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Text Utilities</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Text Utilities</h3>
           <div className="space-y-3">
-            <div className="text-xl-medium text-foreground">text-xl-medium — Heading</div>
-            <div className="text-lg-medium text-foreground">text-lg-medium — Subheading</div>
-            <div className="text-md-medium text-foreground">text-md-medium — Label</div>
-            <div className="text-md-regular text-foreground">text-md-regular — Body</div>
-            <div className="text-sm-medium text-foreground">text-sm-medium — Caption bold</div>
-            <div className="text-sm-regular text-foreground">text-sm-regular — Caption</div>
+            <div className="text-xl font-medium text-foreground">text-xl font-medium — Heading</div>
+            <div className="text-lg font-medium text-foreground">text-lg font-medium — Subheading</div>
+            <div className="text-base font-medium text-foreground">text-base font-medium — Label</div>
+            <div className="text-base font-normal text-foreground">text-base font-normal — Body</div>
+            <div className="text-sm font-medium text-foreground">text-sm font-medium — Caption bold</div>
+            <div className="text-sm font-normal text-foreground">text-sm font-normal — Caption</div>
           </div>
         </div>
         <div>
-          <h3 className="text-md-medium text-foreground mb-3">Foreground Scale</h3>
+          <h3 className="text-base font-medium text-foreground mb-3">Foreground Scale</h3>
           <div className="space-y-2">
-            <p className="text-md-regular text-foreground">Foreground — primary text</p>
-            <p className="text-md-regular text-foreground-weak">Foreground Weak — secondary text</p>
-            <p className="text-md-regular text-muted-foreground">Muted Foreground — muted text</p>
-            <p className="text-md-regular text-foreground-weaker">Foreground Weaker — weakest text</p>
+            <p className="text-base font-normal text-foreground">Foreground — primary text</p>
+            <p className="text-base font-normal text-foreground-weak">Foreground Weak — secondary text</p>
+            <p className="text-base font-normal text-muted-foreground">Muted Foreground — muted text</p>
+            <p className="text-base font-normal text-foreground-weaker">Foreground Weaker — weakest text</p>
           </div>
         </div>
       </div>
@@ -621,9 +752,9 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
       <div className="space-y-2">
         {[1, 2, 3, 4, 5, 6, 8, 10, 12, 16].map((n) => (
           <div key={n} className="flex items-center gap-4">
-            <span className="text-sm-regular text-muted-foreground font-mono w-8 text-right">{n}</span>
+            <span className="text-sm font-normal text-muted-foreground font-mono w-8 text-right">{n}</span>
             <div className="bg-primary rounded-sm" style={{ width: `${n * 4}px`, height: "16px" }} />
-            <span className="text-sm-regular text-foreground-weaker">{n * 4}px / {n * 0.25}rem</span>
+            <span className="text-sm font-normal text-foreground-weaker">{n * 4}px / {n * 0.25}rem</span>
           </div>
         ))}
       </div>
@@ -651,11 +782,13 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
     type: "token",
     render: () => (
       <div className="flex flex-wrap gap-6">
-        <RadiusBox name="xs" variable="--radius-xs" />
-        <RadiusBox name="sm" variable="--radius-sm" />
-        <RadiusBox name="md" variable="--radius-md" />
-        <RadiusBox name="lg" variable="--radius-lg" />
-        <RadiusBox name="xl" variable="--radius-xl" />
+        <RadiusBox name="xs" className="rounded-xs" />
+        <RadiusBox name="sm" className="rounded-sm" />
+        <RadiusBox name="md" className="rounded-md" />
+        <RadiusBox name="lg" className="rounded-lg" />
+        <RadiusBox name="xl" className="rounded-xl" />
+        <RadiusBox name="2xl" className="rounded-2xl" />
+        <RadiusBox name="full" className="rounded-full" />
       </div>
     ),
   },
