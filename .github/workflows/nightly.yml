@@ -108,8 +108,10 @@ jobs:
       - name: Set nightly version
         shell: bash
         run: |
-          VERSION=$(node -e "console.log(require('./package.json').version)")
-          NIGHTLY_VERSION="${VERSION}-nightly.${GITHUB_RUN_NUMBER}"
+          YEAR=$(date -u +%Y)
+          MMDD=$(date -u +%m%d | sed 's/^0*//')
+          VERSION="${YEAR}.${MMDD}.0-nightly.${GITHUB_RUN_NUMBER}"
+          NIGHTLY_VERSION="$VERSION"
           echo "NIGHTLY_VERSION=$NIGHTLY_VERSION" >> $GITHUB_ENV
           echo "Nightly version: $NIGHTLY_VERSION"
 
