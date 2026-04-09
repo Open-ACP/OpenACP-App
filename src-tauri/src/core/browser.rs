@@ -325,10 +325,31 @@ fn create_child_in_main(app: &AppHandle, url: &str, bounds: Bounds) -> Result<()
         })
         .on_page_load(move |_wv, payload| {
             use tauri::webview::PageLoadEvent;
-            if matches!(payload.event(), PageLoadEvent::Finished) {
-                let url = payload.url();
-                // Same filter as on_navigation — skip about:/data:/etc.
-                if matches!(url.scheme(), "http" | "https") {
+            let url = payload.url();
+            // Same filter as on_navigation — skip about:/data:/etc.
+            if !matches!(url.scheme(), "http" | "https") {
+                return;
+            }
+            match payload.event() {
+                PageLoadEvent::Started => {
+                    // Emit url-changed as a fallback for navigations that
+                    // on_navigation misses (e.g., server-side redirects that
+                    // don't trigger a pre-navigation hook, or navigations
+                    // that fire before our on_navigation closure can observe
+                    // them). Also push to history.
+                    if let Some(store) = app_for_load.try_state::<BrowserStore>() {
+                        if let Ok(mut inner) = store.inner.lock() {
+                            if inner.programmatic_nav {
+                                inner.programmatic_nav = false;
+                            } else {
+                                inner.history.push(url.to_string());
+                            }
+                            emit_state(&app_for_load, &inner);
+                        }
+                    }
+                    emit_url(&app_for_load, url.as_str());
+                }
+                PageLoadEvent::Finished => {
                     emit_page_loaded(&app_for_load, url.as_str());
                 }
             }
