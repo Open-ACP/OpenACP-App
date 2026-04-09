@@ -461,3 +461,165 @@ fn reparent_to_mode(
     }
     Ok(())
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum NavAction {
+    Url { url: String },
+    Back,
+    Forward,
+    Reload,
+}
+
+#[tauri::command]
+pub async fn browser_navigate(
+    app: AppHandle,
+    store: State<'_, BrowserStore>,
+    action: NavAction,
+) -> Result<(), String> {
+    let wv = app
+        .get_webview(BROWSER_LABEL)
+        .ok_or("browser webview not found")?;
+
+    match action {
+        NavAction::Url { url } => {
+            let parsed = parse_url(&url)?;
+            wv.navigate(parsed).map_err(|e| e.to_string())?;
+        }
+        NavAction::Back => {
+            let target = {
+                let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+                inner.history.go_back().map(|s| s.to_string())
+            };
+            if let Some(target) = target {
+                let parsed = parse_url(&target)?;
+                wv.navigate(parsed).map_err(|e| e.to_string())?;
+                let inner = store.inner.lock().map_err(|e| e.to_string())?;
+                emit_state(&app, &inner);
+                emit_url(&app, &target);
+            }
+        }
+        NavAction::Forward => {
+            let target = {
+                let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+                inner.history.go_forward().map(|s| s.to_string())
+            };
+            if let Some(target) = target {
+                let parsed = parse_url(&target)?;
+                wv.navigate(parsed).map_err(|e| e.to_string())?;
+                let inner = store.inner.lock().map_err(|e| e.to_string())?;
+                emit_state(&app, &inner);
+                emit_url(&app, &target);
+            }
+        }
+        NavAction::Reload => {
+            wv.eval("location.reload()").map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn browser_set_mode(
+    app: AppHandle,
+    store: State<'_, BrowserStore>,
+    mode: BrowserMode,
+    bounds: Option<Bounds>,
+) -> Result<(), String> {
+    reparent_to_mode(&app, mode, bounds)?;
+    let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+    if let Some(b) = bounds {
+        if mode == BrowserMode::Docked {
+            inner.last_docked_bounds = Some(b);
+        }
+    }
+    // Update mode in state (preserve current URL)
+    let current_url = match &inner.state {
+        BrowserState::Ready { url, .. }
+        | BrowserState::Opening { url, .. }
+        | BrowserState::Navigating { to: url, .. }
+        | BrowserState::Error { url, .. } => url.clone(),
+        _ => String::new(),
+    };
+    if !current_url.is_empty() {
+        inner.state = BrowserState::Ready {
+            url: current_url,
+            mode,
+        };
+    }
+    emit_state(&app, &inner);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn browser_close(
+    app: AppHandle,
+    store: State<'_, BrowserStore>,
+) -> Result<(), String> {
+    {
+        let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+        inner.state = BrowserState::Closing;
+        emit_state(&app, &inner);
+    }
+    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
+        let _ = wv.close();
+    }
+    close_window_if_exists(&app, FLOAT_LABEL);
+    close_window_if_exists(&app, PIP_LABEL);
+    {
+        let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+        inner.state = BrowserState::Idle;
+        inner.history = History::default();
+        inner.suppress_count = 0;
+        inner.last_docked_bounds = None;
+        emit_state(&app, &inner);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn browser_suppress(
+    app: AppHandle,
+    store: State<'_, BrowserStore>,
+) -> Result<(), String> {
+    let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+    inner.suppress_count = inner.suppress_count.saturating_add(1);
+    if inner.suppress_count == 1 {
+        if let Some(wv) = app.get_webview(BROWSER_LABEL) {
+            let _ = wv.hide();
+        }
+    }
+    emit_state(&app, &inner);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn browser_unsuppress(
+    app: AppHandle,
+    store: State<'_, BrowserStore>,
+) -> Result<(), String> {
+    let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+    inner.suppress_count = inner.suppress_count.saturating_sub(1);
+    if inner.suppress_count == 0 {
+        if let Some(wv) = app.get_webview(BROWSER_LABEL) {
+            let _ = wv.show();
+            // Re-sync docked bounds in case layout shifted while hidden
+            if let Some(b) = inner.last_docked_bounds {
+                let _ = wv.set_position(tauri::Position::Logical(LogicalPosition::new(b.x, b.y)));
+                let _ = wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)));
+            }
+        }
+    }
+    emit_state(&app, &inner);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn browser_reset_suppress(
+    _app: AppHandle,
+    store: State<'_, BrowserStore>,
+) -> Result<(), String> {
+    let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+    inner.suppress_count = 0;
+    Ok(())
+}
