@@ -1,0 +1,221 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react"
+import { invoke } from "@tauri-apps/api/core"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
+
+export type BrowserMode = "docked" | "floating" | "pip"
+
+export type BrowserStateKind =
+  | "idle"
+  | "opening"
+  | "ready"
+  | "navigating"
+  | "error"
+  | "closing"
+
+export interface BrowserBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface BrowserStateChangedPayload {
+  state: {
+    kind: BrowserStateKind
+    url?: string
+    mode?: BrowserMode
+    message?: string
+    from?: string
+    to?: string
+  }
+  can_go_back: boolean
+  can_go_forward: boolean
+  suppressed: boolean
+}
+
+interface State {
+  kind: BrowserStateKind
+  url: string | null
+  mode: BrowserMode
+  canGoBack: boolean
+  canGoForward: boolean
+  suppressed: boolean
+  error: string | null
+  isVisible: boolean
+}
+
+const initial: State = {
+  kind: "idle",
+  url: null,
+  mode: "docked",
+  canGoBack: false,
+  canGoForward: false,
+  suppressed: false,
+  error: null,
+  isVisible: false,
+}
+
+type Action =
+  | { type: "state-changed"; payload: BrowserStateChangedPayload }
+  | { type: "url-changed"; url: string }
+  | { type: "nav-error"; url: string; message: string }
+  | { type: "set-visible"; value: boolean }
+  | { type: "clear-error" }
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "state-changed": {
+      const s = action.payload.state
+      return {
+        ...state,
+        kind: s.kind,
+        url: s.url ?? state.url,
+        mode: s.mode ?? state.mode,
+        canGoBack: action.payload.can_go_back,
+        canGoForward: action.payload.can_go_forward,
+        suppressed: action.payload.suppressed,
+        error: s.kind === "error" ? s.message ?? "Unknown error" : null,
+      }
+    }
+    case "url-changed":
+      return { ...state, url: action.url }
+    case "nav-error":
+      return { ...state, error: action.message, kind: "error" }
+    case "set-visible":
+      return { ...state, isVisible: action.value }
+    case "clear-error":
+      return { ...state, error: null }
+    default:
+      return state
+  }
+}
+
+export interface BrowserPanelContextValue extends State {
+  open: (url: string, bounds?: BrowserBounds, mode?: BrowserMode) => Promise<void>
+  close: () => Promise<void>
+  setMode: (mode: BrowserMode, bounds?: BrowserBounds) => Promise<void>
+  navigate: (url: string) => Promise<void>
+  back: () => Promise<void>
+  forward: () => Promise<void>
+  reload: () => Promise<void>
+  show: () => void
+  hide: () => void
+  clearError: () => void
+}
+
+const Ctx = createContext<BrowserPanelContextValue | null>(null)
+
+export function BrowserPanelProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(reducer, initial)
+  const unlistenersRef = useRef<UnlistenFn[]>([])
+
+  useEffect(() => {
+    let active = true
+    async function wire() {
+      const u1 = await listen<BrowserStateChangedPayload>(
+        "browser://state-changed",
+        (e) => {
+          if (!active) return
+          dispatch({ type: "state-changed", payload: e.payload })
+        },
+      )
+      const u2 = await listen<{ url: string }>("browser://url-changed", (e) => {
+        if (!active) return
+        dispatch({ type: "url-changed", url: e.payload.url })
+      })
+      const u3 = await listen<{ url: string; message: string }>(
+        "browser://nav-error",
+        (e) => {
+          if (!active) return
+          dispatch({
+            type: "nav-error",
+            url: e.payload.url,
+            message: e.payload.message,
+          })
+        },
+      )
+      unlistenersRef.current = [u1, u2, u3]
+    }
+    void wire()
+    return () => {
+      active = false
+      unlistenersRef.current.forEach((u) => u())
+      unlistenersRef.current = []
+    }
+  }, [])
+
+  const open = useCallback(
+    async (url: string, bounds?: BrowserBounds, mode: BrowserMode = "docked") => {
+      dispatch({ type: "set-visible", value: true })
+      dispatch({ type: "clear-error" })
+      await invoke("browser_show", { opts: { url, mode, bounds: bounds ?? null } })
+    },
+    [],
+  )
+
+  const close = useCallback(async () => {
+    dispatch({ type: "set-visible", value: false })
+    await invoke("browser_close")
+  }, [])
+
+  const setMode = useCallback(
+    async (mode: BrowserMode, bounds?: BrowserBounds) => {
+      await invoke("browser_set_mode", { mode, bounds: bounds ?? null })
+    },
+    [],
+  )
+
+  const navigate = useCallback(async (url: string) => {
+    dispatch({ type: "clear-error" })
+    await invoke("browser_navigate", { action: { type: "url", url } })
+  }, [])
+
+  const back = useCallback(async () => {
+    await invoke("browser_navigate", { action: { type: "back" } })
+  }, [])
+
+  const forward = useCallback(async () => {
+    await invoke("browser_navigate", { action: { type: "forward" } })
+  }, [])
+
+  const reload = useCallback(async () => {
+    await invoke("browser_navigate", { action: { type: "reload" } })
+  }, [])
+
+  const show = useCallback(() => dispatch({ type: "set-visible", value: true }), [])
+  const hide = useCallback(() => dispatch({ type: "set-visible", value: false }), [])
+  const clearError = useCallback(() => dispatch({ type: "clear-error" }), [])
+
+  const value = useMemo<BrowserPanelContextValue>(
+    () => ({
+      ...state,
+      open,
+      close,
+      setMode,
+      navigate,
+      back,
+      forward,
+      reload,
+      show,
+      hide,
+      clearError,
+    }),
+    [state, open, close, setMode, navigate, back, forward, reload, show, hide, clearError],
+  )
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+}
+
+export function useBrowserPanel(): BrowserPanelContextValue {
+  const v = useContext(Ctx)
+  if (!v) throw new Error("useBrowserPanel must be used within BrowserPanelProvider")
+  return v
+}
