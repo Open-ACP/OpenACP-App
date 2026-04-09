@@ -113,11 +113,19 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
-            if let tauri::RunEvent::Exit = event {
+        .run(|app, event| match event {
+            tauri::RunEvent::Exit => {
                 tracing::info!("App exiting");
                 // Note: we don't kill the sidecar on exit because OpenACP
                 // server may be used by other clients (Telegram, etc.)
             }
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "browser-float" || label == "browser-pip" => {
+                core::browser::handle_window_close(app);
+            }
+            _ => {}
         });
 }

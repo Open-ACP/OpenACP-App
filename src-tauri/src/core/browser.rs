@@ -658,6 +658,27 @@ pub async fn browser_unsuppress(
     Ok(())
 }
 
+/// Called from lib.rs when the user clicks the native close button on
+/// the floating or PiP window. Destroys the webview and transitions back to Idle.
+pub fn handle_window_close(app: &AppHandle) {
+    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
+        let _ = wv.close();
+    }
+    close_window_if_exists(app, FLOAT_LABEL);
+    close_window_if_exists(app, PIP_LABEL);
+    if let Some(store) = app.try_state::<BrowserStore>() {
+        if let Ok(mut inner) = store.inner.lock() {
+            inner.state = BrowserState::Idle;
+            inner.history = History::default();
+            inner.suppress_count = 0;
+            inner.last_docked_bounds = None;
+            inner.creating = false;
+            inner.programmatic_nav = false;
+            emit_state(app, &inner);
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn browser_reset_suppress(
     app: AppHandle,
