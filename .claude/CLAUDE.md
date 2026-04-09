@@ -103,31 +103,71 @@ PlatformProvider > AppBaseProviders > AppInterface > OpenACPApp
 - **State**: React Context + TanStack React Query for async data.
 - **Component files**: one component per file, kebab-case filenames.
 - **i18n**: translations in `src/platform/i18n/` and `src/ui/src/i18n/` (18+ languages).
-- **Versioning**: date-based `YYYY.MMDD.N` format via `scripts/release.sh`.
+- **Versioning**: date-based `YYYY.MDD.N` format (no leading zero on month, e.g. `2026.409.1`) via `scripts/release.sh`.
 
 ## Git Workflow
 
-Fork-based workflow. Upstream: `Open-ACP/OpenACP-App`, fork: `lngdao/OpenACP-App`.
+Two long-lived branches:
 
-- **Base branch**: `develop` (not `main`)
-- **Branch naming**: `<your-name>/<feature>` (e.g., `hiru/onboarding-redesign`)
-- **Commits**: conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). No `Co-Authored-By` lines.
-- **Sync**: `git rebase develop` (not merge)
-- **PR target**: fork's `develop` only — never create upstream PRs (maintainer does that)
+- **`main`** — stable, release-ready. Tags are cut from here.
+- **`develop`** — active development. Default base for all feature work.
+- **Feature branches** — always branched from `develop`.
+
+### Branch naming
+
+Use `<type>/<short-name>` where `<type>` matches the conventional commit type:
+
+- `feat/<name>` — new features (e.g. `feat/onboarding-redesign`)
+- `fix/<name>` — bug fixes (e.g. `fix/windows-ci-build`)
+- `refactor/<name>` — refactors without behavior change
+- `docs/<name>` — docs-only changes
+- `chore/<name>` — tooling, deps, config
+
+### Commit rules
+
+- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
+- **No `Co-Authored-By` lines**
+- Keep commits focused — one logical change per commit
+
+### Sync
+
+Use `git rebase develop` (not merge) to keep feature branches up to date.
+
+### Typical flow
 
 ```bash
 # Start work
 git checkout develop && git pull origin develop
-git checkout -b <name>/<feature>
+git checkout -b <type>/<name>
 
 # Commit + push
-git add <files> && git commit -m "feat: description"
-git push origin <branch>
+git add <files> && git commit -m "<type>: description"
+git push origin <type>/<name>
 
-# Create PR into fork's develop
-gh pr create --base develop --title "feat: description" --body "..."
+# Create PR into develop
+gh pr create --base develop --title "<type>: description" --body "..."
 
 # Keep branch up to date
 git checkout develop && git pull origin develop
-git checkout <branch> && git rebase develop
+git checkout <type>/<name> && git rebase develop
 ```
+
+## Release Flow
+
+Releases are cut from `main` via `scripts/release.sh`. The script is fully automated — it syncs versions, commits, tags, and pushes.
+
+1. Merge `develop` → `main` once the release is ready.
+2. On `main`, run the release script:
+   ```bash
+   ./scripts/release.sh           # auto-increment patch for today
+   ./scripts/release.sh --dry     # preview next version + commits
+   ./scripts/release.sh 2026.409.2  # explicit version
+   ```
+3. The script will:
+   - Compute next version `YYYY.MDD.N` (auto-bumps `N` if there are existing tags for today)
+   - Sync `package.json` and `src-tauri/Cargo.toml` to the new version
+   - Create commit `release: YYYY.MDD.N` and tag `vYYYY.MDD.N`
+   - Push commit + tag to `origin`
+4. GitHub Actions (`.github/workflows/release.yml`) picks up the tag and builds Tauri binaries for macOS/Linux/Windows, then publishes a GitHub Release.
+
+**Note**: builds are currently unsigned (signing env vars commented out in the workflow).

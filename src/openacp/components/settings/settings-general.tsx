@@ -25,11 +25,15 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
   const [language, setLanguage] = useState("en")
   const [devMode, setDevMode] = useState(false)
   const [browserPanel, setBrowserPanel] = useState(false)
+  const [browserLastMode, setBrowserLastMode] = useState<"docked" | "floating" | "pip">("docked")
+  const [browserSearchEngine, setBrowserSearchEngine] = useState<"google" | "duckduckgo" | "bing">("google")
 
   useEffect(() => {
     void getSetting("language").then(setLanguage)
     void getSetting("devMode").then(setDevMode)
     void getSetting("browserPanel").then(setBrowserPanel)
+    void getSetting("browserLastMode").then(setBrowserLastMode)
+    void getSetting("browserSearchEngine").then(setBrowserSearchEngine)
   }, [])
 
   async function handleLanguageChange(value: string) {
@@ -76,6 +80,38 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
           >
             <span className={`pointer-events-none inline-block size-4 rounded-full bg-background shadow-sm ring-0 transition-transform ${browserPanel ? "translate-x-4" : "translate-x-0"}`} />
           </button>
+        </SettingRow>
+        <SettingRow label="Default mode" description="Which layout the in-app browser opens in by default">
+          <select
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
+            value={browserLastMode}
+            disabled={!browserPanel}
+            onChange={async (e) => {
+              const next = e.target.value as "docked" | "floating" | "pip"
+              setBrowserLastMode(next)
+              await setSetting("browserLastMode", next)
+            }}
+          >
+            <option value="docked">Docked</option>
+            <option value="floating">Picture in Picture</option>
+            <option value="pip">Pop-out</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="Search engine" description="Default search engine for the in-app browser address bar">
+          <select
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
+            value={browserSearchEngine}
+            disabled={!browserPanel}
+            onChange={async (e) => {
+              const next = e.target.value as "google" | "duckduckgo" | "bing"
+              setBrowserSearchEngine(next)
+              await setSetting("browserSearchEngine", next)
+            }}
+          >
+            <option value="google">Google</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="bing">Bing</option>
+          </select>
         </SettingRow>
       </SettingCard>
 

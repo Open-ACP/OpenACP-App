@@ -8,6 +8,8 @@ export interface AppSettings {
   language: string
   devMode: boolean
   browserPanel: boolean
+  browserLastMode: "docked" | "floating" | "pip"
+  browserSearchEngine: "google" | "duckduckgo" | "bing"
 }
 
 const defaults: AppSettings = {
@@ -16,6 +18,8 @@ const defaults: AppSettings = {
   language: "en",
   devMode: false,
   browserPanel: false,
+  browserLastMode: "docked",
+  browserSearchEngine: "google",
 }
 
 let store: Awaited<ReturnType<typeof load>> | null = null
@@ -42,7 +46,11 @@ export async function getAllSettings(): Promise<AppSettings> {
   const language = ((await s.get("language")) as AppSettings["language"]) ?? defaults.language
   const devMode = ((await s.get("devMode")) as AppSettings["devMode"]) ?? defaults.devMode
   const browserPanel = ((await s.get("browserPanel")) as AppSettings["browserPanel"]) ?? defaults.browserPanel
-  return { theme, fontSize, language, devMode, browserPanel }
+  const browserLastMode =
+    ((await s.get("browserLastMode")) as AppSettings["browserLastMode"]) ?? defaults.browserLastMode
+  const browserSearchEngine =
+    ((await s.get("browserSearchEngine")) as AppSettings["browserSearchEngine"]) ?? defaults.browserSearchEngine
+  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine }
 }
 
 /** Apply theme to document element */

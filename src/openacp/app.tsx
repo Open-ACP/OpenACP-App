@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { WorkspaceProvider, useWorkspace } from "./context/workspace";
@@ -32,12 +32,16 @@ import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
 import { useWorkspaceConnection, type ConnectionStatus } from "./hooks/use-workspace-connection";
 import {
   getAllSettings,
+  getSetting,
   applyTheme,
   applyFontSize,
 } from "./lib/settings-store";
 import { Titlebar } from "./components/titlebar";
 import { FileTreePanel } from "./components/file-tree-panel";
 import { BrowserPanel } from "./components/browser-panel";
+import { BrowserPanelProvider, useBrowserPanel } from "./context/browser-panel";
+import { BrowserOverlayProvider } from "./context/browser-overlay";
+import { FloatingBrowserFrame } from "./components/floating-browser-frame";
 import type { ServerInfo } from "./types";
 
 function NoServerScreen({ directory, isRemote, errorMessage, onStart, onReconnect, onRemove }: { directory: string; isRemote?: boolean; errorMessage?: string | null; onStart: () => void; onReconnect: () => void; onRemove?: () => void }) {
@@ -131,20 +135,18 @@ function ChatArea() {
   );
 }
 
-function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath, browserOpen, browserUrl, onCloseBrowser, onBrowserUrlChange }: {
+function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath, browserPanelEnabled }: {
   sidebarCollapsed: boolean
   reviewOpen: boolean
   onToggleReview: () => void
   setReviewOpen: (open: boolean) => void
   fileTreeOpen: boolean
   workspacePath: string
-  browserOpen: boolean
-  browserUrl: string | null
-  onCloseBrowser: () => void
-  onBrowserUrlChange: (url: string) => void
+  browserPanelEnabled: boolean
 }) {
   const permissions = usePermissions();
   const workspaceCtx = useWorkspace();
+  const browser = useBrowserPanel();
   const isRemote = workspaceCtx.workspace.type === "remote";
   const [openFiles, setOpenFiles] = useState<import("./components/review-panel").OpenFile[]>([]);
   const [requestedTab, setRequestedTab] = useState<string | null>(null);
@@ -217,7 +219,7 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
         )}
       </AnimatePresence>
       <AnimatePresence initial={false}>
-        {browserOpen && (
+        {browser.isVisible && browserPanelEnabled && browser.mode !== "floating" && (
           <motion.div
             className="shrink-0 h-full overflow-hidden"
             initial={{ width: 0, opacity: 0 }}
@@ -225,11 +227,7 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            <BrowserPanel
-              url={browserUrl}
-              onClose={onCloseBrowser}
-              onUrlChange={onBrowserUrlChange}
-            />
+            <BrowserPanel />
           </motion.div>
         )}
       </AnimatePresence>
@@ -238,6 +236,18 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
 }
 
 export function OpenACPApp() {
+  return (
+    <BrowserOverlayProvider>
+      <BrowserPanelProvider>
+        <OpenACPAppInner />
+        <FloatingBrowserFrame />
+      </BrowserPanelProvider>
+    </BrowserOverlayProvider>
+  );
+}
+
+function OpenACPAppInner() {
+  const browser = useBrowserPanel();
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -264,6 +274,16 @@ export function OpenACPApp() {
   );
 
   const activeWorkspace = active ? (findWorkspace(active) ?? null) : null;
+
+  // Auto-close browser panel when the active workspace changes
+  const { close: closeBrowser, isVisible: browserIsVisible } = browser;
+  const prevActiveRef = useRef(active);
+  useEffect(() => {
+    if (prevActiveRef.current !== active && browserIsVisible) {
+      void closeBrowser();
+    }
+    prevActiveRef.current = active;
+  }, [active, closeBrowser, browserIsVisible]);
 
   // ── Connection state machine ───────────────────────────────────────────
 
@@ -568,8 +588,6 @@ export function OpenACPApp() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
-  const [browserOpen, setBrowserOpen] = useState(false);
-  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [browserPanelEnabled, setBrowserPanelEnabled] = useState(false);
 
   // Load browser panel setting
@@ -594,20 +612,22 @@ export function OpenACPApp() {
   }, [active, touchLastActive])
 
   // Listen for open-in-browser events (from link interceptor)
+  const openBrowser = browser.open
   useEffect(() => {
     function handleOpenInBrowser(e: Event) {
       const { url } = (e as CustomEvent).detail;
       if (!url) return;
       if (browserPanelEnabled) {
-        setBrowserUrl(url);
-        setBrowserOpen(true);
+        void getSetting("browserLastMode").then((mode) => openBrowser(url, undefined, mode));
       } else {
-        import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch(console.error);
+        import("@tauri-apps/plugin-opener")
+          .then(({ openUrl }) => openUrl(url))
+          .catch(console.error);
       }
     }
     window.addEventListener("open-in-browser-panel", handleOpenInBrowser);
     return () => window.removeEventListener("open-in-browser-panel", handleOpenInBrowser);
-  }, [browserPanelEnabled]);
+  }, [browserPanelEnabled, openBrowser]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
@@ -618,8 +638,22 @@ export function OpenACPApp() {
         onToggleReview={() => setReviewOpen((v) => !v)}
         fileTreeOpen={fileTreeOpen}
         onToggleFileTree={() => setFileTreeOpen((v) => !v)}
-        browserOpen={browserOpen}
-        onToggleBrowser={() => setBrowserOpen((v) => !v)}
+        browserOpen={browser.isVisible}
+        onToggleBrowser={() => {
+          if (browser.isVisible) {
+            void browser.close()
+            return
+          }
+          if (browser.url && /^https?:\/\//i.test(browser.url)) {
+            // Reopen with last valid URL in the user's default mode
+            void getSetting("browserLastMode").then((mode) => {
+              void openBrowser(browser.url!, undefined, mode)
+            })
+          } else {
+            // Fresh session — just show the empty panel; user types a URL
+            browser.show()
+          }
+        }}
         hideFileTree={activeWorkspace?.type === "remote"}
         hideBrowser={!browserPanelEnabled}
         disabled={!isConnected}
@@ -700,10 +734,7 @@ export function OpenACPApp() {
                     setReviewOpen={setReviewOpen}
                     fileTreeOpen={fileTreeOpen}
                     workspacePath={activeWorkspace?.directory ?? ""}
-                    browserOpen={browserOpen && browserPanelEnabled}
-                    browserUrl={browserUrl}
-                    onCloseBrowser={() => setBrowserOpen(false)}
-                    onBrowserUrlChange={setBrowserUrl}
+                    browserPanelEnabled={browserPanelEnabled}
                   />
                 </PermissionsProvider>
               </SessionsProvider>

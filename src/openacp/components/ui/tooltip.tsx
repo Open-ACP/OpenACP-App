@@ -2,6 +2,7 @@ import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 
 import { cn } from "src/lib/utils";
+import { useBrowserOverlayLock } from "../../context/browser-overlay";
 
 function TooltipProvider({
   delayDuration = 0,
@@ -17,9 +18,37 @@ function TooltipProvider({
 }
 
 function Tooltip({
+  suppressBrowser = false,
+  open,
+  defaultOpen,
+  onOpenChange,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+}: React.ComponentProps<typeof TooltipPrimitive.Root> & {
+  suppressBrowser?: boolean;
+}) {
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
+  const isControlled = open !== undefined;
+  const currentOpen = isControlled ? open : internalOpen;
+
+  useBrowserOverlayLock(suppressBrowser && !!currentOpen);
+
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (!isControlled) setInternalOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  return (
+    <TooltipPrimitive.Root
+      data-slot="tooltip"
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  );
 }
 
 function TooltipTrigger({
