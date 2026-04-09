@@ -32,6 +32,7 @@ import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
 import { useWorkspaceConnection, type ConnectionStatus } from "./hooks/use-workspace-connection";
 import {
   getAllSettings,
+  getSetting,
   applyTheme,
   applyFontSize,
 } from "./lib/settings-store";
@@ -605,7 +606,7 @@ function OpenACPAppInner() {
       const { url } = (e as CustomEvent).detail;
       if (!url) return;
       if (browserPanelEnabled) {
-        void openBrowser(url);
+        void getSetting("browserLastMode").then((mode) => openBrowser(url, undefined, mode));
       } else {
         import("@tauri-apps/plugin-opener")
           .then(({ openUrl }) => openUrl(url))

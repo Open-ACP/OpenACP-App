@@ -8,6 +8,7 @@ import React, {
 } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
+import { setSetting } from "../lib/settings-store"
 
 export type BrowserMode = "docked" | "floating" | "pip"
 
@@ -175,6 +176,7 @@ export function BrowserPanelProvider({ children }: { children: React.ReactNode }
   const setMode = useCallback(
     async (mode: BrowserMode, bounds?: BrowserBounds) => {
       await invoke("browser_set_mode", { mode, bounds: bounds ?? null })
+      setSetting("browserLastMode", mode).catch(() => {})
     },
     [],
   )
