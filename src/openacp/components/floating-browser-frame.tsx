@@ -264,68 +264,78 @@ export function FloatingBrowserFrame() {
         </Button>
       </div>
 
-      {/* Webview area — transparent HTML div, native webview is positioned
-          on top of this region via syncBounds(). Shows a placeholder while
-          interacting (drag/resize) since the webview is suppressed then. */}
-      <div ref={webviewAreaRef} className="flex-1 min-h-0 relative">
-        {isInteracting && (
-          <div className="absolute inset-0 bg-muted/40 border-t border-dashed border-border-weak flex items-center justify-center">
-            <div className="text-xs text-muted-foreground">
-              {"Updating…"}
+      {/*
+        Webview area — transparent HTML div, native webview is positioned on
+        top of this region via syncBounds().
+
+        IMPORTANT: the native webview layer ALWAYS covers HTML underneath it
+        on its own rect. So if the webview rect extends to the frame borders,
+        the left/right/bottom resize handles (HTML elements at the frame
+        edges) become unclickable — mouse events are captured by the webview.
+
+        Fix: inset the webview area by 8px on left/right/bottom, leaving an
+        HTML-only border strip where the resize handles can receive clicks.
+        Top edge handle is covered by the 28px chrome which is already HTML.
+      */}
+      <div className="flex-1 min-h-0 relative" style={{ padding: "0 8px 8px 8px" }}>
+        <div ref={webviewAreaRef} className="w-full h-full relative">
+          {isInteracting && (
+            <div className="absolute inset-0 bg-muted/40 border border-dashed border-border-weak flex items-center justify-center">
+              <div className="text-xs text-muted-foreground">
+                {"Updating…"}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Resize handles — 4 edges + 4 corners. Edges are 4px thin strips,
-          corners are 10x10 squares rendered last so they sit on top of the
-          edge handles at overlaps. All handles stop propagation so they don't
-          trigger the chrome drag when clicked at the top. */}
-      {/* North edge */}
+      {/* Resize handles — 4 edges + 4 corners. Rendered last so they sit on
+          top in DOM order. All handlers stop propagation. */}
+      {/* North edge — covers top 6px of the 28px chrome */}
       <div
-        className="absolute top-0 left-0 right-0 cursor-ns-resize"
-        style={{ height: 4 }}
+        className="absolute top-0 left-0 right-0 cursor-ns-resize z-10"
+        style={{ height: 6 }}
         onMouseDown={handleResizeStart("n")}
       />
-      {/* South edge */}
+      {/* South edge — sits in the 8px bottom padding */}
       <div
-        className="absolute bottom-0 left-0 right-0 cursor-ns-resize"
-        style={{ height: 4 }}
+        className="absolute bottom-0 left-0 right-0 cursor-ns-resize z-10"
+        style={{ height: 8 }}
         onMouseDown={handleResizeStart("s")}
       />
-      {/* West edge */}
+      {/* West edge — sits in the 8px left padding */}
       <div
-        className="absolute top-0 bottom-0 left-0 cursor-ew-resize"
-        style={{ width: 4 }}
+        className="absolute top-0 bottom-0 left-0 cursor-ew-resize z-10"
+        style={{ width: 8 }}
         onMouseDown={handleResizeStart("w")}
       />
-      {/* East edge */}
+      {/* East edge — sits in the 8px right padding */}
       <div
-        className="absolute top-0 bottom-0 right-0 cursor-ew-resize"
-        style={{ width: 4 }}
+        className="absolute top-0 bottom-0 right-0 cursor-ew-resize z-10"
+        style={{ width: 8 }}
         onMouseDown={handleResizeStart("e")}
       />
-      {/* NW corner */}
+      {/* NW corner — in chrome area, fully HTML */}
       <div
-        className="absolute top-0 left-0 cursor-nwse-resize"
-        style={{ width: 10, height: 10 }}
+        className="absolute top-0 left-0 cursor-nwse-resize z-20"
+        style={{ width: 12, height: 12 }}
         onMouseDown={handleResizeStart("nw")}
       />
-      {/* NE corner */}
+      {/* NE corner — in chrome area, fully HTML */}
       <div
-        className="absolute top-0 right-0 cursor-nesw-resize"
-        style={{ width: 10, height: 10 }}
+        className="absolute top-0 right-0 cursor-nesw-resize z-20"
+        style={{ width: 12, height: 12 }}
         onMouseDown={handleResizeStart("ne")}
       />
-      {/* SW corner */}
+      {/* SW corner — in bottom-left padding, fully HTML */}
       <div
-        className="absolute bottom-0 left-0 cursor-nesw-resize"
-        style={{ width: 10, height: 10 }}
+        className="absolute bottom-0 left-0 cursor-nesw-resize z-20"
+        style={{ width: 12, height: 12 }}
         onMouseDown={handleResizeStart("sw")}
       />
-      {/* SE corner — with subtle visual indicator */}
+      {/* SE corner — in bottom-right padding, fully HTML */}
       <div
-        className="absolute bottom-0 right-0 cursor-nwse-resize"
+        className="absolute bottom-0 right-0 cursor-nwse-resize z-20"
         style={{
           width: 12,
           height: 12,

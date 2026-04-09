@@ -345,9 +345,8 @@ fn ensure_pip_window(app: &AppHandle) -> Result<tauri::Window, String> {
     }
     WindowBuilder::new(app, PIP_LABEL)
         .title("Browser (PiP)")
-        .inner_size(380.0, 240.0)
+        .inner_size(420.0, 300.0)
         .min_inner_size(280.0, 180.0)
-        .max_inner_size(800.0, 600.0)
         .resizable(true)
         .decorations(true)
         .always_on_top(true)
@@ -609,13 +608,62 @@ pub async fn browser_set_mode(
         inner.switching_mode = true;
     }
 
-    let result = reparent_to_mode(&app, mode, bounds);
+    // Check if we're leaving PiP (separate WKWebView-hosting window). On macOS,
+    // reparenting a webview out of its own WebviewWindow is unreliable and
+    // can deadlock the main thread. For PiP → Docked/Floating, destroy the
+    // webview and recreate it in the main window instead. This loses in-page
+    // history (back/forward inside the tab) but preserves the current URL.
+    let needs_recreate = {
+        let parent_label = app
+            .get_webview(BROWSER_LABEL)
+            .map(|w| w.window().label().to_string())
+            .unwrap_or_default();
+        parent_label == PIP_LABEL && mode != BrowserMode::Pip
+    };
+
+    let result: Result<(), String> = if needs_recreate {
+        // Capture the URL and docked bounds fallback from state before destroying.
+        let (current_url, fallback_bounds) = {
+            let inner = store.inner.lock().map_err(|e| e.to_string())?;
+            let url = match &inner.state {
+                BrowserState::Ready { url, .. }
+                | BrowserState::Opening { url, .. }
+                | BrowserState::Error { url, .. } => url.clone(),
+                BrowserState::Navigating { to, .. } => to.clone(),
+                _ => String::new(),
+            };
+            (url, inner.last_docked_bounds)
+        };
+
+        // Destroy the webview and the PiP window. handle_window_close
+        // short-circuits because switching_mode is set.
+        if let Some(wv) = app.get_webview(BROWSER_LABEL) {
+            let _ = wv.close();
+        }
+        close_window_if_exists(&app, PIP_LABEL);
+        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+
+        // Recreate in main with the last URL. Bounds: explicit > fallback > default.
+        let effective_bounds = bounds.or(fallback_bounds).unwrap_or(Bounds {
+            x: 0.0,
+            y: 48.0,
+            width: 480.0,
+            height: 600.0,
+        });
+        if !current_url.is_empty() {
+            create_child_in_main(&app, &current_url, effective_bounds)
+        } else {
+            Err("cannot recreate webview: no URL in state".into())
+        }
+    } else {
+        reparent_to_mode(&app, mode, bounds)
+    };
 
     // Always clear the guard, even on error.
     let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
     inner.switching_mode = false;
 
-    // Propagate any reparent error after clearing the guard.
+    // Propagate any error after clearing the guard.
     result?;
 
     if let Some(b) = bounds {
@@ -731,14 +779,13 @@ pub async fn browser_unsuppress(
 /// Called from lib.rs when the user clicks the native close button on
 /// the PiP window. Destroys the webview and transitions back to Idle.
 ///
-/// Short-circuits if `browser_close` is already in progress (closing flag set),
-/// because that path already handles the full cleanup and we'd race against it.
+/// Short-circuits if `browser_close` or a mode switch is already in progress,
+/// because those paths already handle the cleanup and we'd race against them.
 pub fn handle_window_close(app: &AppHandle) {
-    // Check closing guard first — if browser_close is already handling this,
-    // don't touch the webview or the store.
+    // Check guards first — if another command is already handling this, skip.
     if let Some(store) = app.try_state::<BrowserStore>() {
         if let Ok(inner) = store.inner.lock() {
-            if inner.closing {
+            if inner.closing || inner.switching_mode {
                 return;
             }
         }
