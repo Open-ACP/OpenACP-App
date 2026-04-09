@@ -350,3 +350,114 @@ fn close_window_if_exists(app: &AppHandle, label: &str) {
         let _ = w.close();
     }
 }
+
+// ── Commands ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct ShowOptions {
+    pub url: String,
+    pub mode: BrowserMode,
+    pub bounds: Option<Bounds>,
+}
+
+/// Create the webview (if needed) and reparent to the target mode's window.
+/// If the webview already exists, navigate to the new URL and switch mode.
+#[tauri::command]
+pub async fn browser_show(
+    app: AppHandle,
+    store: State<'_, BrowserStore>,
+    opts: ShowOptions,
+) -> Result<(), String> {
+    // Transition to Opening
+    {
+        let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+        inner.state = BrowserState::Opening {
+            url: opts.url.clone(),
+            mode: opts.mode,
+        };
+        if opts.mode == BrowserMode::Docked {
+            if let Some(b) = opts.bounds {
+                inner.last_docked_bounds = Some(b);
+            }
+        }
+        emit_state(&app, &inner);
+    }
+
+    // Create webview if it doesn't exist
+    if app.get_webview(BROWSER_LABEL).is_none() {
+        let bounds = opts.bounds.unwrap_or(Bounds {
+            x: 0.0,
+            y: 0.0,
+            width: 480.0,
+            height: 600.0,
+        });
+        create_child_in_main(&app, &opts.url, bounds)?;
+    } else {
+        // Navigate existing webview to new URL
+        if let Some(wv) = app.get_webview(BROWSER_LABEL) {
+            let parsed = parse_url(&opts.url)?;
+            wv.navigate(parsed).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Reparent to target mode's window
+    reparent_to_mode(&app, opts.mode, opts.bounds)?;
+
+    // Transition to Ready
+    {
+        let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+        inner.state = BrowserState::Ready {
+            url: opts.url,
+            mode: opts.mode,
+        };
+        emit_state(&app, &inner);
+    }
+
+    Ok(())
+}
+
+/// Reparent the webview to the window matching `mode`. Creates target window if needed.
+fn reparent_to_mode(
+    app: &AppHandle,
+    mode: BrowserMode,
+    bounds: Option<Bounds>,
+) -> Result<(), String> {
+    let wv = app
+        .get_webview(BROWSER_LABEL)
+        .ok_or("webview not created")?;
+
+    match mode {
+        BrowserMode::Docked => {
+            let main = app.get_window(MAIN_LABEL).ok_or("main window not found")?;
+            wv.reparent(&main).map_err(|e| e.to_string())?;
+            if let Some(b) = bounds {
+                wv.set_position(tauri::Position::Logical(LogicalPosition::new(b.x, b.y)))
+                    .map_err(|e| e.to_string())?;
+                wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)))
+                    .map_err(|e| e.to_string())?;
+            }
+            // Hide sibling windows
+            close_window_if_exists(app, FLOAT_LABEL);
+            close_window_if_exists(app, PIP_LABEL);
+        }
+        BrowserMode::Floating => {
+            let float = ensure_float_window(app)?;
+            let float_win = app
+                .get_window(FLOAT_LABEL)
+                .ok_or("float window not found after create")?;
+            wv.reparent(&float_win).map_err(|e| e.to_string())?;
+            float.show().map_err(|e| e.to_string())?;
+            close_window_if_exists(app, PIP_LABEL);
+        }
+        BrowserMode::Pip => {
+            let pip = ensure_pip_window(app)?;
+            let pip_win = app
+                .get_window(PIP_LABEL)
+                .ok_or("pip window not found after create")?;
+            wv.reparent(&pip_win).map_err(|e| e.to_string())?;
+            pip.show().map_err(|e| e.to_string())?;
+            close_window_if_exists(app, FLOAT_LABEL);
+        }
+    }
+    Ok(())
+}
