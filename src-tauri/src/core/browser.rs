@@ -360,6 +360,15 @@ fn ensure_pip_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
         .map_err(|e| format!("pip window build failed: {e}"))
 }
 
+/// Hide a sibling float/pip window without destroying it. Used during mode switches
+/// so that closing the window does NOT trigger `handle_window_close` (the user-initiated
+/// close handler) which would destroy the browser webview we just reparented.
+fn hide_window_if_exists(app: &AppHandle, label: &str) {
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.hide();
+    }
+}
+
 fn close_window_if_exists(app: &AppHandle, label: &str) {
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.close();
@@ -470,9 +479,11 @@ fn reparent_to_mode(
                 wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)))
                     .map_err(|e| e.to_string())?;
             }
-            // Hide sibling windows
-            close_window_if_exists(app, FLOAT_LABEL);
-            close_window_if_exists(app, PIP_LABEL);
+            let _ = wv.show();
+            // Hide (don't close) sibling windows so the close event doesn't
+            // fire `handle_window_close` and destroy the webview we just moved.
+            hide_window_if_exists(app, FLOAT_LABEL);
+            hide_window_if_exists(app, PIP_LABEL);
         }
         BrowserMode::Floating => {
             let float = ensure_float_window(app)?;
@@ -485,9 +496,8 @@ fn reparent_to_mode(
             // Without this, it keeps the old docked panel bounds (x/y/size) which
             // places it outside the float window's visible area → blank window.
             fill_window(&wv, &float_win)?;
-            // Ensure visible in case a prior suppress left it hidden.
             let _ = wv.show();
-            close_window_if_exists(app, PIP_LABEL);
+            hide_window_if_exists(app, PIP_LABEL);
         }
         BrowserMode::Pip => {
             let pip = ensure_pip_window(app)?;
@@ -498,7 +508,7 @@ fn reparent_to_mode(
             pip.show().map_err(|e| e.to_string())?;
             fill_window(&wv, &pip_win)?;
             let _ = wv.show();
-            close_window_if_exists(app, FLOAT_LABEL);
+            hide_window_if_exists(app, FLOAT_LABEL);
         }
     }
     Ok(())
