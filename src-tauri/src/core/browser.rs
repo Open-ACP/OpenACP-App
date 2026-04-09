@@ -121,6 +121,9 @@ struct BrowserStoreInner {
     /// handler (`handle_window_close`) knows it's a programmatic close and
     /// skips its own re-entrant cleanup that would race against browser_close.
     closing: bool,
+    /// Set true while a mode switch is in progress so concurrent
+    /// `browser_set_mode` or `browser_show` calls don't race on reparent.
+    switching_mode: bool,
 }
 
 impl BrowserStore {
@@ -134,6 +137,7 @@ impl BrowserStore {
                 creating: false,
                 programmatic_nav: false,
                 closing: false,
+                switching_mode: false,
             }),
         }
     }
@@ -463,14 +467,22 @@ fn reparent_to_mode(
         .get_webview(BROWSER_LABEL)
         .ok_or("webview not created")?;
 
+    // Skip reparent if the webview is already parented to the target window.
+    // On macOS WKWebView, repeated reparent() calls to the same parent can
+    // intermittently deadlock the webview's main thread, causing the app to
+    // become unresponsive.
+    let current_parent = wv.window().label().to_string();
+
     match mode {
         BrowserMode::Docked | BrowserMode::Floating => {
             // Both Docked and Floating (in-app mini player) host the webview
             // inside the main window. The only difference is position/size:
             // Docked fills the sidebar panel slot, Floating hovers in a corner.
             // Bounds are computed and supplied by React.
-            let main = app.get_window(MAIN_LABEL).ok_or("main window not found")?;
-            wv.reparent(&main).map_err(|e| e.to_string())?;
+            if current_parent != MAIN_LABEL {
+                let main = app.get_window(MAIN_LABEL).ok_or("main window not found")?;
+                wv.reparent(&main).map_err(|e| e.to_string())?;
+            }
             if let Some(b) = bounds {
                 wv.set_position(tauri::Position::Logical(LogicalPosition::new(b.x, b.y)))
                     .map_err(|e| e.to_string())?;
@@ -485,7 +497,9 @@ fn reparent_to_mode(
         BrowserMode::Pip => {
             // PiP = desktop always-on-top separate window.
             let pip = ensure_pip_window(app)?;
-            wv.reparent(&pip).map_err(|e| e.to_string())?;
+            if current_parent != PIP_LABEL {
+                wv.reparent(&pip).map_err(|e| e.to_string())?;
+            }
             pip.show().map_err(|e| e.to_string())?;
             fill_window(&wv, &pip)?;
             let _ = wv.show();
@@ -583,8 +597,27 @@ pub async fn browser_set_mode(
     mode: BrowserMode,
     bounds: Option<Bounds>,
 ) -> Result<(), String> {
-    reparent_to_mode(&app, mode, bounds)?;
+    // Guard against concurrent mode switches — if user clicks Dock twice in
+    // quick succession, or a drag-end bounds sync races with a mode-selector
+    // click, both could hit reparent_to_mode simultaneously and deadlock the
+    // webview. Drop the second caller silently.
+    {
+        let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+        if inner.switching_mode {
+            return Ok(());
+        }
+        inner.switching_mode = true;
+    }
+
+    let result = reparent_to_mode(&app, mode, bounds);
+
+    // Always clear the guard, even on error.
     let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
+    inner.switching_mode = false;
+
+    // Propagate any reparent error after clearing the guard.
+    result?;
+
     if let Some(b) = bounds {
         if mode == BrowserMode::Docked {
             inner.last_docked_bounds = Some(b);
@@ -640,6 +673,7 @@ pub async fn browser_close(
         inner.creating = false;
         inner.programmatic_nav = false;
         inner.closing = false;
+        inner.switching_mode = false;
         emit_state(&app, &inner);
     }
     Ok(())
