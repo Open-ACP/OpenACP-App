@@ -18,9 +18,19 @@ const DEFAULT_HEIGHT = 268 // 28px chrome + 240px webview
 const CHROME_HEIGHT = 28
 const MIN_WIDTH = 280
 const MIN_HEIGHT = 180
-const MAX_WIDTH = 900
-const MAX_HEIGHT = 700
 const MARGIN = 24
+
+// The floating frame is naturally clamped by the main window it lives in,
+// so the "maximum" resize bound is computed at resize time from
+// window.innerWidth / innerHeight (minus a small safety margin), not a
+// hard constant. Users can drag corners/edges until they hit the window
+// border.
+function getMaxWidth(): number {
+  return Math.max(MIN_WIDTH, window.innerWidth - 16)
+}
+function getMaxHeight(): number {
+  return Math.max(MIN_HEIGHT, window.innerHeight - 16)
+}
 
 export function FloatingBrowserFrame() {
   const browser = useBrowserPanel()
@@ -187,6 +197,9 @@ export function FloatingBrowserFrame() {
       setPos({ x: startX, y: startY })
       void beginInteraction()
 
+      const maxW = getMaxWidth()
+      const maxH = getMaxHeight()
+
       const onMove = (ev: MouseEvent) => {
         const dx = ev.clientX - startMouseX
         const dy = ev.clientY - startMouseY
@@ -197,19 +210,29 @@ export function FloatingBrowserFrame() {
         let newH = startH
 
         if (affectsRight) {
-          newW = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startW + dx))
+          // Clamp so the frame doesn't exceed the right edge of the window
+          const maxByViewport = window.innerWidth - startX - 8
+          newW = Math.max(MIN_WIDTH, Math.min(Math.min(maxW, maxByViewport), startW + dx))
         }
         if (affectsLeft) {
-          newW = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startW - dx))
-          // When resizing from the left edge, the position shifts so the
-          // right edge stays anchored.
+          // Don't let the left edge go past x=0, nor shrink below MIN_WIDTH
+          const minXAllowed = 0
+          const maxDxLeft = startX - minXAllowed
+          const minDxLeft = startW - maxW
+          const clampedDx = Math.max(minDxLeft, Math.min(maxDxLeft, dx))
+          newW = Math.max(MIN_WIDTH, startW - clampedDx)
           newX = startX + (startW - newW)
         }
         if (affectsBottom) {
-          newH = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startH + dy))
+          const maxByViewport = window.innerHeight - startY - 8
+          newH = Math.max(MIN_HEIGHT, Math.min(Math.min(maxH, maxByViewport), startH + dy))
         }
         if (affectsTop) {
-          newH = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startH - dy))
+          const minYAllowed = 0
+          const maxDyTop = startY - minYAllowed
+          const minDyTop = startH - maxH
+          const clampedDy = Math.max(minDyTop, Math.min(maxDyTop, dy))
+          newH = Math.max(MIN_HEIGHT, startH - clampedDy)
           newY = startY + (startH - newH)
         }
 

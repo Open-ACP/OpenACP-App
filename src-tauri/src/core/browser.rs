@@ -502,6 +502,12 @@ fn reparent_to_mode(
             pip.show().map_err(|e| e.to_string())?;
             fill_window(&wv, &pip)?;
             let _ = wv.show();
+            // Make the PiP window the key window so it receives input events
+            // (scroll, keyboard). Without this, the main window keeps focus and
+            // the webview inside pip is visible but inert — scroll wheel events
+            // are dispatched to whatever window is currently focused.
+            let _ = pip.set_focus();
+            let _ = wv.set_focus();
         }
     }
     Ok(())
@@ -777,10 +783,16 @@ pub async fn browser_unsuppress(
 }
 
 /// Called from lib.rs when the user clicks the native close button on
-/// the PiP window. Destroys the webview and transitions back to Idle.
+/// the Pop-out window's traffic light.
 ///
-/// Short-circuits if `browser_close` or a mode switch is already in progress,
-/// because those paths already handle the cleanup and we'd race against them.
+/// Rather than destroying the webview (which hangs macOS because the webview
+/// is mid-close along with its parent window), this schedules an async task
+/// that waits for the window close to complete, then recreates the webview
+/// in the main window at the last docked bounds. From the user's perspective,
+/// closing the Pop-out window transitions the browser back to docked mode
+/// instead of fully closing it.
+///
+/// Short-circuits if `browser_close` or a mode switch is already in progress.
 pub fn handle_window_close(app: &AppHandle) {
     // Check guards first — if another command is already handling this, skip.
     if let Some(store) = app.try_state::<BrowserStore>() {
@@ -791,22 +803,84 @@ pub fn handle_window_close(app: &AppHandle) {
         }
     }
 
-    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
-        let _ = wv.close();
-    }
-    close_window_if_exists(app, PIP_LABEL);
-    if let Some(store) = app.try_state::<BrowserStore>() {
-        if let Ok(mut inner) = store.inner.lock() {
-            inner.state = BrowserState::Idle;
-            inner.history = History::default();
-            inner.suppress_count = 0;
-            inner.last_docked_bounds = None;
-            inner.creating = false;
-            inner.programmatic_nav = false;
-            inner.closing = false;
-            emit_state(app, &inner);
+    // Capture URL and docked bounds, and set the switching_mode guard so no
+    // other command races with the async recreate below.
+    let (current_url, fallback_bounds) = {
+        let Some(store) = app.try_state::<BrowserStore>() else {
+            return;
+        };
+        let Ok(mut inner) = store.inner.lock() else {
+            return;
+        };
+        let url = match &inner.state {
+            BrowserState::Ready { url, .. }
+            | BrowserState::Opening { url, .. }
+            | BrowserState::Error { url, .. } => url.clone(),
+            BrowserState::Navigating { to, .. } => to.clone(),
+            _ => String::new(),
+        };
+        let bounds = inner.last_docked_bounds;
+        inner.switching_mode = true;
+        (url, bounds)
+    };
+
+    // IMPORTANT: do NOT call wv.close() here. The webview is inside the
+    // Pop-out window which is already in its close sequence — destroying it
+    // mid-close deadlocks macOS WKWebView. Let the window close naturally;
+    // its child webview is cleaned up with it.
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // Wait for the Pop-out window close to fully complete so the webview
+        // label is freed before we create a new one with the same label.
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        let finalize = |state: BrowserState| {
+            if let Some(store) = app_clone.try_state::<BrowserStore>() {
+                if let Ok(mut inner) = store.inner.lock() {
+                    inner.state = state;
+                    inner.switching_mode = false;
+                    emit_state(&app_clone, &inner);
+                }
+            }
+        };
+
+        if current_url.is_empty() {
+            // No URL to restore — fully reset to Idle.
+            if let Some(store) = app_clone.try_state::<BrowserStore>() {
+                if let Ok(mut inner) = store.inner.lock() {
+                    inner.state = BrowserState::Idle;
+                    inner.history = History::default();
+                    inner.suppress_count = 0;
+                    inner.last_docked_bounds = None;
+                    inner.creating = false;
+                    inner.programmatic_nav = false;
+                    inner.closing = false;
+                    inner.switching_mode = false;
+                    emit_state(&app_clone, &inner);
+                }
+            }
+            return;
         }
-    }
+
+        // Recreate webview in main window at last known docked bounds.
+        let bounds = fallback_bounds.unwrap_or(Bounds {
+            x: 0.0,
+            y: 48.0,
+            width: 480.0,
+            height: 600.0,
+        });
+        match create_child_in_main(&app_clone, &current_url, bounds) {
+            Ok(()) => finalize(BrowserState::Ready {
+                url: current_url,
+                mode: BrowserMode::Docked,
+            }),
+            Err(e) => finalize(BrowserState::Error {
+                url: current_url,
+                message: e,
+                mode: BrowserMode::Docked,
+            }),
+        }
+    });
 }
 
 #[tauri::command]

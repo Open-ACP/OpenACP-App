@@ -93,8 +93,8 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
             }}
           >
             <option value="docked">Docked</option>
-            <option value="floating">Floating</option>
-            <option value="pip">Picture in Picture</option>
+            <option value="floating">Picture in Picture</option>
+            <option value="pip">Pop-out</option>
           </select>
         </SettingRow>
         <SettingRow label="Search engine" description="Default search engine for the in-app browser address bar">

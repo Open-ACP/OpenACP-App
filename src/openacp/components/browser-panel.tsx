@@ -8,7 +8,7 @@ import {
   X,
   ArrowsInSimple,
   PictureInPicture,
-  Monitor,
+  AppWindow,
   Warning,
   Globe,
 } from "@phosphor-icons/react"
@@ -274,7 +274,7 @@ export function BrowserPanel() {
             <Button variant="ghost" size="icon-sm" title="Mode">
               {browser.mode === "docked" && <ArrowsInSimple size={14} />}
               {browser.mode === "floating" && <PictureInPicture size={14} />}
-              {browser.mode === "pip" && <Monitor size={14} />}
+              {browser.mode === "pip" && <AppWindow size={14} />}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -282,10 +282,10 @@ export function BrowserPanel() {
               <ArrowsInSimple size={14} className="mr-2" /> Docked
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleSetMode("floating")}>
-              <PictureInPicture size={14} className="mr-2" /> Floating (in-app)
+              <PictureInPicture size={14} className="mr-2" /> Picture in Picture
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleSetMode("pip")}>
-              <Monitor size={14} className="mr-2" /> Picture in Picture (desktop)
+              <AppWindow size={14} className="mr-2" /> Pop-out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -315,7 +315,9 @@ export function BrowserPanel() {
         {browser.mode !== "docked" && browser.kind === "ready" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80">
             <div className="text-sm text-muted-foreground">
-              Browser is in {browser.mode} mode
+              {browser.mode === "floating"
+                ? "Browser is in Picture in Picture"
+                : "Browser is popped out"}
             </div>
             <Button variant="outline" size="sm" onClick={() => handleSetMode("docked")}>
               Dock here
