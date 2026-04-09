@@ -481,6 +481,12 @@ fn reparent_to_mode(
                 .ok_or("float window not found after create")?;
             wv.reparent(&float_win).map_err(|e| e.to_string())?;
             float.show().map_err(|e| e.to_string())?;
+            // Resize the reparented webview to fill the float window's client area.
+            // Without this, it keeps the old docked panel bounds (x/y/size) which
+            // places it outside the float window's visible area → blank window.
+            fill_window(&wv, &float_win)?;
+            // Ensure visible in case a prior suppress left it hidden.
+            let _ = wv.show();
             close_window_if_exists(app, PIP_LABEL);
         }
         BrowserMode::Pip => {
@@ -490,9 +496,28 @@ fn reparent_to_mode(
                 .ok_or("pip window not found after create")?;
             wv.reparent(&pip_win).map_err(|e| e.to_string())?;
             pip.show().map_err(|e| e.to_string())?;
+            fill_window(&wv, &pip_win)?;
+            let _ = wv.show();
             close_window_if_exists(app, FLOAT_LABEL);
         }
     }
+    Ok(())
+}
+
+/// Position and size the webview to fill the given window's client area.
+/// Used after reparenting to float/PiP so the webview is visible in the new parent.
+fn fill_window<R: tauri::Runtime>(
+    wv: &tauri::Webview<R>,
+    win: &tauri::Window<R>,
+) -> Result<(), String> {
+    let size = win.inner_size().map_err(|e| e.to_string())?;
+    let scale = win.scale_factor().map_err(|e| e.to_string())?;
+    let logical_w = size.width as f64 / scale;
+    let logical_h = size.height as f64 / scale;
+    wv.set_position(tauri::Position::Logical(LogicalPosition::new(0.0, 0.0)))
+        .map_err(|e| e.to_string())?;
+    wv.set_size(tauri::Size::Logical(LogicalSize::new(logical_w, logical_h)))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -647,10 +672,22 @@ pub async fn browser_unsuppress(
     if inner.suppress_count == 0 {
         if let Some(wv) = app.get_webview(BROWSER_LABEL) {
             let _ = wv.show();
-            // Re-sync docked bounds in case layout shifted while hidden
-            if let Some(b) = inner.last_docked_bounds {
-                let _ = wv.set_position(tauri::Position::Logical(LogicalPosition::new(b.x, b.y)));
-                let _ = wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)));
+            // Re-sync bounds only when docked — in floating/pip modes the webview
+            // fills its own window and `last_docked_bounds` would place it off-screen.
+            let current_mode = match &inner.state {
+                BrowserState::Ready { mode, .. }
+                | BrowserState::Opening { mode, .. }
+                | BrowserState::Navigating { mode, .. }
+                | BrowserState::Error { mode, .. } => Some(*mode),
+                _ => None,
+            };
+            if current_mode == Some(BrowserMode::Docked) {
+                if let Some(b) = inner.last_docked_bounds {
+                    let _ = wv.set_position(tauri::Position::Logical(LogicalPosition::new(
+                        b.x, b.y,
+                    )));
+                    let _ = wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)));
+                }
             }
         }
     }
@@ -684,21 +721,33 @@ pub async fn browser_reset_suppress(
     app: AppHandle,
     store: State<'_, BrowserStore>,
 ) -> Result<(), String> {
-    // Snapshot suppression state and bounds, then drop the lock before
-    // touching the webview to avoid holding the mutex across IPC calls.
-    let (was_suppressed, bounds) = {
+    // Snapshot suppression state, docked bounds, and current mode, then drop the
+    // lock before touching the webview to avoid holding the mutex across IPC calls.
+    let (was_suppressed, bounds, current_mode) = {
         let mut inner = store.inner.lock().map_err(|e| e.to_string())?;
         let was_suppressed = inner.suppress_count > 0;
         inner.suppress_count = 0;
-        (was_suppressed, inner.last_docked_bounds)
+        let mode = match &inner.state {
+            BrowserState::Ready { mode, .. }
+            | BrowserState::Opening { mode, .. }
+            | BrowserState::Navigating { mode, .. }
+            | BrowserState::Error { mode, .. } => Some(*mode),
+            _ => None,
+        };
+        (was_suppressed, inner.last_docked_bounds, mode)
     };
 
     if was_suppressed {
         if let Some(wv) = app.get_webview(BROWSER_LABEL) {
             let _ = wv.show();
-            if let Some(b) = bounds {
-                let _ = wv.set_position(tauri::Position::Logical(LogicalPosition::new(b.x, b.y)));
-                let _ = wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)));
+            // Only re-apply docked bounds when actually in docked mode.
+            if current_mode == Some(BrowserMode::Docked) {
+                if let Some(b) = bounds {
+                    let _ = wv.set_position(tauri::Position::Logical(LogicalPosition::new(
+                        b.x, b.y,
+                    )));
+                    let _ = wv.set_size(tauri::Size::Logical(LogicalSize::new(b.width, b.height)));
+                }
             }
         }
     }
