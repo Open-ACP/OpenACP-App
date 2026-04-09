@@ -38,6 +38,8 @@ import {
 import { Titlebar } from "./components/titlebar";
 import { FileTreePanel } from "./components/file-tree-panel";
 import { BrowserPanel } from "./components/browser-panel";
+import { BrowserPanelProvider, useBrowserPanel } from "./context/browser-panel";
+import { BrowserOverlayProvider } from "./context/browser-overlay";
 import type { ServerInfo } from "./types";
 
 function NoServerScreen({ directory, isRemote, errorMessage, onStart, onReconnect, onRemove }: { directory: string; isRemote?: boolean; errorMessage?: string | null; onStart: () => void; onReconnect: () => void; onRemove?: () => void }) {
@@ -238,6 +240,17 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
 }
 
 export function OpenACPApp() {
+  return (
+    <BrowserOverlayProvider>
+      <BrowserPanelProvider>
+        <OpenACPAppInner />
+      </BrowserPanelProvider>
+    </BrowserOverlayProvider>
+  );
+}
+
+function OpenACPAppInner() {
+  const browser = useBrowserPanel();
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -568,8 +581,6 @@ export function OpenACPApp() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
-  const [browserOpen, setBrowserOpen] = useState(false);
-  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [browserPanelEnabled, setBrowserPanelEnabled] = useState(false);
 
   // Load browser panel setting
@@ -599,15 +610,16 @@ export function OpenACPApp() {
       const { url } = (e as CustomEvent).detail;
       if (!url) return;
       if (browserPanelEnabled) {
-        setBrowserUrl(url);
-        setBrowserOpen(true);
+        void browser.open(url);
       } else {
-        import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch(console.error);
+        import("@tauri-apps/plugin-opener")
+          .then(({ openUrl }) => openUrl(url))
+          .catch(console.error);
       }
     }
     window.addEventListener("open-in-browser-panel", handleOpenInBrowser);
     return () => window.removeEventListener("open-in-browser-panel", handleOpenInBrowser);
-  }, [browserPanelEnabled]);
+  }, [browserPanelEnabled, browser]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground-weak select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
@@ -618,8 +630,12 @@ export function OpenACPApp() {
         onToggleReview={() => setReviewOpen((v) => !v)}
         fileTreeOpen={fileTreeOpen}
         onToggleFileTree={() => setFileTreeOpen((v) => !v)}
-        browserOpen={browserOpen}
-        onToggleBrowser={() => setBrowserOpen((v) => !v)}
+        browserOpen={browser.isVisible}
+        onToggleBrowser={() =>
+          browser.isVisible
+            ? void browser.close()
+            : void browser.open(browser.url ?? "about:blank")
+        }
         hideFileTree={activeWorkspace?.type === "remote"}
         hideBrowser={!browserPanelEnabled}
         disabled={!isConnected}
@@ -700,10 +716,10 @@ export function OpenACPApp() {
                     setReviewOpen={setReviewOpen}
                     fileTreeOpen={fileTreeOpen}
                     workspacePath={activeWorkspace?.directory ?? ""}
-                    browserOpen={browserOpen && browserPanelEnabled}
-                    browserUrl={browserUrl}
-                    onCloseBrowser={() => setBrowserOpen(false)}
-                    onBrowserUrlChange={setBrowserUrl}
+                    browserOpen={browser.isVisible && browserPanelEnabled}
+                    browserUrl={browser.url}
+                    onCloseBrowser={() => void browser.close()}
+                    onBrowserUrlChange={(url) => void browser.navigate(url)}
                   />
                 </PermissionsProvider>
               </SessionsProvider>
