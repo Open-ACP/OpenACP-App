@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   ArrowLeft,
@@ -43,10 +43,48 @@ function useBoundsSyncDocked(
     }).catch(() => {})
   }, [containerRef])
 
-  useLayoutEffect(() => {
+  // On mount / activation, the AnimatePresence slide-in animation is running,
+  // so the container's left/width may still be at their animated intermediate
+  // values. A single useLayoutEffect fire would miss the final position.
+  // Instead, poll on every RAF for the animation duration (~300ms budget) and
+  // re-sync whenever the rect changes. Stops early once the rect stabilizes
+  // for two consecutive frames.
+  useEffect(() => {
     if (!active || mode !== "docked") return
-    sync()
-  }, [active, mode, sync])
+    const el = containerRef.current
+    if (!el) return
+
+    let rafId: number | null = null
+    let elapsed = 0
+    let lastKey = ""
+    let stableFrames = 0
+    const startTime = performance.now()
+
+    const tick = () => {
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const key = `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`
+      if (rect.width >= 10) {
+        if (key !== lastKey) {
+          sync()
+          lastKey = key
+          stableFrames = 0
+        } else {
+          stableFrames++
+        }
+      }
+      elapsed = performance.now() - startTime
+      // Stop after 400ms OR after the rect has been stable for 3 frames
+      if (elapsed < 400 && stableFrames < 3) {
+        rafId = requestAnimationFrame(tick)
+      }
+    }
+    rafId = requestAnimationFrame(tick)
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [active, mode, sync, containerRef])
 
   // Window resize — debounced trailing via RAF
   useEffect(() => {
