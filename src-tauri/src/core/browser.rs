@@ -1,173 +1,135 @@
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl};
+use std::sync::Mutex;
+use serde::{Deserialize, Serialize};
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Url, WebviewUrl,
+    WebviewWindowBuilder,
+};
 use tauri::webview::WebviewBuilder;
 
 const BROWSER_LABEL: &str = "browser-panel";
 const FLOAT_LABEL: &str = "browser-float";
+const PIP_LABEL: &str = "browser-pip";
+const MAIN_LABEL: &str = "main";
 
-#[tauri::command]
-pub async fn browser_open(
-    app: AppHandle,
-    url: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Result<(), String> {
-    // Close any existing browser (docked or floating)
-    close_all(&app);
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-    let window = app
-        .get_window("main")
-        .ok_or("main window not found")?;
-
-    let parsed = url.parse::<Url>().map_err(|e| e.to_string())?;
-    let builder = WebviewBuilder::new(BROWSER_LABEL, WebviewUrl::External(parsed));
-
-    window
-        .add_child(
-            builder,
-            LogicalPosition::new(x, y),
-            LogicalSize::new(width, height),
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+/// Which parent window currently hosts the webview.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BrowserMode {
+    Docked,
+    Floating,
+    Pip,
 }
 
-#[tauri::command]
-pub async fn browser_navigate(app: AppHandle, url: String) -> Result<(), String> {
-    let parsed = url.parse::<Url>().map_err(|e| e.to_string())?;
-    // Try docked first, then floating
-    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
-        return wv.navigate(parsed).map_err(|e| e.to_string());
-    }
-    if let Some(ww) = app.get_webview_window(FLOAT_LABEL) {
-        return ww.navigate(parsed).map_err(|e| e.to_string());
-    }
-    Err("browser webview not found".into())
+/// Bounds for docked mode (logical pixels relative to main window).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Bounds {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
-#[tauri::command]
-pub async fn browser_eval(app: AppHandle, js: String) -> Result<(), String> {
-    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
-        return wv.eval(&js).map_err(|e| e.to_string());
-    }
-    if let Some(ww) = app.get_webview_window(FLOAT_LABEL) {
-        return ww.eval(&js).map_err(|e| e.to_string());
-    }
-    Err("browser webview not found".into())
+/// Top-level lifecycle state. Serialized for React consumption.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum BrowserState {
+    Idle,
+    Opening { url: String, mode: BrowserMode },
+    Ready { url: String, mode: BrowserMode },
+    Navigating { from: String, to: String, mode: BrowserMode },
+    Error { url: String, message: String, mode: BrowserMode },
+    Closing,
 }
 
-#[tauri::command]
-pub async fn browser_close(app: AppHandle) -> Result<(), String> {
-    close_all(&app);
-    Ok(())
+impl BrowserState {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Opening { .. } => "opening",
+            Self::Ready { .. } => "ready",
+            Self::Navigating { .. } => "navigating",
+            Self::Error { .. } => "error",
+            Self::Closing => "closing",
+        }
+    }
 }
 
-#[tauri::command]
-pub async fn browser_set_bounds(
-    app: AppHandle,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Result<(), String> {
-    let webview = app
-        .get_webview(BROWSER_LABEL)
-        .ok_or("browser webview not found")?;
-    webview
-        .set_position(tauri::Position::Logical(LogicalPosition::new(x, y)))
-        .map_err(|e| e.to_string())?;
-    webview
-        .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
-        .map_err(|e| e.to_string())?;
-    Ok(())
+/// Rust-side history stack. Source of truth for back/forward UI state.
+#[derive(Debug, Default, Clone)]
+struct History {
+    entries: Vec<String>,
+    cursor: usize, // index of current entry; valid only if entries is non-empty
 }
 
-#[tauri::command]
-pub async fn browser_show(app: AppHandle) -> Result<(), String> {
-    if let Some(webview) = app.get_webview(BROWSER_LABEL) {
-        webview.show().map_err(|e| e.to_string())?;
+impl History {
+    fn push(&mut self, url: String) {
+        // Truncate forward history on new navigation
+        if !self.entries.is_empty() && self.cursor + 1 < self.entries.len() {
+            self.entries.truncate(self.cursor + 1);
+        }
+        // De-dupe consecutive identical URLs (SPA spam)
+        if self.entries.last().map(|s| s.as_str()) != Some(url.as_str()) {
+            self.entries.push(url);
+            self.cursor = self.entries.len() - 1;
+        }
     }
-    Ok(())
+
+    fn can_go_back(&self) -> bool {
+        !self.entries.is_empty() && self.cursor > 0
+    }
+
+    fn can_go_forward(&self) -> bool {
+        !self.entries.is_empty() && self.cursor + 1 < self.entries.len()
+    }
+
+    fn go_back(&mut self) -> Option<&str> {
+        if self.can_go_back() {
+            self.cursor -= 1;
+            self.entries.get(self.cursor).map(|s| s.as_str())
+        } else {
+            None
+        }
+    }
+
+    fn go_forward(&mut self) -> Option<&str> {
+        if self.can_go_forward() {
+            self.cursor += 1;
+            self.entries.get(self.cursor).map(|s| s.as_str())
+        } else {
+            None
+        }
+    }
 }
 
-#[tauri::command]
-pub async fn browser_hide(app: AppHandle) -> Result<(), String> {
-    if let Some(webview) = app.get_webview(BROWSER_LABEL) {
-        webview.hide().map_err(|e| e.to_string())?;
-    }
-    Ok(())
+/// Global store managed by tauri::State.
+pub struct BrowserStore {
+    inner: Mutex<BrowserStoreInner>,
 }
 
-/// Float: close docked webview, open a new WebviewWindow (OS-level PiP window)
-#[tauri::command]
-pub async fn browser_float(app: AppHandle, url: String) -> Result<(), String> {
-    // Close docked webview
-    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
-        let _ = wv.close();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-    // Close existing float window if any
-    if let Some(ww) = app.get_webview_window(FLOAT_LABEL) {
-        let _ = ww.close();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-
-    let parsed = url.parse::<Url>().map_err(|e| e.to_string())?;
-
-    tauri::WebviewWindowBuilder::new(&app, FLOAT_LABEL, WebviewUrl::External(parsed))
-        .title("OpenACP Browser")
-        .inner_size(900.0, 700.0)
-        .resizable(true)
-        .always_on_top(true)
-        .decorations(true)
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+struct BrowserStoreInner {
+    state: BrowserState,
+    history: History,
+    /// Incremented every time a modal wants browser hidden; when > 0, webview is suppressed.
+    suppress_count: u32,
+    /// Last known docked bounds — used to restore when unsuppressing after suppress in docked mode.
+    last_docked_bounds: Option<Bounds>,
 }
 
-/// Dock: close floating window, recreate as child webview in main window
-#[tauri::command]
-pub async fn browser_dock(
-    app: AppHandle,
-    url: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Result<(), String> {
-    // Close floating window
-    if let Some(ww) = app.get_webview_window(FLOAT_LABEL) {
-        let _ = ww.close();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+impl BrowserStore {
+    pub fn new() -> Self {
+        Self {
+            inner: Mutex::new(BrowserStoreInner {
+                state: BrowserState::Idle,
+                history: History::default(),
+                suppress_count: 0,
+                last_docked_bounds: None,
+            }),
+        }
     }
-
-    let window = app
-        .get_window("main")
-        .ok_or("main window not found")?;
-
-    let parsed = url.parse::<Url>().map_err(|e| e.to_string())?;
-    let builder = WebviewBuilder::new(BROWSER_LABEL, WebviewUrl::External(parsed));
-
-    window
-        .add_child(
-            builder,
-            LogicalPosition::new(x, y),
-            LogicalSize::new(width, height),
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
-fn close_all(app: &AppHandle) {
-    if let Some(wv) = app.get_webview(BROWSER_LABEL) {
-        let _ = wv.close();
-    }
-    if let Some(ww) = app.get_webview_window(FLOAT_LABEL) {
-        let _ = ww.close();
+impl Default for BrowserStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
