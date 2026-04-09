@@ -9,6 +9,7 @@ import {
 import { DockShellForm, DockTray } from "./ui/dock-surface";
 import { useChat } from "../context/chat";
 import { useSessions } from "../context/sessions";
+import { useBrowserOverlayLock } from "../context/browser-overlay";
 import { AgentSelector } from "./agent-selector";
 import { BranchIndicator } from "./branch-indicator";
 import { CommandPalette } from "./command-palette";
@@ -192,6 +193,7 @@ export function Composer() {
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [snippets, setSnippets] = useState<CodeSnippet[]>([]);
   const [dragging, setDragging] = useState(false);
+  useBrowserOverlayLock(dragging);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

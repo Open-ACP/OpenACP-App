@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useChat } from "../context/chat"
 import { useSessions } from "../context/sessions"
 import { useWorkspace } from "../context/workspace"
+import { useBrowserOverlayLock } from "../context/browser-overlay"
 import { showToast } from "../lib/toast"
 import type { ServerCommand } from "../types"
 import { Button } from "./ui/button"
@@ -36,6 +37,10 @@ export function CommandPalette(props: {
   const chat = useChat()
   const sessions = useSessions()
   const workspace = useWorkspace()
+
+  // CommandPalette is only rendered when open by its parent, so we always
+  // hold the browser overlay lock for the lifetime of this component.
+  useBrowserOverlayLock(true)
 
   const [query, setQuery] = useState(props.initialFilter ?? "")
   const [subPicker, setSubPicker] = useState<SubPickerState | null>(null)
