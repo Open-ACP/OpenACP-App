@@ -8,6 +8,8 @@ export interface ResizeHandleProps {
   min: number
   max: number
   onResize: (size: number) => void
+  onResizeStart?: () => void
+  onResizeEnd?: (finalSize: number) => void
   onCollapse?: () => void
   collapseThreshold?: number
   className?: string
@@ -20,6 +22,8 @@ export function ResizeHandle({
   min,
   max,
   onResize,
+  onResizeStart,
+  onResizeEnd,
   onCollapse,
   collapseThreshold,
   className,
@@ -35,6 +39,7 @@ export function ResizeHandle({
 
       document.body.style.userSelect = "none"
       document.body.style.overflow = "hidden"
+      onResizeStart?.()
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         const pos = direction === "horizontal" ? moveEvent.clientX : moveEvent.clientY
@@ -57,6 +62,9 @@ export function ResizeHandle({
         document.removeEventListener("mousemove", onMouseMove)
         document.removeEventListener("mouseup", onMouseUp)
 
+        const clamped = Math.min(max, Math.max(min, current))
+        onResizeEnd?.(clamped)
+
         const threshold = collapseThreshold ?? 0
         if (onCollapse && threshold > 0 && current < threshold) {
           onCollapse()
@@ -66,7 +74,7 @@ export function ResizeHandle({
       document.addEventListener("mousemove", onMouseMove)
       document.addEventListener("mouseup", onMouseUp)
     },
-    [direction, resolvedEdge, size, min, max, onResize, onCollapse, collapseThreshold],
+    [direction, resolvedEdge, size, min, max, onResize, onResizeStart, onResizeEnd, onCollapse, collapseThreshold],
   )
 
   return (
