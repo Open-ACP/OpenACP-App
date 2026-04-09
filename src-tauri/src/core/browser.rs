@@ -256,3 +256,97 @@ const INIT_SCRIPT: &str = r#"
   window.__browserAlive = true;
 })();
 "#;
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+fn parse_url(url: &str) -> Result<Url, String> {
+    url.parse::<Url>().map_err(|e| format!("invalid URL: {e}"))
+}
+
+/// Create the persistent webview as a child of the main window.
+/// Called only on first open or after a full close.
+fn create_child_in_main(app: &AppHandle, url: &str, bounds: Bounds) -> Result<(), String> {
+    let window = app
+        .get_window(MAIN_LABEL)
+        .ok_or("main window not found")?;
+
+    let parsed = parse_url(url)?;
+    let app_for_nav = app.clone();
+    let app_for_load = app.clone();
+
+    let builder = WebviewBuilder::new(BROWSER_LABEL, WebviewUrl::External(parsed))
+        .initialization_script(INIT_SCRIPT)
+        .auto_resize()
+        .on_navigation(move |url| {
+            // Track Rust-side history on top-level navigation.
+            // NOTE: on_navigation fires before the URL loads; we cannot
+            // distinguish programmatic vs user-click here — we push regardless
+            // and de-dupe in History::push.
+            if let Some(store) = app_for_nav.try_state::<BrowserStore>() {
+                if let Ok(mut inner) = store.inner.lock() {
+                    inner.history.push(url.to_string());
+                    emit_state(&app_for_nav, &inner);
+                }
+            }
+            emit_url(&app_for_nav, url.as_str());
+            true // allow
+        })
+        .on_page_load(move |_wv, payload| {
+            use tauri::webview::PageLoadEvent;
+            if matches!(payload.event(), PageLoadEvent::Finished) {
+                emit_page_loaded(&app_for_load, payload.url().as_str());
+            }
+        });
+
+    window
+        .add_child(
+            builder,
+            LogicalPosition::new(bounds.x, bounds.y),
+            LogicalSize::new(bounds.width, bounds.height),
+        )
+        .map_err(|e| format!("add_child failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Ensure float window exists, return its handle.
+fn ensure_float_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
+    if let Some(w) = app.get_webview_window(FLOAT_LABEL) {
+        return Ok(w);
+    }
+    WebviewWindowBuilder::new(app, FLOAT_LABEL, WebviewUrl::App("about:blank".into()))
+        .title("OpenACP Browser")
+        .inner_size(800.0, 600.0)
+        .min_inner_size(400.0, 300.0)
+        .resizable(true)
+        .decorations(true)
+        .always_on_top(false)
+        .visible(false)
+        .build()
+        .map_err(|e| format!("float window build failed: {e}"))
+}
+
+/// Ensure PiP window exists, return its handle.
+fn ensure_pip_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
+    if let Some(w) = app.get_webview_window(PIP_LABEL) {
+        return Ok(w);
+    }
+    WebviewWindowBuilder::new(app, PIP_LABEL, WebviewUrl::App("about:blank".into()))
+        .title("Browser (PiP)")
+        .inner_size(380.0, 240.0)
+        .min_inner_size(280.0, 180.0)
+        .max_inner_size(800.0, 600.0)
+        .resizable(true)
+        .decorations(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .build()
+        .map_err(|e| format!("pip window build failed: {e}"))
+}
+
+fn close_window_if_exists(app: &AppHandle, label: &str) {
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.close();
+    }
+}
