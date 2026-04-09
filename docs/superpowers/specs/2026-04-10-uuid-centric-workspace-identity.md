@@ -51,7 +51,15 @@ let instanceData: { id: string; name: string; directory: string } | null = null
 try {
   const parsed = JSON.parse(jsonStr)
   const data = parsed?.data ?? parsed
-  if (data?.id) instanceData = { id: data.id, name: data.name ?? data.id, directory: data.directory ?? workspace }
+  if (data?.id) {
+    const dir = data.directory ?? workspace
+    instanceData = {
+      id: data.id,
+      // name fallback chain: CLI name → dirname of directory → id (last resort)
+      name: data.name ?? path.basename(dir) ?? data.id,
+      directory: dir,
+    }
+  }
 } catch { /* ignored */ }
 
 // Safety net: if setup didn't return id (shouldn't happen after core fix),
@@ -63,7 +71,10 @@ if (!instanceData?.id) {
     })
     const createParsed = JSON.parse(createStr)
     const data = createParsed?.data ?? createParsed
-    if (data?.id) instanceData = { id: data.id, name: data.name ?? data.id, directory: data.directory ?? workspace }
+    if (data?.id) {
+      const dir = data.directory ?? workspace
+      instanceData = { id: data.id, name: data.name ?? path.basename(dir) ?? data.id, directory: dir }
+    }
   } catch { /* ignored */ }
 }
 
@@ -226,6 +237,26 @@ let instance_id = config_value.get("id")?.as_str().map(String::from);
 It remains available for utility use (e.g., initial workspace discovery, repair flows). It is
 no longer in the main connection path — `resolveServer` uses UUID only.
 
+### 6. `workspace-service.ts` — add `instance_id` to TypeScript `WorkspaceStatus`
+
+**File:** `src/openacp/api/workspace-service.ts`
+
+The Rust `WorkspaceStatus` struct gains `instance_id: Option<String>` (section 5). The TypeScript
+interface must mirror it:
+
+```typescript
+export interface WorkspaceStatus {
+  has_config: boolean
+  has_pid: boolean
+  server_alive: boolean
+  port: number | null
+  instance_name: string | null
+  instance_id: string | null   // ← add: UUID from config.json "id" field
+}
+```
+
+Without this field, the `registerWorkspace` fallback in section 2 cannot read `status.instance_id`.
+
 ---
 
 ## Files Changed
@@ -233,7 +264,7 @@ no longer in the main connection path — `resolveServer` uses UUID only.
 | File | Change |
 |---|---|
 | `src/onboarding/setup-wizard.tsx` | Parse UUID from setup output; remove path comparison and `'main'` fallback |
-| `src/openacp/api/workspace-service.ts` | `registerWorkspace` fallback reads `instance_id` from `get_workspace_status` instead of path matching |
+| `src/openacp/api/workspace-service.ts` | `registerWorkspace` fallback reads `instance_id` from `get_workspace_status`; add `instance_id` to `WorkspaceStatus` interface |
 | `src/openacp/context/workspace.tsx` | `resolveWorkspaceServer` signature: remove `directory` param, remove `from_dir` fallback |
 | `src/openacp/hooks/use-workspace-connection.ts` | `resolveServer` removes filesystem fallback; update `resolveWorkspaceServer` call |
 | `src-tauri/src/core/sidecar/commands.rs` | Add `expand_tilde` helper; add `instance_id` to `WorkspaceStatus`; apply tilde expansion in directory-accepting commands |
