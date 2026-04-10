@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from "react"
+import React, { memo, useState, useEffect, useRef } from "react"
 import { Markdown } from "../../ui/markdown"
 import type { ThinkingBlock } from "../../../types"
 
@@ -9,12 +9,21 @@ interface ThinkingBlockProps {
 
 export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessionID }: ThinkingBlockProps) {
   // Default open during streaming so content is visible as it streams in.
-  // After streaming ends, stays in whatever state the user left it.
+  // After streaming ends, collapses automatically unless user manually toggled it.
   const [open, setOpen] = useState(block.isStreaming)
+  const userToggledRef = useRef(false)
 
-  // Open while streaming so content is visible as it arrives; collapse when done.
   useEffect(() => {
-    setOpen(block.isStreaming)
+    if (block.isStreaming) {
+      // New streaming session — reset toggle tracking and open
+      userToggledRef.current = false
+      setOpen(true)
+    } else {
+      // Streaming ended — collapse unless user explicitly toggled during streaming
+      if (!userToggledRef.current) {
+        setOpen(false)
+      }
+    }
   }, [block.isStreaming])
 
   const summaryText = (() => {
@@ -44,7 +53,10 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
     <details
       className="oac-thinking"
       open={open}
-      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(e) => {
+        userToggledRef.current = true
+        setOpen((e.currentTarget as HTMLDetailsElement).open)
+      }}
     >
       <summary>
         <span>{summaryText}</span>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { getSetting, setSetting, applyTheme, applyFontSize, type AppSettings } from "../../lib/settings-store"
-import { useToolDisplay, TOOL_EXPAND_PRESETS, detectPreset } from "../../context/tool-display"
+import { useToolDisplay, TOOL_EXPAND_PRESETS, detectPreset, ALL_KINDS } from "../../context/tool-display"
 import { SettingCard } from "./setting-card"
 import { SettingRow } from "./setting-row"
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs"
@@ -17,8 +17,6 @@ const TOOL_KIND_LABELS: Record<string, string> = {
   skill: "Skill",
   other: "Other",
 }
-
-const TOOL_KINDS = Object.keys(TOOL_KIND_LABELS)
 
 export function SettingsAppearance() {
   const [theme, setTheme] = useState<AppSettings["theme"]>("dark")
@@ -95,7 +93,7 @@ export function SettingsAppearance() {
             </TabsList>
           </Tabs>
         </SettingRow>
-        {TOOL_KINDS.map((kind) => (
+        {ALL_KINDS.map((kind) => (
           <SettingRow key={kind} label={TOOL_KIND_LABELS[kind]}>
             <Switch
               checked={toolAutoExpand[kind] ?? false}

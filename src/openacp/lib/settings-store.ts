@@ -18,7 +18,7 @@ const defaults: AppSettings = {
   fontSize: "medium",
   language: "en",
   devMode: false,
-  browserPanel: false,
+  browserPanel: true,
   browserLastMode: "docked",
   browserSearchEngine: "google",
   toolAutoExpand: {
