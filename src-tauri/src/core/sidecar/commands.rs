@@ -8,6 +8,17 @@ pub struct InstanceInfo {
     pub workspace: String, // parent of root (workspace root dir)
 }
 
+/// Expand a leading `~/` to the user's home directory.
+/// PathBuf::from("~/foo") does NOT expand tilde — must do it explicitly.
+fn expand_tilde(path: &str) -> std::path::PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(stripped);
+        }
+    }
+    std::path::PathBuf::from(path)
+}
+
 fn read_instances_json() -> Result<serde_json::Value, String> {
     let home = dirs::home_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
     let path = home.join(".openacp").join("instances.json");
@@ -106,7 +117,7 @@ pub async fn get_workspace_server_info(instance_id: String) -> Result<ServerInfo
 /// Resolve server info directly from a workspace directory (fallback when instance not in instances.json)
 #[tauri::command]
 pub async fn get_workspace_server_info_from_dir(directory: String) -> Result<ServerInfo, String> {
-    let dir = std::path::PathBuf::from(&directory).join(".openacp");
+    let dir = expand_tilde(&directory).join(".openacp");
 
     let token = std::fs::read_to_string(dir.join("api-secret"))
         .map(|s| s.trim().to_string())
@@ -169,7 +180,7 @@ pub async fn remove_instance_registration(instance_id: String) -> Result<(), Str
 /// Check if an OpenACP daemon is alive for a workspace by reading its PID file
 #[tauri::command]
 pub async fn check_workspace_server_alive(directory: String) -> Result<bool, String> {
-    let pid_path = std::path::PathBuf::from(&directory).join(".openacp").join("openacp.pid");
+    let pid_path = expand_tilde(&directory).join(".openacp").join("openacp.pid");
     if !pid_path.exists() {
         return Ok(false);
     }
@@ -193,19 +204,27 @@ pub struct WorkspaceStatus {
     pub server_alive: bool,
     pub port: Option<u16>,
     pub instance_name: Option<String>,
+    pub instance_id: Option<String>, // UUID from config.json "id" field
 }
 
 #[tauri::command]
 pub async fn get_workspace_status(directory: String) -> Result<WorkspaceStatus, String> {
-    let openacp_dir = std::path::PathBuf::from(&directory).join(".openacp");
+    let openacp_dir = expand_tilde(&directory).join(".openacp");
 
     let has_config = openacp_dir.join("config.json").exists();
 
-    // Read instance name from config
-    let instance_name = std::fs::read_to_string(openacp_dir.join("config.json"))
+    // Read instance name and UUID from config
+    let config_value = std::fs::read_to_string(openacp_dir.join("config.json"))
         .ok()
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
+
+    let instance_name = config_value
+        .as_ref()
         .and_then(|v| v.get("instanceName")?.as_str().map(String::from));
+
+    let instance_id = config_value
+        .as_ref()
+        .and_then(|v| v.get("id")?.as_str().map(String::from));
 
     // Check PID
     let mut has_pid = false;
@@ -235,6 +254,7 @@ pub async fn get_workspace_status(directory: String) -> Result<WorkspaceStatus, 
         server_alive,
         port,
         instance_name,
+        instance_id,
     })
 }
 
