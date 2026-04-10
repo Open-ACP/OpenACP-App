@@ -210,6 +210,15 @@ export function Markdown({ text, cacheKey, streamId, streaming, className }: Mar
       return
     }
 
+    // For messages with fenced code blocks: apply fast render (no Shiki) immediately
+    // so text is visible right away, then Shiki highlights it asynchronously.
+    if (text.includes("```") && !elRef.current.innerHTML) {
+      const fast = getFastParser().parse(text)
+      if (typeof fast === "string") {
+        morphdom(elRef.current, `<div data-component="markdown">${sanitize(fast)}</div>`, { childrenOnly: true })
+      }
+    }
+
     renderMarkdown(text, false)
   }, [text, cacheKey, streaming])
 
