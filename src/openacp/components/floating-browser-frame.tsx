@@ -252,7 +252,16 @@ export function FloatingBrowserFrame() {
 
   if (browser.mode !== "floating" || !browser.isVisible) return null
 
-  const handleDock = () => void browser.setMode("docked")
+  const handleDock = () => {
+    // If there's a live webview, switch mode via Rust. If no webview
+    // (empty frame from stale floating mode), just close so the user
+    // returns to the clean docked empty state on next toggle.
+    if (browser.kind === "ready" || browser.kind === "opening") {
+      void browser.setMode("docked")
+    } else {
+      void browser.close()
+    }
+  }
   const handleReload = () => void browser.reload()
   const handleClose = () => void browser.close()
 
