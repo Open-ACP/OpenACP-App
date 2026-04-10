@@ -120,7 +120,10 @@ export function ChatView() {
   const activeSessionId = chat.activeSession();
 
   const virtuosoRef = useRef<VirtuosoHandle>(null)
+  const scrollerRef = useRef<HTMLElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
+  // Ref mirror so the rAF scroll loop can read/write without stale closure or React batching delay.
+  const atBottomRef = useRef(true)
 
   const messages = chat.messages()
   const streaming = chat.streaming()
@@ -133,7 +136,17 @@ export function ChatView() {
     const cache = groupBlocksCacheRef.current
     const items: FlatItem[] = []
 
+    // Determine the last assistant message ID upfront so isLastMsg can be set correctly
+    // during initial item construction — avoids a second-pass spread that creates new object
+    // references for all items in the last message on every render, causing Virtuoso to
+    // re-render them unnecessarily even when their content hasn't changed.
+    let lastAstMsgId: string | undefined
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") { lastAstMsgId = messages[i].id; break }
+    }
+
     for (const msg of messages) {
+      const isLastMsg = msg.id === lastAstMsgId
       if (msg.role === "user") {
         items.push({ key: `u-${msg.id}`, type: "user", message: msg, topSpacing: items.length === 0 ? 12 : 28 })
       } else {
@@ -145,7 +158,7 @@ export function ChatView() {
         const renderItems = cache.get(msg)!
 
         if (renderItems.length === 0) {
-          items.push({ key: `ae-${msg.id}`, type: "assistant-empty", message: msg, isLastMsg: false, topSpacing })
+          items.push({ key: `ae-${msg.id}`, type: "assistant-empty", message: msg, isLastMsg, topSpacing })
         } else {
           for (let i = 0; i < renderItems.length; i++) {
             items.push({
@@ -155,7 +168,7 @@ export function ChatView() {
               renderItem: renderItems[i],
               isFirstBlock: i === 0,
               isLastBlock: i === renderItems.length - 1,
-              isLastMsg: false,
+              isLastMsg,
               // Only the first block in a message gets the top spacing; the rest
               // have topSpacing=0 so block-level items within a message are adjacent
               // (needed for timeline connecting lines to render correctly).
@@ -166,38 +179,67 @@ export function ChatView() {
       }
     }
 
-    // Mark isLastMsg on every item belonging to the last assistant message
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i]
-      if (item.type === "assistant-block" || item.type === "assistant-empty") {
-        // Mark all items in this message
-        const lastMsgId = item.message.id
-        for (let j = i; j >= 0; j--) {
-          const it = items[j]
-          if ((it.type === "assistant-block" || it.type === "assistant-empty") && it.message.id === lastMsgId) {
-            items[j] = { ...it, isLastMsg: true }
-          } else {
-            break
-          }
-        }
-        break
-      }
-    }
-
     return items
   }, [messages])
 
   // Scroll to bottom on session switch
   useEffect(() => {
+    atBottomRef.current = true
     virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" })
   }, [activeSessionId])
 
   // Scroll to bottom when triggered (user sent message, cross-adapter turn, history loaded)
   useEffect(() => {
     if (chat.scrollTrigger() > 0) {
+      atBottomRef.current = true
       virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" })
     }
   }, [chat.scrollTrigger()])
+
+  // Sticky scroll during streaming: keep viewport pinned to bottom as content grows.
+  // Virtuoso's followOutput only fires when item count changes, not when an existing
+  // item grows taller (e.g. text streaming char-by-char into a block). This rAF loop
+  // closes that gap by directly manipulating the native scroller element.
+  //
+  // User intent detection: a wheel event (fires before the next rAF) is the most reliable
+  // signal that the user wants to scroll up — we disable auto-follow immediately on upward
+  // wheel. Tracking scrollTop deltas is unreliable because Virtuoso's ResizeObserver
+  // adjustments also shift scrollTop (e.g. when measuring a very tall growing block),
+  // causing false positives that permanently disable auto-follow mid-stream.
+  useEffect(() => {
+    if (!streaming) return
+    const el = scrollerRef.current
+    if (!el) return
+
+    // Wheel (mouse + trackpad) is the reliable cross-platform signal for user scroll intent
+    // on Tauri desktop. Touch-based input is out of scope for now.
+    // Note: only upward wheel disables auto-follow; re-enabling happens via
+    // atBottomStateChange when the user scrolls back within atBottomThreshold (100px).
+    const onWheelUp = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        atBottomRef.current = false
+        setAtBottom(false)
+      }
+    }
+    el.addEventListener("wheel", onWheelUp, { passive: true })
+
+    let rafId: number
+    const tick = () => {
+      if (atBottomRef.current) {
+        const maxScrollTop = el.scrollHeight - el.clientHeight
+        if (maxScrollTop - el.scrollTop > 1) {
+          el.scrollTop = maxScrollTop
+        }
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      el.removeEventListener("wheel", onWheelUp)
+    }
+  }, [streaming])
 
   const sessions = useSessions();
   const sessionTitle = useMemo(() => {
@@ -298,6 +340,7 @@ export function ChatView() {
           <>
             <Virtuoso
               ref={virtuosoRef}
+              scrollerRef={(el) => { scrollerRef.current = el instanceof HTMLElement ? el : null }}
               className="h-full no-scrollbar"
               data={flatItems}
               computeItemKey={(_, item) => item.key}
@@ -321,8 +364,10 @@ export function ChatView() {
                   )}
                 </div>
               )}
-              followOutput={streaming ? "smooth" : false}
-              atBottomStateChange={setAtBottom}
+              atBottomStateChange={(isAtBottom) => {
+                setAtBottom(isAtBottom)
+                atBottomRef.current = isAtBottom
+              }}
               atBottomThreshold={100}
               components={{ Footer: ChatFooter }}
               increaseViewportBy={{ top: 1200, bottom: 600 }}

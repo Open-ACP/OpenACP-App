@@ -221,6 +221,13 @@ export function Markdown({ text, cacheKey, streamId, streaming, noGate, classNam
   useEffect(() => {
     if (prevStreamingRef.current && !streaming) {
       cache.delete(cacheKey || "md")
+      // Synchronous fast render immediately reveals the full ungated text before
+      // async Shiki runs. Without this, the jump from gated streaming content to
+      // the fully-highlighted version causes a visible height flash.
+      const fastHtml = getFastParser().parse(text)
+      if (typeof fastHtml === "string" && elRef.current) {
+        morphdom(elRef.current, `<div data-component="markdown">${sanitize(fastHtml)}</div>`, { childrenOnly: true })
+      }
       lastTextRef.current = ""
       renderMarkdown(text, false)
     }
