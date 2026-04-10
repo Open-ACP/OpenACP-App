@@ -64,13 +64,17 @@ function stepToBlock(step: HistoryStep): MessageBlock | null {
       const input = (s.input as Record<string, unknown> | null) ?? null
       const kind = resolveKind(s.name ?? "", s.kind, undefined, input)
       const title = buildTitle(s.name ?? "", kind, input)
+      // Extract diff from history step — server stores before in oldText, after in newText
+      const diff: FileDiff | null = s.diff
+        ? { path: s.diff.path || "", before: s.diff.oldText, after: s.diff.newText ?? "" }
+        : null
       return {
         type: "tool", id: s.id ?? uid("b"), name: s.name ?? "", kind,
         status: (s.status as ToolBlock["status"]) || "completed",
         title, description: extractDescription(input, title),
         command: extractCommand(kind, input), input,
         output: typeof s.output === "string" ? s.output : s.output ? JSON.stringify(s.output) : null,
-        diffStats: null, isNoise: isNoiseTool(s.name ?? ""), isHidden: false,
+        diffStats: null, diff, isNoise: isNoiseTool(s.name ?? ""), isHidden: false,
       }
     }
     case "plan": {
@@ -601,13 +605,14 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
             existing.kind = kind; existing.title = title
             if (input) existing.input = input
             if (outputStr != null) existing.output = outputStr
+            if (diff) existing.diff = diff
           } else {
             blocks.push({
               type: "tool", id: evt.id, name: evt.name, kind,
               status: (evt.status as ToolBlock["status"]) || "running",
               title, description: extractDescription(input, title),
               command: extractCommand(kind, input), input,
-              output: outputStr, diffStats: null,
+              output: outputStr, diffStats: null, diff,
               isNoise: isNoiseTool(evt.name, evt.isNoise), isHidden: false,
             })
           }
@@ -650,6 +655,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
             if (meta?.diffStats) {
               existing.diffStats = meta.diffStats as { added: number; removed: number }
             }
+            if (diff) existing.diff = diff
           }
         })
         break
