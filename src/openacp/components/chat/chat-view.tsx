@@ -73,48 +73,9 @@ function ScrollToBottomButton({
   );
 }
 
-type MessageGroup = { user: Message | null; assistants: Message[] };
-
-interface ChatGroupProps {
-  group: MessageGroup
-  index: number
-  isLast: boolean
-  streaming: boolean
-}
-
-function ChatGroup({ group, index, isLast, streaming }: ChatGroupProps) {
-  if (!group.user) {
-    // Orphan assistant messages (no preceding user turn)
-    return (
-      <>
-        {group.assistants.map((msg, ai) => (
-          <div
-            key={msg.id}
-            style={{ marginTop: index === 0 && ai === 0 ? "0px" : "20px" }}
-          >
-            <MessageTurn
-              message={msg}
-              streaming={streaming && isLast && ai === group.assistants.length - 1}
-            />
-          </div>
-        ))}
-      </>
-    )
-  }
-  return (
-    <div style={{ marginTop: index === 0 ? "0px" : "28px" }}>
-      <UserMessage message={group.user} />
-      {group.assistants.map((msg, ai) => (
-        <div key={msg.id} style={{ marginTop: "20px" }}>
-          <MessageTurn
-            message={msg}
-            streaming={streaming && isLast && ai === group.assistants.length - 1}
-          />
-        </div>
-      ))}
-    </div>
-  )
-}
+type FlatItem =
+  | { type: "user"; message: Message; topSpacing: number }
+  | { type: "assistant"; message: Message; topSpacing: number; isLastMsg: boolean }
 
 // Footer rendered by Virtuoso below the last message item.
 // Reads from context directly because Virtuoso's Footer receives no props.
@@ -159,20 +120,27 @@ export function ChatView() {
   const messages = chat.messages()
   const streaming = chat.streaming()
 
-  const groups = useMemo<MessageGroup[]>(() => {
-    const result: MessageGroup[] = []
-    let current: MessageGroup | null = null
+  const flatItems = useMemo<FlatItem[]>(() => {
+    const items: FlatItem[] = []
+
     for (const msg of messages) {
       if (msg.role === "user") {
-        current = { user: msg, assistants: [] }
-        result.push(current)
-      } else if (current) {
-        current.assistants.push(msg)
+        items.push({ type: "user", message: msg, topSpacing: items.length === 0 ? 12 : 28 })
       } else {
-        result.push({ user: null, assistants: [msg] })
+        items.push({ type: "assistant", message: msg, topSpacing: items.length === 0 ? 12 : 20, isLastMsg: false })
       }
     }
-    return result
+
+    // Mark the last assistant message so MessageTurn receives the correct streaming prop
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]
+      if (item.type === "assistant") {
+        items[i] = { ...item, isLastMsg: true }
+        break
+      }
+    }
+
+    return items
   }, [messages])
 
   // Scroll to bottom on session switch
@@ -287,18 +255,17 @@ export function ChatView() {
             <Virtuoso
               ref={virtuosoRef}
               className="h-full no-scrollbar"
-              data={groups}
-              itemContent={(index, group) => (
+              data={flatItems}
+              itemContent={(_, item) => (
                 <div
                   className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220"
-                  style={{ paddingTop: index === 0 ? 12 : 0 }}
+                  style={{ paddingTop: item.topSpacing }}
                 >
-                  <ChatGroup
-                    group={group}
-                    index={index}
-                    isLast={index === groups.length - 1}
-                    streaming={streaming}
-                  />
+                  {item.type === "user" ? (
+                    <UserMessage message={item.message} />
+                  ) : (
+                    <MessageTurn message={item.message} streaming={streaming && item.isLastMsg} />
+                  )}
                 </div>
               )}
               followOutput={streaming ? "smooth" : false}
