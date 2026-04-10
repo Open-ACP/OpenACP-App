@@ -61,8 +61,8 @@ function stepToBlock(step: HistoryStep): MessageBlock | null {
       return { type: "thinking", id: uid("b"), content: step.content as string, durationMs: null, isStreaming: false }
     case "tool_call": {
       const s = step as any
-      const kind = resolveKind(s.name ?? "", s.kind)
       const input = (s.input as Record<string, unknown> | null) ?? null
+      const kind = resolveKind(s.name ?? "", s.kind, undefined, input)
       const title = buildTitle(s.name ?? "", kind, input)
       return {
         type: "tool", id: s.id ?? uid("b"), name: s.name ?? "", kind,
@@ -528,8 +528,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           }
         })
         updateAssistantBlocks(sessionID, (blocks) => {
-          const kind = resolveKind(evt.name, evt.kind, evt.displayKind)
           const input = evt.rawInput ?? null
+          const kind = resolveKind(evt.name, evt.kind, evt.displayKind, input)
           const title = buildTitle(evt.name, kind, input, evt.displayTitle, evt.displaySummary)
           const existing = blocks.find((b): b is ToolBlock => b.type === "tool" && b.id === evt.id)
           const outputStr = evt.rawOutput != null
@@ -576,9 +576,10 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
             }
             if (evt.name) existing.name = evt.name
             if (evt.displayKind) existing.kind = evt.displayKind
-            // Rebuild title when input or name updates
-            if (evt.rawInput || evt.name || evt.displayTitle) {
-              const kind = resolveKind(existing.name, evt.kind, evt.displayKind ?? existing.kind)
+            // Rebuild title/kind when input or name updates, or when kind is still unresolved.
+            // "other" means the initial tool_call lacked rawInput for detection — re-check on any update.
+            if (evt.rawInput || evt.name || evt.displayTitle || existing.kind === "other") {
+              const kind = resolveKind(existing.name, evt.kind, evt.displayKind, existing.input)
               existing.kind = kind
               existing.title = buildTitle(existing.name, kind, existing.input, evt.displayTitle, evt.displaySummary)
               existing.description = extractDescription(existing.input, existing.title)
