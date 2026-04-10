@@ -176,8 +176,6 @@ export function ChatView() {
           const it = items[j]
           if ((it.type === "assistant-block" || it.type === "assistant-empty") && it.message.id === lastMsgId) {
             items[j] = { ...it, isLastMsg: true }
-          } else if (it.type !== "assistant-block" && it.type !== "assistant-empty") {
-            break
           } else {
             break
           }
