@@ -38,23 +38,6 @@ function openacpResolver() {
         return null
       }
 
-      // Stub out ghostty-web (not available)
-      if (source === "ghostty-web") {
-        return "\0virtual:ghostty-stub"
-      }
-
-      return null
-    },
-    load(id: string) {
-      if (id === "\0virtual:ghostty-stub") {
-        return `export default {};
-export const File = () => null;
-export const FileDiff = () => null;
-export const VirtualizedFile = () => null;
-export const VirtualizedFileDiff = () => null;
-export const Terminal = class {};
-export const Ghostty = class {};`
-      }
       return null
     },
   }
@@ -80,9 +63,7 @@ export default defineConfig({
         main: path.resolve(__dirname, "index.html"),
         "ds-demo": path.resolve(__dirname, "ds-demo.html"),
       },
-      external: [
-        "ghostty-web",
-      ],
+      external: [],
     },
   },
   test: {

@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from "react"
-import { Plus, X } from "@phosphor-icons/react"
+import React, { useState, useCallback, useRef } from "react"
+import { AnimatePresence, motion } from "motion/react"
+import { Plus, X, Terminal } from "@phosphor-icons/react"
 import { ResizeHandle } from "./ui/resize-handle"
 import { TerminalRenderer } from "./terminal-renderer"
 import { useTerminal } from "../context/terminal"
 
-const DEFAULT_HEIGHT = 280
-const MIN_HEIGHT = 100
+const DEFAULT_HEIGHT = 260
+const MIN_HEIGHT = 120
 
 interface TerminalPanelProps {
   open: boolean
@@ -22,10 +23,8 @@ export function TerminalPanel({ open, onClose, workspacePath }: TerminalPanelPro
   }, [createSession, workspacePath])
 
   const handleCloseTab = useCallback(
-    async (e: React.MouseEvent, id: string) => {
-      e.stopPropagation()
+    async (id: string) => {
       await closeSession(id)
-      // If no sessions left, close the panel
       if (sessions.length <= 1) {
         onClose()
       }
@@ -38,85 +37,103 @@ export function TerminalPanel({ open, onClose, workspacePath }: TerminalPanelPro
   }, [onClose])
 
   // Auto-create first terminal when panel opens with no sessions
+  const creatingRef = useRef(false)
   React.useEffect(() => {
-    if (open && sessions.length === 0 && workspacePath) {
-      createSession(workspacePath)
+    if (open && sessions.length === 0 && workspacePath && !creatingRef.current) {
+      creatingRef.current = true
+      createSession(workspacePath).finally(() => { creatingRef.current = false })
     }
   }, [open, sessions.length, workspacePath, createSession])
-
-  if (!open) return null
 
   const maxHeight = Math.floor(window.innerHeight * 0.6)
 
   return (
-    <div
-      className="relative w-full shrink-0 overflow-hidden border-t border-border-weak bg-[#0a0a0a]"
-      style={{ height: `${height}px` }}
-    >
-      {/* Resize handle — top edge */}
-      <ResizeHandle
-        direction="vertical"
-        edge="start"
-        size={height}
-        min={MIN_HEIGHT}
-        max={maxHeight}
-        onResize={setHeight}
-        onCollapse={handleCollapse}
-        collapseThreshold={60}
-      />
-
-      {/* Tab bar */}
-      <div className="flex h-8 shrink-0 items-center border-b border-zinc-800 bg-[#0f0f0f] px-1">
-        <div className="flex flex-1 items-center gap-0.5 overflow-x-auto">
-          {sessions.map((session) => (
-            <button
-              key={session.id}
-              type="button"
-              onClick={() => setActiveId(session.id)}
-              className={`group flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
-                activeId === session.id
-                  ? "bg-zinc-800 text-zinc-200"
-                  : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-400"
-              }`}
-            >
-              <span className="truncate max-w-[120px]">{session.title}</span>
-              <span
-                role="button"
-                onClick={(e) => handleCloseTab(e, session.id)}
-                className="rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-700"
-              >
-                <X size={10} />
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* New terminal button */}
-        <button
-          type="button"
-          onClick={handleNewTerminal}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-          title="New terminal"
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          className="relative w-full shrink-0 overflow-hidden border-t border-border-weak bg-background"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: `${height}px`, opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <Plus size={14} />
-        </button>
-      </div>
+          {/* Resize handle — top edge */}
+          <ResizeHandle
+            direction="vertical"
+            edge="start"
+            size={height}
+            min={MIN_HEIGHT}
+            max={maxHeight}
+            onResize={setHeight}
+            onCollapse={handleCollapse}
+            collapseThreshold={60}
+          />
 
-      {/* Terminal content */}
-      <div className="h-[calc(100%-32px)] w-full">
-        {sessions.map((session) => (
-          <div
-            key={session.id}
-            className="h-full w-full"
-            style={{ display: activeId === session.id ? "block" : "none" }}
-          >
-            <TerminalRenderer
-              sessionId={session.id}
-              backend={backend}
-            />
+          {/* Tab bar — h-9 matching Review/Files panel headers */}
+          <div className="flex h-9 shrink-0 items-center border-b border-l border-border-weak bg-background px-1">
+            <div className="flex flex-1 items-center gap-0.5 overflow-x-auto">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => setActiveId(session.id)}
+                  onAuxClick={(e) => {
+                    if (e.button === 1) {
+                      e.preventDefault()
+                      handleCloseTab(session.id)
+                    }
+                  }}
+                  className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
+                    activeId === session.id
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  }`}
+                >
+                  <Terminal size={12} className="shrink-0 opacity-60" />
+                  <span className="truncate max-w-[100px]">{session.title}</span>
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCloseTab(session.id)
+                    }}
+                    className="rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted"
+                  >
+                    <X size={10} />
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* New terminal button */}
+            <button
+              type="button"
+              onClick={handleNewTerminal}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="New terminal"
+            >
+              <Plus size={14} />
+            </button>
           </div>
-        ))}
-      </div>
-    </div>
+
+          {/* Terminal content — with left border separator + padding */}
+          <div className="h-[calc(100%-36px)] w-full border-l border-border-weak">
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                className="h-full w-full"
+                style={{ display: activeId === session.id ? "block" : "none" }}
+              >
+                <TerminalRenderer
+                  sessionId={session.id}
+                  backend={backend}
+                  className="pl-2 pt-1"
+                />
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
