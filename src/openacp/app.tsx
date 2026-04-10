@@ -262,7 +262,7 @@ function OpenACPAppInner() {
   const [shareOpen, setShareOpen] = useState(false);
   const [sharingWorkspaceIds, setSharingWorkspaceIds] = useState<Set<string>>(new Set());
   const [shareLinks, setShareLinks] = useState<Map<string, string>>(new Map());
-  const [setupInfo, setSetupInfo] = useState<{ path: string; instanceId: string } | null>(null);
+  const [setupInfo, setSetupInfo] = useState<{ path: string; instanceId: string; instanceName: string } | null>(null);
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -785,9 +785,9 @@ function OpenACPAppInner() {
       {showAddWorkspace && (
         <AddWorkspaceModal
           onAdd={handleAddWorkspace}
-          onSetup={(path, instanceId) => {
+          onSetup={(path, instanceId, instanceName) => {
             setShowAddWorkspace(false)
-            setSetupInfo({ path, instanceId })
+            setSetupInfo({ path, instanceId, instanceName })
           }}
           onClose={closeAddWorkspaceModal}
           existingIds={workspaces.map((w) => w.id)}
@@ -799,6 +799,7 @@ function OpenACPAppInner() {
           open
           path={setupInfo.path}
           instanceId={setupInfo.instanceId}
+          instanceName={setupInfo.instanceName}
           onComplete={(entry) => {
             setSetupInfo(null)
             addWorkspace(entry)

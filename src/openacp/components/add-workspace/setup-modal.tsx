@@ -20,6 +20,7 @@ interface SetupModalProps {
   open: boolean
   path: string
   instanceId: string
+  instanceName: string
   onComplete: (entry: WorkspaceEntry) => void
   onClose: () => void
 }
@@ -78,7 +79,7 @@ export function SetupModal(props: SetupModalProps) {
       await invoke<string>("invoke_cli", { args: ["start", "--dir", props.path] })
       props.onComplete({
         id: props.instanceId,
-        name: folderName,
+        name: props.instanceName,
         directory: props.path,
         type: "local",
       })

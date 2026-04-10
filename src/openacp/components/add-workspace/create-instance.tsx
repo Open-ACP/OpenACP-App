@@ -9,7 +9,7 @@ interface CreateInstanceProps {
   path: string
   existingInstances: InstanceListEntry[]
   onAdd: (entry: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string) => void
+  onSetup?: (path: string, instanceId: string, instanceName: string) => void
   onClose: () => void
 }
 
@@ -26,7 +26,7 @@ export function CreateInstance(props: CreateInstanceProps) {
     setError(null)
     try {
       const result = await createWorkspace(props.path, {
-        name: name || undefined,
+        name: name || folderName,
         fromPath: mode === 'clone' && cloneFrom ? cloneFrom : undefined,
       })
 
@@ -38,7 +38,7 @@ export function CreateInstance(props: CreateInstanceProps) {
         props.onAdd({ id: result.id, name: result.name, directory: result.directory, type: 'local' })
       } else {
         // New — needs onboarding (agent setup, then start)
-        props.onSetup?.(props.path, result.id)
+        props.onSetup?.(props.path, result.id, result.name)
       }
     } catch (e) {
       if (e instanceof WorkspaceServiceError) {
