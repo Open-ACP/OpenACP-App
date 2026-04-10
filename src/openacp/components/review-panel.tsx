@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { X, CaretRight, CaretDown, CaretLeft } from "@phosphor-icons/react";
-import { structuredPatch } from "diff";
+import { computeDiffLines, type DiffLine } from "./chat/diff-utils";
 import { ResizeHandle } from "./ui/resize-handle";
 import { useChat } from "../context/chat";
 import type { ToolCallPart, FileDiff as FileDiffData } from "../types";
@@ -11,58 +11,17 @@ const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 800;
 
-interface DiffLine {
-  type: "add" | "del" | "normal" | "hunk";
-  content: string;
-  oldNum?: number;
-  newNum?: number;
-}
-
-function computeDiffLines(
-  before: string,
-  after: string,
-  path: string,
-): DiffLine[] {
-  const patch = structuredPatch(path, path, before, after, "", "", {
-    context: 3,
-  });
-  const lines: DiffLine[] = [];
-  for (const hunk of patch.hunks) {
-    lines.push({
-      type: "hunk",
-      content: `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
-    });
-    let oldNum = hunk.oldStart;
-    let newNum = hunk.newStart;
-    for (const line of hunk.lines) {
-      if (line.startsWith("+"))
-        lines.push({ type: "add", content: line.slice(1), newNum: newNum++ });
-      else if (line.startsWith("-"))
-        lines.push({ type: "del", content: line.slice(1), oldNum: oldNum++ });
-      else
-        lines.push({
-          type: "normal",
-          content: line.slice(1),
-          oldNum: oldNum++,
-          newNum: newNum++,
-        });
-    }
-  }
-  return lines;
-}
-
 function DiffStats({ before, after }: { before: string; after: string }) {
   const stats = useMemo(() => {
-    const patch = structuredPatch("", "", before, after);
-    let add = 0,
-      del = 0;
-    for (const hunk of patch.hunks) {
-      for (const line of hunk.lines) {
-        if (line.startsWith("+")) add++;
-        else if (line.startsWith("-")) del++;
-      }
-    }
-    return { add, del };
+    const lines = computeDiffLines(before, after, "");
+    return lines.reduce(
+      (acc, l) => {
+        if (l.type === "add") acc.add++;
+        else if (l.type === "del") acc.del++;
+        return acc;
+      },
+      { add: 0, del: 0 },
+    );
   }, [before, after]);
   return (
     <span className="flex items-center gap-1.5 text-sm leading-lg font-mono">
