@@ -231,7 +231,7 @@ export function BrowserPanel() {
       />
 
       {/* Toolbar */}
-      <div className="shrink-0 flex items-center gap-1 px-2 py-1.5 border-b border-border-weak">
+      <div className="shrink-0 flex items-center gap-1 px-2 h-9 border-b border-border-weak">
         <Button
           variant="ghost"
           size="icon-sm"
