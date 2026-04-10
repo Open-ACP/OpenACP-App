@@ -2,6 +2,7 @@ mod core;
 mod error;
 mod state;
 
+use core::pty::PtyManager;
 use core::sidecar::manager::SidecarManager;
 use state::AppState;
 use std::sync::Arc;
@@ -35,6 +36,7 @@ pub fn run() {
         .init();
 
     let sidecar = Arc::new(Mutex::new(SidecarManager::new()));
+    let pty = Arc::new(Mutex::new(PtyManager::new()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -90,11 +92,17 @@ pub fn run() {
             core::browser::browser_suppress,
             core::browser::browser_unsuppress,
             core::browser::browser_reset_suppress,
+            // PTY commands
+            core::pty::commands::pty_create,
+            core::pty::commands::pty_write,
+            core::pty::commands::pty_resize,
+            core::pty::commands::pty_close,
             toggle_devtools,
         ])
         .setup(move |app| {
             app.manage(AppState {
                 sidecar: sidecar.clone(),
+                pty: pty.clone(),
             });
             app.manage(core::browser::BrowserStore::new());
 

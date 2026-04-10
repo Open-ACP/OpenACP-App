@@ -42,6 +42,8 @@ import { BrowserPanel } from "./components/browser-panel";
 import { BrowserPanelProvider, useBrowserPanel } from "./context/browser-panel";
 import { BrowserOverlayProvider } from "./context/browser-overlay";
 import { FloatingBrowserFrame } from "./components/floating-browser-frame";
+import { TerminalProvider } from "./context/terminal";
+import { TerminalPanel } from "./components/terminal-panel";
 import type { ServerInfo } from "./types";
 
 function NoServerScreen({ directory, isRemote, errorMessage, onStart, onReconnect, onRemove }: { directory: string; isRemote?: boolean; errorMessage?: string | null; onStart: () => void; onReconnect: () => void; onRemove?: () => void }) {
@@ -588,6 +590,7 @@ function OpenACPAppInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [browserPanelEnabled, setBrowserPanelEnabled] = useState(false);
 
   // Load browser panel setting
@@ -654,8 +657,11 @@ function OpenACPAppInner() {
             browser.show()
           }
         }}
+        terminalOpen={terminalOpen}
+        onToggleTerminal={() => setTerminalOpen((v) => !v)}
         hideFileTree={activeWorkspace?.type === "remote"}
         hideBrowser={!browserPanelEnabled}
+        hideTerminal={!hasInstance}
         disabled={!isConnected}
       />
       <div className="flex flex-1 min-h-0">
@@ -725,19 +731,30 @@ function OpenACPAppInner() {
                 );
               }}
             >
+              <TerminalProvider>
               <SessionsProvider>
                 <PermissionsProvider>
-                  <ChatWithPermissions
-                    sidebarCollapsed={sidebarCollapsed}
-                    reviewOpen={reviewOpen}
-                    onToggleReview={() => setReviewOpen((v) => !v)}
-                    setReviewOpen={setReviewOpen}
-                    fileTreeOpen={fileTreeOpen}
-                    workspacePath={activeWorkspace?.directory ?? ""}
-                    browserPanelEnabled={browserPanelEnabled}
-                  />
+                  <div className="flex flex-1 flex-col min-h-0">
+                    <div className="flex flex-1 min-h-0">
+                      <ChatWithPermissions
+                        sidebarCollapsed={sidebarCollapsed}
+                        reviewOpen={reviewOpen}
+                        onToggleReview={() => setReviewOpen((v) => !v)}
+                        setReviewOpen={setReviewOpen}
+                        fileTreeOpen={fileTreeOpen}
+                        workspacePath={activeWorkspace?.directory ?? ""}
+                        browserPanelEnabled={browserPanelEnabled}
+                      />
+                    </div>
+                    <TerminalPanel
+                      open={terminalOpen}
+                      onClose={() => setTerminalOpen(false)}
+                      workspacePath={activeWorkspace?.directory ?? ""}
+                    />
+                  </div>
                 </PermissionsProvider>
               </SessionsProvider>
+              </TerminalProvider>
               <PluginsModal open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
               <ShareWorkspaceDialog
                 open={shareOpen}
