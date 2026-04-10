@@ -52,53 +52,73 @@ export function SetupWizard(props: Props) {
   };
 
   const runSetup = async () => {
-    setSetupStatus('running'); setSetupLog([]);
-    const unlisten = await listen<string>('setup-output', (event) => setSetupLog((prev) => [...prev, event.payload]));
+    setSetupStatus('running')
+    setSetupLog([])
+    const unlisten = await listen<string>('setup-output', (event) => setSetupLog((prev) => [...prev, event.payload]))
     try {
-      const jsonStr = await invoke<string>('run_openacp_setup', { workspace: workspace, agent: selectedAgent });
-      setSetupStatus('starting');
+      const jsonStr = await invoke<string>('run_openacp_setup', { workspace, agent: selectedAgent })
+      setSetupStatus('starting')
 
-      // 1. Register the instance and create plugins.json (setup already handles this,
-      //    but instances create is a fallback in case of partial failures)
-      let instanceData: { id: string; name: string; directory: string } | null = null;
+      // Node.js 'path' is not available in browser/Tauri frontend — use inline basename
+      const dirBasename = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p
+
+      // Parse UUID directly from setup output. After core fix, setup returns:
+      // { success: true, data: { id, name, directory, configPath } }
+      let instanceData: { id: string; name: string; directory: string } | null = null
       try {
-        const createStr = await invoke<string>('invoke_cli', { args: ['instances', 'create', '--dir', workspace, '--no-interactive', '--json'] });
-        const createParsed = JSON.parse(createStr);
-        instanceData = createParsed?.data ?? createParsed;
-      } catch (createErr) {
-        // May fail if already registered — try to find it
-        const msg = String(createErr).toLowerCase();
-        if (!msg.includes('already') && !msg.includes('exists')) {
-          console.warn('[setup-wizard] instances create failed:', createErr);
+        const parsed = JSON.parse(jsonStr)
+        const data = parsed?.data ?? parsed
+        if (data?.id) {
+          const dir = data.directory ?? workspace
+          instanceData = {
+            id: data.id,
+            name: data.name ?? dirBasename(dir) ?? data.id,
+            directory: dir,
+          }
         }
+      } catch { /* ignored */ }
+
+      // Safety net: if setup output has no id (older CLI version without core fix),
+      // call instances create — now idempotent, always returns UUID for new or existing instances
+      if (!instanceData?.id) {
+        try {
+          const createStr = await invoke<string>('invoke_cli', {
+            args: ['instances', 'create', '--dir', workspace, '--no-interactive', '--json'],
+          })
+          const createParsed = JSON.parse(createStr)
+          const data = createParsed?.data ?? createParsed
+          if (data?.id) {
+            const dir = data.directory ?? workspace
+            instanceData = { id: data.id, name: data.name ?? dirBasename(dir) ?? data.id, directory: dir }
+          }
+        } catch { /* ignored */ }
       }
 
-      // 2. Start server at the workspace directory
+      if (!instanceData?.id) {
+        throw new Error('Setup failed: could not determine instance ID. Try running setup again.')
+      }
+
+      // Start server
       try {
-        await invoke<string>('invoke_cli', { args: ['start', '--dir', workspace] });
+        await invoke<string>('invoke_cli', { args: ['start', '--dir', workspace] })
       } catch (startErr) {
-        const msg = String(startErr).toLowerCase();
-        if (!msg.includes('already running')) throw startErr;
+        if (!String(startErr).toLowerCase().includes('already running')) throw startErr
       }
 
-      // 3. Discover the registered instance to get correct ID
-      let entryId = instanceData?.id ?? 'main';
-      let entryName = instanceData?.name ?? 'Main';
-      let entryDir = instanceData?.directory ?? workspace;
-      try {
-        const listStr = await invoke<string>('invoke_cli', { args: ['instances', 'list', '--json'] });
-        const listParsed = JSON.parse(listStr);
-        const instances = listParsed?.data ?? listParsed ?? [];
-        const match = Array.isArray(instances) ? instances.find((i: any) => i.directory === workspace) : null;
-        if (match) {
-          entryId = match.id;
-          entryName = match.name ?? match.id;
-          entryDir = match.directory;
-        }
-      } catch { /* best-effort */ }
-      const entry: WorkspaceEntry = { id: entryId, name: entryName, directory: entryDir, type: 'local' };
-      setSetupStatus('success'); setTimeout(() => props.onSuccess(entry), 800);
-    } catch (err) { setSetupStatus('error'); setSetupError(String(err)); } finally { unlisten(); }
+      const entry: WorkspaceEntry = {
+        id: instanceData.id,
+        name: instanceData.name,
+        directory: instanceData.directory,  // expanded path from CLI, not raw tilde input
+        type: 'local',
+      }
+      setSetupStatus('success')
+      setTimeout(() => props.onSuccess(entry), 800)
+    } catch (err) {
+      setSetupStatus('error')
+      setSetupError(String(err))
+    } finally {
+      unlisten()
+    }
   };
 
   const canProceedStep1 = workspace.trim() !== '' && selectedAgent !== '';
