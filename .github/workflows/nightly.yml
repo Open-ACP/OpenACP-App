@@ -108,9 +108,18 @@ jobs:
       - name: Set nightly version
         shell: bash
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          VERSION="${LATEST_TAG#v}"
-          NIGHTLY_VERSION="${VERSION}-nightly.${GITHUB_RUN_NUMBER}"
+          YEAR=$(date -u +%Y)
+          MMDD=$(date -u +%m%d | sed 's/^0*//')
+          BASE="${YEAR}.${MMDD}"
+          # Find highest N for today's date from existing tags
+          N=0
+          for tag in $(git tag -l "v${BASE}.*" 2>/dev/null); do
+            PATCH=$(echo "$tag" | sed "s/v${BASE}\.\([0-9]*\).*/\1/")
+            if [[ "$PATCH" =~ ^[0-9]+$ ]] && [ "$PATCH" -ge "$N" ]; then
+              N=$((PATCH + 1))
+            fi
+          done
+          NIGHTLY_VERSION="${BASE}.${N}-nightly.${GITHUB_RUN_NUMBER}"
           echo "NIGHTLY_VERSION=$NIGHTLY_VERSION" >> $GITHUB_ENV
           echo "Nightly version: $NIGHTLY_VERSION"
 

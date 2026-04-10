@@ -531,7 +531,6 @@
 /* ── User message ────────────────────────────────────────────────────────── */
 
 [data-component="oac-user-message"] {
-  background-color: var(--surface-stronger-non-alpha, var(--card));
 }
 
 /* ── Copy button ─────────────────────────────────────────────────────────── */

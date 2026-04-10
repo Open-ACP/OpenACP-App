@@ -52,11 +52,19 @@ pub async fn check_installed() -> Result<Option<String>, String> {
     }
 }
 
-/// Returns true if ~/.openacp/config.json exists.
+/// Returns true if at least one OpenACP instance is registered.
+/// Checks ~/.openacp/instances.json (shared registry) for entries.
 pub fn check_config() -> Result<bool, String> {
     let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-    let config_path = home.join(".openacp").join("config.json");
-    Ok(config_path.exists())
+    let instances_path = home.join(".openacp").join("instances.json");
+    if !instances_path.exists() {
+        return Ok(false);
+    }
+    // Parse instances.json and check if any instance exists
+    let content = std::fs::read_to_string(&instances_path).map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let instances = json.get("instances").and_then(|v| v.as_object());
+    Ok(instances.map_or(false, |m| !m.is_empty()))
 }
 
 /// Calls the npm registry to check if a newer @openacp/cli version is available.
@@ -115,7 +123,7 @@ pub async fn check_update() -> Result<Option<CoreUpdateInfo>, String> {
     Ok(Some(CoreUpdateInfo { current, latest }))
 }
 
-/// Runs `openacp setup --global --workspace <workspace> --agent <agent>
+/// Runs `openacp setup --dir <workspace> --agent <agent>
 ///   --run-mode daemon --json` and streams output via "setup-output" event.
 /// Returns the JSON result string from the CLI on success.
 pub async fn run_setup(
@@ -132,8 +140,7 @@ pub async fn run_setup(
     let (mut rx, _child) = shell_cmd
         .args([
             "setup",
-            "--global",
-            "--workspace",
+            "--dir",
             workspace,
             "--agent",
             agent,
@@ -220,9 +227,6 @@ pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_di
     let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
     if let Some(ref extra) = extra_path {
         shell_cmd = shell_cmd.env("PATH", prepend_path(extra));
-    }
-    if let Some(ref dir) = workspace_dir {
-        shell_cmd = shell_cmd.args(["--dir", dir]);
     }
     if let Some(dir) = workspace_dir {
         shell_cmd = shell_cmd.args(["--dir", dir]);

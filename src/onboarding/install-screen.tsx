@@ -60,7 +60,7 @@ export function InstallScreen(props: Props) {
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-text-strong">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--background-stronger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
         </div>
-        <div className="flex flex-col items-center gap-2"><h1 className="text-xl-medium text-text-strong">Installing OpenACP</h1><p className="text-md-regular text-text-weak">Setting up the OpenACP CLI on your system...</p></div>
+        <div className="flex flex-col items-center gap-2"><h1 className="text-xl font-medium text-text-strong">Installing OpenACP</h1><p className="text-base font-normal text-text-weak">Setting up the OpenACP CLI on your system...</p></div>
         <div className="w-full">
           <div ref={logEl} className={`${logHeight} w-full overflow-y-auto rounded-lg bg-[#1a1a1a] p-4 text-12-mono text-[#a3a3a3]`}>
             {lines.map((line, i) => <div key={i} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />)}
@@ -75,24 +75,24 @@ export function InstallScreen(props: Props) {
           )}
         </div>
         <div className="flex w-full flex-col gap-2">
-          <div className="flex w-full items-center justify-between"><span className="text-sm-regular text-text-weak">{status === 'success' ? 'Completed' : status === 'error' ? 'Failed' : 'Installing...'}</span><span className="text-sm-medium text-text-strong">{progressPercent()}%</span></div>
+          <div className="flex w-full items-center justify-between"><span className="text-sm font-normal text-text-weak">{status === 'success' ? 'Completed' : status === 'error' ? 'Failed' : 'Installing...'}</span><span className="text-sm font-medium text-text-strong">{progressPercent()}%</span></div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised-base"><div className={`h-full rounded-full transition-all duration-300 ${status === 'running' ? 'bg-text-strong' : status === 'success' ? 'bg-surface-success-strong' : 'bg-surface-critical-strong'}`} style={{ width: `${progressPercent()}%` }} /></div>
         </div>
         {status === 'success' && (
           <div className="flex w-full items-center justify-between rounded-lg border border-border-base bg-surface-raised-base px-4 py-3">
-            <span className="text-md-regular text-surface-success-strong">OpenACP installed successfully</span>
-            <button onClick={() => props.onSuccess(configExists)} className="text-md-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Get Started</button>
+            <span className="text-base font-normal text-surface-success-strong">OpenACP installed successfully</span>
+            <button onClick={() => props.onSuccess(configExists)} className="text-base font-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Get Started</button>
           </div>
         )}
         {status === 'error' && (
           <div className="w-full rounded-lg border border-surface-critical-strong bg-surface-raised-base p-4">
-            <p className="text-md-medium mb-1 text-surface-critical-strong">Installation Failed</p><p className="text-md-regular mb-4 text-surface-critical-strong">{error}</p>
+            <p className="text-base font-medium mb-1 text-surface-critical-strong">Installation Failed</p><p className="text-base font-normal mb-4 text-surface-critical-strong">{error}</p>
             <div className="flex justify-end gap-3">
-              <button onClick={copyLogs} className="text-md-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">
+              <button onClick={copyLogs} className="text-base font-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">
                 {logsCopied ? 'Copied!' : 'Copy logs'}
               </button>
-              <button onClick={copyCommand} className="text-md-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">Copy command</button>
-              <button onClick={runInstall} className="text-md-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Retry</button>
+              <button onClick={copyCommand} className="text-base font-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">Copy command</button>
+              <button onClick={runInstall} className="text-base font-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Retry</button>
             </div>
           </div>
         )}

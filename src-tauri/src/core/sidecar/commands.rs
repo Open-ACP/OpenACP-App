@@ -8,6 +8,17 @@ pub struct InstanceInfo {
     pub workspace: String, // parent of root (workspace root dir)
 }
 
+/// Expand a leading `~/` to the user's home directory.
+/// PathBuf::from("~/foo") does NOT expand tilde — must do it explicitly.
+fn expand_tilde(path: &str) -> std::path::PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(stripped);
+        }
+    }
+    std::path::PathBuf::from(path)
+}
+
 fn read_instances_json() -> Result<serde_json::Value, String> {
     let home = dirs::home_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
     let path = home.join(".openacp").join("instances.json");
@@ -106,7 +117,7 @@ pub async fn get_workspace_server_info(instance_id: String) -> Result<ServerInfo
 /// Resolve server info directly from a workspace directory (fallback when instance not in instances.json)
 #[tauri::command]
 pub async fn get_workspace_server_info_from_dir(directory: String) -> Result<ServerInfo, String> {
-    let dir = std::path::PathBuf::from(&directory).join(".openacp");
+    let dir = expand_tilde(&directory).join(".openacp");
 
     let token = std::fs::read_to_string(dir.join("api-secret"))
         .map(|s| s.trim().to_string())
@@ -164,6 +175,87 @@ pub async fn remove_instance_registration(instance_id: String) -> Result<(), Str
     let updated = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
     std::fs::write(&path, updated).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Check if an OpenACP daemon is alive for a workspace by reading its PID file
+#[tauri::command]
+pub async fn check_workspace_server_alive(directory: String) -> Result<bool, String> {
+    let pid_path = expand_tilde(&directory).join(".openacp").join("openacp.pid");
+    if !pid_path.exists() {
+        return Ok(false);
+    }
+    let pid_str = std::fs::read_to_string(&pid_path).map_err(|e| e.to_string())?;
+    let pid: i32 = pid_str.trim().parse().map_err(|_| "Invalid PID".to_string())?;
+
+    // Check if process is alive (signal 0 = check existence)
+    let alive = std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    Ok(alive)
+}
+
+/// Read comprehensive workspace status from filesystem (no CLI needed)
+#[derive(Clone, serde::Serialize)]
+pub struct WorkspaceStatus {
+    pub has_config: bool,
+    pub has_pid: bool,
+    pub server_alive: bool,
+    pub port: Option<u16>,
+    pub instance_name: Option<String>,
+    pub instance_id: Option<String>, // UUID from config.json "id" field
+}
+
+#[tauri::command]
+pub async fn get_workspace_status(directory: String) -> Result<WorkspaceStatus, String> {
+    let openacp_dir = expand_tilde(&directory).join(".openacp");
+
+    let has_config = openacp_dir.join("config.json").exists();
+
+    // Read instance name and UUID from config
+    let config_value = std::fs::read_to_string(openacp_dir.join("config.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
+
+    let instance_name = config_value
+        .as_ref()
+        .and_then(|v| v.get("instanceName")?.as_str().map(String::from));
+
+    let instance_id = config_value
+        .as_ref()
+        .and_then(|v| v.get("id")?.as_str().map(String::from));
+
+    // Check PID
+    let mut has_pid = false;
+    let mut server_alive = false;
+    if let Ok(pid_str) = std::fs::read_to_string(openacp_dir.join("openacp.pid")) {
+        has_pid = true;
+        if let Ok(pid) = pid_str.trim().parse::<i32>() {
+            #[cfg(unix)]
+            {
+                server_alive = std::process::Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            }
+        }
+    }
+
+    // Read port
+    let port = std::fs::read_to_string(openacp_dir.join("api.port"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u16>().ok());
+
+    Ok(WorkspaceStatus {
+        has_config,
+        has_pid,
+        server_alive,
+        port,
+        instance_name,
+        instance_id,
+    })
 }
 
 #[tauri::command]

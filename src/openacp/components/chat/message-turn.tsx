@@ -163,7 +163,7 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
         <div data-component="oac-assistant-message" className="px-1">
           <div className="oac-timeline">
             <div className="oac-step oac-step--progress">
-              <TextShimmer text="Thinking" active className="text-md-regular text-muted-foreground" style={{ fontStyle: "italic" }} />
+              <TextShimmer text="Thinking" active className="text-base font-normal text-muted-foreground" style={{ fontStyle: "italic" }} />
             </div>
           </div>
         </div>

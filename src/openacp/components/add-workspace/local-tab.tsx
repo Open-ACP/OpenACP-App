@@ -1,38 +1,41 @@
 import React, { useState, useEffect } from 'react'
 import { X } from '@phosphor-icons/react'
-import { discoverLocalInstances, type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
+import { type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
+import {
+  listWorkspaces,
+  classifyDirectory,
+  registerWorkspace,
+  WorkspaceServiceError,
+} from '../../api/workspace-service'
 import { CreateInstance } from './create-instance'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '../ui/button'
 
-interface LocalTabProps { onAdd: (entry: WorkspaceEntry) => void; onSetup?: (path: string, instanceId: string) => void; existingIds?: string[] }
-
-type BrowseResult = { type: 'known'; instance: InstanceListEntry } | { type: 'unregistered'; path: string } | { type: 'new'; path: string }
-
-async function checkBrowsedPath(selectedPath: string, knownInstances: InstanceListEntry[]): Promise<BrowseResult> {
-  const match = knownInstances.find(i => i.directory === selectedPath)
-  if (match) return { type: 'known', instance: match }
-  try {
-    const hasConfig = await invoke<boolean>('path_exists', { path: `${selectedPath}/.openacp/config.json` })
-    if (hasConfig) return { type: 'unregistered', path: selectedPath }
-  } catch {}
-  return { type: 'new', path: selectedPath }
+interface LocalTabProps {
+  onAdd: (entry: WorkspaceEntry) => void
+  onSetup?: (path: string, instanceId: string) => void
+  existingIds?: string[]
 }
 
 export function LocalTab(props: LocalTabProps) {
   const [instances, setInstances] = useState<InstanceListEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [browseResult, setBrowseResult] = useState<BrowseResult | null>(null)
+  const [browseResult, setBrowseResult] = useState<
+    | { type: 'registered'; instance: InstanceListEntry }
+    | { type: 'unregistered'; directory: string }
+    | { type: 'new'; directory: string }
+    | null
+  >(null)
 
   useEffect(() => {
-    discoverLocalInstances().then((r) => { setInstances(r); setLoading(false) }).catch(() => setLoading(false))
+    listWorkspaces().then(setInstances).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   async function handleBrowse() {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const selected = await open({ directory: true, multiple: false })
     if (!selected || typeof selected !== 'string') return
-    const result = await checkBrowsedPath(selected, instances)
+    const result = await classifyDirectory(selected, instances)
     setBrowseResult(result)
   }
 
@@ -108,18 +111,37 @@ export function LocalTab(props: LocalTabProps) {
         </button>
       </div>
 
-      {browseResult && <BrowseResultView result={browseResult} instances={instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={() => setBrowseResult(null)} />}
+      {browseResult && (
+        <BrowseResultView
+          result={browseResult}
+          instances={instances}
+          onAdd={props.onAdd}
+          onSetup={props.onSetup}
+          onClose={() => setBrowseResult(null)}
+        />
+      )}
     </div>
   )
 }
 
-function BrowseResultView(props: { result: BrowseResult; instances: InstanceListEntry[]; onAdd: (e: WorkspaceEntry) => void; onSetup?: (path: string, instanceId: string) => void; onClose: () => void }) {
+function BrowseResultView(props: {
+  result: { type: 'registered'; instance: InstanceListEntry } | { type: 'unregistered'; directory: string } | { type: 'new'; directory: string }
+  instances: InstanceListEntry[]
+  onAdd: (e: WorkspaceEntry) => void
+  onSetup?: (path: string, instanceId: string) => void
+  onClose: () => void
+}) {
   const result = props.result
-  if (result.type === 'known') {
+  if (result.type === 'registered') {
     const inst = result.instance
     return (
       <div className="p-4 bg-secondary rounded-xl border border-border space-y-3">
-        <div><p className="text-md-medium text-foreground mb-1">Workspace found</p><p className="text-sm-regular text-muted-foreground">This folder is already set up as <strong className="text-foreground-weak">{inst.name ?? inst.id}</strong>. Click Add to open it here.</p></div>
+        <div>
+          <p className="text-md-medium text-foreground mb-1">Workspace found</p>
+          <p className="text-sm-regular text-muted-foreground">
+            This folder is already set up as <strong className="text-foreground-weak">{inst.name ?? inst.id}</strong>. Click Add to open it here.
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -134,41 +156,50 @@ function BrowseResultView(props: { result: BrowseResult; instances: InstanceList
     )
   }
   if (result.type === 'unregistered') {
-    return (
-      <div className="p-4 bg-secondary rounded-xl border border-border space-y-3">
-        <div><p className="text-md-medium text-foreground mb-1">Existing workspace detected</p><p className="text-sm-regular text-muted-foreground">This folder already has an OpenACP workspace. Click Add to register it.</p></div>
-        <div className="flex items-center gap-2">
-          <RegisterExistingButton path={result.path} onAdd={props.onAdd} />
-          <Button type="button" variant="ghost" onClick={props.onClose} className="text-sm-regular text-muted-foreground h-auto">Back</Button>
-        </div>
-      </div>
-    )
+    return <RegisterExistingView path={result.directory} onAdd={props.onAdd} onClose={props.onClose} />
   }
-  return <CreateInstance path={result.path} existingInstances={props.instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={props.onClose} />
+  return <CreateInstance path={result.directory} existingInstances={props.instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={props.onClose} />
 }
 
-function RegisterExistingButton(props: { path: string; onAdd: (e: WorkspaceEntry) => void }) {
+function RegisterExistingView(props: { path: string; onAdd: (e: WorkspaceEntry) => void; onClose: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
   async function register() {
-    setLoading(true); setError(null)
+    setLoading(true)
+    setError(null)
     try {
-      const stdout = await invoke<string>('invoke_cli', { args: ['instances', 'create', '--dir', props.path, '--no-interactive', '--json'] })
-      const result = JSON.parse(stdout); const data = result?.data ?? result
-      props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
-    } catch (e: any) { setError(e.message ?? 'Failed to add workspace') } finally { setLoading(false) }
+      const entry = await registerWorkspace(props.path)
+      props.onAdd(entry)
+    } catch (e) {
+      if (e instanceof WorkspaceServiceError) {
+        setError(e.message)
+      } else {
+        setError(typeof e === 'string' ? e : 'Failed to add workspace')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
+
   return (
-    <>
-      <Button
-        type="button"
-        onClick={register}
-        disabled={loading}
-        className="px-4 py-1.5 text-sm-medium h-auto"
-      >
-        {loading ? 'Adding...' : 'Add workspace'}
-      </Button>
-      {error && <p className="text-sm-regular text-red-500">{error}</p>}
-    </>
+    <div className="p-4 bg-secondary rounded-xl border border-border space-y-3">
+      <div>
+        <p className="text-md-medium text-foreground mb-1">Existing workspace detected</p>
+        <p className="text-sm-regular text-muted-foreground">This folder already has an OpenACP workspace. Click Add to register it.</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          onClick={register}
+          disabled={loading}
+          className="px-4 py-1.5 text-sm-medium h-auto"
+        >
+          {loading ? 'Adding...' : 'Add workspace'}
+        </Button>
+        {error && <p className="text-sm-regular text-destructive">{error}</p>}
+        <Button type="button" variant="ghost" onClick={props.onClose} className="text-sm-regular text-muted-foreground h-auto">Back</Button>
+      </div>
+    </div>
   )
 }

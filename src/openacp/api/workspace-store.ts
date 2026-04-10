@@ -11,6 +11,11 @@ export interface WorkspaceEntry {
   role?: string            // token role
   expiresAt?: string       // JWT expiry ISO 8601
   refreshDeadline?: string // JWT refresh deadline ISO 8601
+  // Enhanced rail fields (all optional for backwards compat):
+  lastActiveAt?: string    // ISO 8601, updated on workspace switch
+  pinned?: boolean         // pinned to top of rail
+  sortOrder?: number       // manual drag order (undefined = auto-sort by recency)
+  customName?: string      // user-defined display name, overrides folder name
 }
 
 export interface InstanceListEntry {
@@ -91,6 +96,19 @@ export async function removeWorkspace(id: string): Promise<WorkspaceEntry[]> {
   const filtered = all.filter(e => e.id !== id)
   await saveWorkspaces(filtered)
   return filtered
+}
+
+export async function patchWorkspace(
+  id: string,
+  patch: Partial<WorkspaceEntry>,
+): Promise<WorkspaceEntry[]> {
+  const all = await loadWorkspaces()
+  const idx = all.findIndex(e => e.id === id)
+  if (idx >= 0) {
+    all[idx] = { ...all[idx], ...patch }
+    await saveWorkspaces(all)
+  }
+  return all
 }
 
 export async function discoverLocalInstances(): Promise<InstanceListEntry[]> {

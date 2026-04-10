@@ -697,6 +697,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       draft.messagesBySession[ev.sessionId].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
       draft.scrollTrigger++
     })
+    // Notify app that this workspace had activity
+    window.dispatchEvent(new CustomEvent("workspace-activity"))
     // Sync ref so loadHistory's inFlight calculation includes this message
     if (!messagesRef.current[ev.sessionId]) messagesRef.current[ev.sessionId] = []
     messagesRef.current[ev.sessionId] = [

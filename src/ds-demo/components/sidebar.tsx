@@ -19,7 +19,7 @@ export function Sidebar(props: {
   return (
     <div className="w-[240px] shrink-0 border-r border-border-weak bg-card flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-weak">
-        <span className="text-md-medium text-foreground">Design System</span>
+        <span className="text-base font-medium text-foreground">Design System</span>
         <button
           onClick={props.onToggleTheme}
           className="size-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground"
@@ -37,7 +37,7 @@ export function Sidebar(props: {
             {items.map((entry) => (
               <button
                 key={entry.id}
-                className={`w-full text-left px-4 py-1.5 text-sm-regular transition-colors ${
+                className={`w-full text-left px-4 py-1.5 text-sm font-normal transition-colors ${
                   entry.id === props.activeId
                     ? "bg-accent text-foreground"
                     : "text-foreground-weak hover:bg-accent/50 hover:text-foreground"

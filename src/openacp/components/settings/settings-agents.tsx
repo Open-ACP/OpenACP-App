@@ -108,13 +108,13 @@ export function SettingsAgents({ workspacePath }: { workspacePath?: string }) {
       <input
         type="text"
         placeholder="Search agents..."
-        className="h-8 rounded-md border border-border bg-background px-3 text-sm-regular text-foreground-weak placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border-selected"
+        className="h-8 rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground-weak placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border-selected"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
 
       {loading ? (
-        <div className="text-sm-regular text-muted-foreground py-4">
+        <div className="text-sm font-normal text-muted-foreground py-4">
           Loading agents...
         </div>
       ) : (
@@ -154,7 +154,7 @@ export function SettingsAgents({ workspacePath }: { workspacePath?: string }) {
           )}
 
           {installed.length === 0 && available.length === 0 && (
-            <div className="text-sm-regular text-muted-foreground py-2">
+            <div className="text-sm font-normal text-muted-foreground py-2">
               No agents found
             </div>
           )}
@@ -162,7 +162,7 @@ export function SettingsAgents({ workspacePath }: { workspacePath?: string }) {
       )}
 
       {installLog && (
-        <pre className="p-3 rounded-md bg-muted border border-border-weak/50 text-2xs-regular text-muted-foreground font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
+        <pre className="p-3 rounded-md bg-muted border border-border-weak/50 text-2xs font-normal text-muted-foreground font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
           {installLog}
         </pre>
       )}
@@ -181,11 +181,11 @@ function AgentRow(props: {
   return (
     <div className="flex items-center gap-3 py-2 px-3 rounded-md border border-border-weak/50">
       <div className="flex-1 min-w-0">
-        <div className="text-md-medium text-foreground capitalize">
+        <div className="text-base font-medium text-foreground capitalize">
           {agent.name}
         </div>
         {agent.description && (
-          <div className="text-sm-regular text-muted-foreground truncate">
+          <div className="text-sm font-normal text-muted-foreground truncate">
             {agent.description}
           </div>
         )}
@@ -202,7 +202,7 @@ function AgentRow(props: {
             {uninstalling ? "Removing..." : "Uninstall"}
           </Button>
         ) : (
-          <span className="text-2xs-regular text-foreground-weaker shrink-0 px-2 py-0.5 rounded bg-secondary">
+          <span className="text-2xs font-normal text-foreground-weaker shrink-0 px-2 py-0.5 rounded bg-secondary">
             installed
           </span>
         )

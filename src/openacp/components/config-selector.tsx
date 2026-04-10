@@ -84,14 +84,14 @@ export function ConfigSelector(props: {
         <Button
           variant="ghost"
           size="sm"
-          className="min-w-0 max-w-[160px] text-sm-regular text-foreground-weak capitalize gap-1 px-2"
+          className="min-w-0 max-w-[160px] text-sm font-normal capitalize gap-1 px-2"
         >
           <span className="truncate">{currentLabel}</span>
           <svg width="12" height="12" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M5.83 8.33L10 12.5l4.17-4.17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} side="top" sideOffset={4} className="w-72">
-        <DropdownMenuLabel className="text-foreground-weaker" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
+        <DropdownMenuLabel className="text-xs font-normal text-foreground-weaker uppercase tracking-wider">
           {props.category === "mode" ? "Modes" : (config?.name || props.category)}
         </DropdownMenuLabel>
         {(config?.choices || []).map((choice) => {
@@ -106,14 +106,11 @@ export function ConfigSelector(props: {
                 {isCurrent && <span className="text-primary">&#10003;</span>}
               </span>
               <div className="flex flex-col min-w-0 flex-1">
-                <span
-                  className={isCurrent ? "text-foreground" : "text-foreground-weak"}
-                  style={{ fontSize: "12px", fontWeight: "500", lineHeight: "1.4" }}
-                >
+                <span className={`text-sm font-medium ${isCurrent ? "" : "text-foreground-weak"}`}>
                   {choice.label}
                 </span>
                 {choice.description && (
-                  <span className="text-muted-foreground truncate" style={{ fontSize: "10.5px", lineHeight: "1.3" }}>{choice.description}</span>
+                  <span className="text-xs font-normal text-muted-foreground truncate">{choice.description}</span>
                 )}
               </div>
             </DropdownMenuItem>

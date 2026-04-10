@@ -3,15 +3,12 @@ use crate::ServerInfo;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Manages connection to the OpenACP server.
+/// Legacy global server detection — reads from ~/.openacp which is now
+/// a shared store only (no longer an instance). Per-workspace connections
+/// use `get_workspace_server_info` which reads from `<workspace>/.openacp/`.
 ///
-/// Unlike OpenCode which always spawns its own sidecar, OpenACP server
-/// is typically already running (started via `openacp start`). The desktop
-/// app reads connection info from well-known paths:
-///   - ~/.openacp/api.port   -- the port number
-///   - ~/.openacp/api-secret -- the bearer token
-///
-/// If the server isn't running, we can optionally spawn it.
+/// TODO: Remove this once all codepaths use per-workspace connections.
+/// Currently kept for backward compat during transition.
 pub struct SidecarManager {
     server_info: Option<ServerInfo>,
     child: Option<tokio::process::Child>,

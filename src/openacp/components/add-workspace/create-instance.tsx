@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import type { InstanceListEntry, WorkspaceEntry } from '../../api/workspace-store'
+import { createWorkspace, startWorkspaceServer, WorkspaceServiceError } from '../../api/workspace-service'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
@@ -9,41 +9,46 @@ interface CreateInstanceProps {
   path: string
   existingInstances: InstanceListEntry[]
   onAdd: (entry: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string) => void
+  onSetup?: (path: string, instanceId: string, instanceName: string) => void
   onClose: () => void
 }
 
 export function CreateInstance(props: CreateInstanceProps) {
   const [mode, setMode] = useState<'choose' | 'clone' | 'new'>('choose')
   const [cloneFrom, setCloneFrom] = useState<string | null>(null)
-  const [name, setName] = useState(''); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const folderName = props.path.split('/').pop() ?? 'workspace'
 
   async function handleCreate() {
-    setLoading(true); setError(null)
+    setLoading(true)
+    setError(null)
     try {
-      const args = ['instances', 'create', '--dir', props.path]
-      if (name) args.push('--name', name)
-      if (mode === 'clone' && cloneFrom) args.push('--from', cloneFrom); else args.push('--no-interactive')
-      args.push('--json')
-      const stdout = await invoke<string>('invoke_cli', { args })
-      const result = JSON.parse(stdout); const data = result?.data ?? result
+      const result = await createWorkspace(props.path, {
+        name: name || folderName,
+        fromPath: mode === 'clone' && cloneFrom ? cloneFrom : undefined,
+      })
 
       if (mode === 'clone') {
         // Clone has config ready — start server and add workspace
         try {
-          await invoke<string>('invoke_cli', { args: ['start', '--dir', props.path, '--daemon'] })
-        } catch { /* server may take a moment to start */ }
-        props.onAdd({ id: data.id, name: data.name ?? data.id, directory: data.directory, type: 'local' })
+          await startWorkspaceServer(props.path)
+        } catch { /* server may take a moment */ }
+        props.onAdd({ id: result.id, name: result.name, directory: result.directory, type: 'local' })
       } else {
         // New — needs onboarding (agent setup, then start)
-        props.onSetup?.(props.path, data.id)
+        props.onSetup?.(props.path, result.id, result.name)
       }
-    } catch (e: any) {
-      const msg = typeof e === 'string' ? e : e?.message ?? 'Failed to create instance'
-      console.error('[create-instance]', msg)
-      setError(msg)
-    } finally { setLoading(false) }
+    } catch (e) {
+      if (e instanceof WorkspaceServiceError) {
+        setError(e.message)
+      } else {
+        setError(typeof e === 'string' ? e : (e as any)?.message ?? 'Failed to create workspace')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -53,17 +58,20 @@ export function CreateInstance(props: CreateInstanceProps) {
         <div className="space-y-2">
           {props.existingInstances.length > 0 && (
             <button type="button" onClick={() => setMode('clone')} className="w-full text-left px-3 py-2 rounded-lg border border-border text-md-regular text-foreground-weak hover:bg-accent transition-colors">
-              <span className="text-md-medium text-foreground">Clone from existing</span><span className="text-sm-regular text-muted-foreground block">Copy config from another instance</span>
+              <span className="text-md-medium text-foreground">Clone from existing</span>
+              <span className="text-sm-regular text-muted-foreground block">Copy config from another instance</span>
             </button>
           )}
           <button type="button" onClick={() => setMode('new')} className="w-full text-left px-3 py-2 rounded-lg border border-border text-md-regular text-foreground-weak hover:bg-accent transition-colors">
-            <span className="text-md-medium text-foreground">Create new</span><span className="text-sm-regular text-muted-foreground block">Start with a fresh instance</span>
+            <span className="text-md-medium text-foreground">Create new</span>
+            <span className="text-sm-regular text-muted-foreground block">Start with a fresh instance</span>
           </button>
         </div>
       )}
       {mode === 'clone' && (
         <div className="space-y-3">
-          <label className="block"><span className="text-sm-regular text-muted-foreground block mb-1">Clone from</span>
+          <label className="block">
+            <span className="text-sm-regular text-muted-foreground block mb-1">Clone from</span>
             <Select value={cloneFrom ?? ''} onValueChange={(v) => setCloneFrom(v || null)}>
               <SelectTrigger className="w-full rounded-lg">
                 <SelectValue placeholder="Select instance..." />
@@ -93,7 +101,8 @@ export function CreateInstance(props: CreateInstanceProps) {
 
 function NameInput(props: { value: string; folderName: string; onInput: (v: string) => void }) {
   return (
-    <label className="block"><span className="text-sm-regular text-muted-foreground block mb-1">Instance name</span>
+    <label className="block">
+      <span className="text-sm-regular text-muted-foreground block mb-1">Instance name</span>
       <Input
         type="text"
         value={props.value}
@@ -108,7 +117,7 @@ function NameInput(props: { value: string; folderName: string; onInput: (v: stri
 function ActionButtons(props: { onBack: () => void; onConfirm: () => void; disabled: boolean; loading: boolean; error: string | null }) {
   return (
     <>
-      {props.error && <p className="text-sm-regular text-red-500">{props.error}</p>}
+      {props.error && <p className="text-sm-regular text-destructive">{props.error}</p>}
       <div className="flex gap-2">
         <Button type="button" variant="ghost" onClick={props.onBack} className="px-3 py-1 text-md-regular text-muted-foreground h-auto">Back</Button>
         <Button

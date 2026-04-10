@@ -9,6 +9,7 @@ import {
 import { DockShellForm, DockTray } from "./ui/dock-surface";
 import { useChat } from "../context/chat";
 import { useSessions } from "../context/sessions";
+import { useBrowserOverlayLock } from "../context/browser-overlay";
 import { AgentSelector } from "./agent-selector";
 import { BranchIndicator } from "./branch-indicator";
 import { CommandPalette } from "./command-palette";
@@ -192,6 +193,7 @@ export function Composer() {
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [snippets, setSnippets] = useState<CodeSnippet[]>([]);
   const [dragging, setDragging] = useState(false);
+  useBrowserOverlayLock(dragging);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -426,7 +428,7 @@ export function Composer() {
       <div className="w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative">
         <div className="w-full rounded-xl border border-border bg-background-weak relative">
         {paletteOpen && (
-          <div className="absolute bottom-full left-3 right-3 mb-1 z-50">
+          <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
             <CommandPalette
               sessionID={chat.activeSession()}
               onClose={closePalette}
@@ -528,12 +530,12 @@ export function Composer() {
                 contentEditable="true"
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
-                className="select-text w-full pl-3 pr-2 pt-2 text-base leading-xl text-foreground focus:outline-none whitespace-pre-wrap"
+                className="select-text w-full pl-3 pr-2 pt-2 text-base leading-relaxed text-foreground focus:outline-none whitespace-pre-wrap"
                 style={{ paddingBottom: space }}
               />
               {!text.trim() && !attachments.length && !snippets.length && (
                 <div
-                  className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-base leading-xl text-muted-foreground pointer-events-none whitespace-nowrap truncate"
+                  className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-base leading-relaxed text-muted-foreground pointer-events-none whitespace-nowrap truncate"
                   style={{ paddingBottom: space }}
                 >
                   Ask anything...
@@ -703,7 +705,7 @@ export function Composer() {
         <div className="fixed inset-0 z-50 bg-background/80 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 border-dashed border-border-selected">
             <ImageIcon size={40} className="text-primary" />
-            <span className="text-base font-medium leading-lg text-foreground">
+            <span className="text-base font-medium leading-normal text-foreground">
               Drop files to attach
             </span>
           </div>

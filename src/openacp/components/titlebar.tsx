@@ -1,4 +1,4 @@
-import { Sidebar, TextAlignLeft, FolderOpen } from "@phosphor-icons/react"
+import { Sidebar, TextAlignLeft, FolderOpen, Globe } from "@phosphor-icons/react"
 
 interface TitlebarProps {
   sidebarCollapsed: boolean
@@ -7,10 +7,16 @@ interface TitlebarProps {
   onToggleReview: () => void
   fileTreeOpen: boolean
   onToggleFileTree: () => void
+  browserOpen: boolean
+  onToggleBrowser: () => void
   hideFileTree?: boolean
+  hideBrowser?: boolean
+  disabled?: boolean
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, hideFileTree }: TitlebarProps) {
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, hideFileTree, hideBrowser, disabled }: TitlebarProps) {
+  const btnDisabled = disabled ? "opacity-30 pointer-events-none" : ""
+
   return (
     <header
       className="h-12 shrink-0 relative grid items-center border-b border-border-weak px-2"
@@ -22,9 +28,9 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
         <div style={{ width: 80 }} className="shrink-0" data-tauri-drag-region />
         <button
           type="button"
-          className="oac-titlebar-btn"
+          className={`oac-titlebar-btn ${btnDisabled}`}
           title={sidebarCollapsed ? "Show sessions" : "Hide sessions"}
-          onClick={onToggleSidebar}
+          onClick={disabled ? undefined : onToggleSidebar}
         >
           <Sidebar size={18} />
         </button>
@@ -33,24 +39,34 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
       {/* Center: empty, draggable */}
       <div data-tauri-drag-region />
 
-      {/* Right: Review + File Tree */}
+      {/* Right: Review + File Tree + Browser */}
       <div className="flex items-center justify-end gap-1 min-w-0 pr-1" data-tauri-drag-region>
         <button
           type="button"
-          className={`oac-titlebar-btn ${reviewOpen ? "oac-titlebar-btn--active" : ""}`}
+          className={`oac-titlebar-btn ${reviewOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
           title="Review changes"
-          onClick={onToggleReview}
+          onClick={disabled ? undefined : onToggleReview}
         >
           <TextAlignLeft size={18} />
         </button>
         {!hideFileTree && (
           <button
             type="button"
-            className={`oac-titlebar-btn ${fileTreeOpen ? "oac-titlebar-btn--active" : ""}`}
+            className={`oac-titlebar-btn ${fileTreeOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
             title="File tree"
-            onClick={onToggleFileTree}
+            onClick={disabled ? undefined : onToggleFileTree}
           >
             <FolderOpen size={18} />
+          </button>
+        )}
+        {!hideBrowser && (
+          <button
+            type="button"
+            className={`oac-titlebar-btn ${browserOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
+            title="Browser"
+            onClick={disabled ? undefined : onToggleBrowser}
+          >
+            <Globe size={18} />
           </button>
         )}
       </div>

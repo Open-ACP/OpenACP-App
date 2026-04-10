@@ -20,6 +20,7 @@ interface SetupModalProps {
   open: boolean
   path: string
   instanceId: string
+  instanceName: string
   onComplete: (entry: WorkspaceEntry) => void
   onClose: () => void
 }
@@ -68,31 +69,17 @@ export function SetupModal(props: SetupModalProps) {
     setStarting(true)
     setError("")
     try {
-      // Ensure config.json exists — if .openacp dir exists but has no config, remove and recreate
-      const configExists = await invoke<boolean>("path_exists", { path: `${props.path}/.openacp/config.json` })
-      if (!configExists) {
-        // Remove incomplete .openacp dir so instances create can start fresh
-        await invoke("remove_directory", { path: `${props.path}/.openacp` }).catch(() => {})
-        // Also unregister from instances.json if registered
-        await invoke("remove_instance_registration", { instanceId: props.instanceId }).catch(() => {})
-      }
-      // Create instance with config
+      // Run setup to create config.json, agents.json, plugins.json and register the instance.
+      // This is idempotent — safe to call even if .openacp already partially exists.
       await invoke<string>("invoke_cli", {
-        args: ["instances", "create", "--dir", props.path, "--no-interactive", "--json",
-          ...(selectedAgent ? ["--agent", selectedAgent] : [])],
-      }).catch((e) => console.warn("[setup-modal] instances create:", e))
+        args: ["setup", "--agent", selectedAgent, "--dir", props.path, "--json"],
+      }).catch((e) => console.warn("[setup-modal] setup:", e))
 
-      // Update config with selected agent
-      if (selectedAgent) {
-        await invoke<string>("invoke_cli", {
-          args: ["config", "set", "defaultAgent", selectedAgent, "--dir", props.path, "--json"],
-        }).catch((e) => console.warn("[setup-modal] config set failed:", e))
-      }
       // Start server
-      await invoke<string>("invoke_cli", { args: ["start", "--dir", props.path, "--daemon"] })
+      await invoke<string>("invoke_cli", { args: ["start", "--dir", props.path] })
       props.onComplete({
         id: props.instanceId,
-        name: folderName,
+        name: props.instanceName,
         directory: props.path,
         type: "local",
       })

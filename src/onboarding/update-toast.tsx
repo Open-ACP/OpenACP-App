@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { check as checkAppUpdate, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { ArrowLineDown, Package, X } from '@phosphor-icons/react';
 
 interface CoreUpdate { current: string; latest: string; }
 
@@ -24,17 +25,29 @@ export function UpdateToasts() {
 
   // Listen for manual check from settings
   useEffect(() => {
-    function handleManualCheck(e: Event) {
+    function handleAppCheck(e: Event) {
       const { update } = (e as CustomEvent).detail;
       if (update) setAppUpdate(update);
     }
-    window.addEventListener("app-update-available", handleManualCheck);
-    return () => window.removeEventListener("app-update-available", handleManualCheck);
+    function handleCoreCheck(e: Event) {
+      const detail = (e as CustomEvent).detail as CoreUpdate;
+      if (detail) setCoreUpdate(detail);
+    }
+    window.addEventListener("app-update-available", handleAppCheck);
+    window.addEventListener("core-update-available", handleCoreCheck);
+    return () => {
+      window.removeEventListener("app-update-available", handleAppCheck);
+      window.removeEventListener("core-update-available", handleCoreCheck);
+    };
   }, []);
 
   const updateCore = async () => {
     setCoreUpdating(true); setCoreUpdateError('');
-    try { await invoke('run_install_script'); setCoreUpdate(null); }
+    try {
+      await invoke('run_install_script');
+      setCoreUpdate(null);
+      window.dispatchEvent(new CustomEvent("core-updated"));
+    }
     catch (err) { setCoreUpdateError(String(err)); }
     finally { setCoreUpdating(false); }
   };
@@ -65,54 +78,100 @@ export function UpdateToasts() {
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[9999] flex flex-col gap-2">
       {coreUpdate && (
-        <Toast
-          icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>}
-          title={`OpenACP Core ${coreUpdate.latest}`}
-          description="A new version is available"
+        <UpdateCard
+          icon={<Package size={20} weight="duotone" />}
+          title="Update available"
+          description={`A new version of OpenACP Core (${coreUpdate.latest}) is now available to install.`}
           loading={coreUpdating}
           error={coreUpdateError}
-          onUpdate={updateCore}
+          actionLabel="Install and restart"
+          onAction={updateCore}
           onDismiss={() => setCoreUpdate(null)}
         />
       )}
       {appUpdate && (
-        <Toast
-          icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>}
-          title={`OpenACP v${appUpdate.version}`}
-          description={appDownloading ? `Downloading... ${appProgress}%` : "A new version is available"}
+        <UpdateCard
+          icon={<ArrowLineDown size={20} weight="duotone" />}
+          title="Update available"
+          description={
+            appDownloading
+              ? `Downloading v${appUpdate.version}... ${appProgress}%`
+              : `A new version of OpenACP (${appUpdate.version}) is now available to install.`
+          }
           loading={appDownloading}
-          error={appError}
-          onUpdate={updateApp}
-          onDismiss={() => setAppUpdate(null)}
           progress={appDownloading ? appProgress : undefined}
+          error={appError}
+          actionLabel="Install and restart"
+          onAction={updateApp}
+          onDismiss={() => setAppUpdate(null)}
         />
       )}
     </div>
   );
 }
 
-function Toast(props: { icon: React.ReactNode; title: string; description: string; loading: boolean; onUpdate: () => void; onDismiss: () => void; error?: string; progress?: number }) {
+function UpdateCard(props: {
+  icon: React.ReactNode
+  title: string
+  description: string
+  loading: boolean
+  error?: string
+  progress?: number
+  actionLabel: string
+  onAction: () => void
+  onDismiss: () => void
+}) {
   return (
-    <div className="pointer-events-auto flex w-[340px] items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-lg relative overflow-hidden">
-      <div className="shrink-0 text-muted-foreground">{props.icon}</div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{props.title}</p>
-        <p className="text-xs text-muted-foreground">{props.description}</p>
-        {props.error && <p className="text-xs text-destructive mt-0.5">{props.error}</p>}
+    <div className="pointer-events-auto w-[360px] rounded-lg border border-border bg-card shadow-lg relative overflow-hidden">
+      <div className="flex gap-3 px-4 pt-3.5 pb-3">
+        <div className="shrink-0 mt-0.5 text-muted-foreground">
+          {props.icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between">
+            <p className="text-sm font-medium text-foreground">{props.title}</p>
+            {!props.loading && (
+              <button
+                onClick={props.onDismiss}
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground -mt-0.5 -mr-0.5 p-0.5"
+                aria-label="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+            {props.error || props.description}
+          </p>
+          {props.error && (
+            <p className="text-xs text-destructive mt-0.5">{props.error}</p>
+          )}
+        </div>
       </div>
+
       {!props.loading && (
-        <button onClick={props.onUpdate} className="text-xs font-medium shrink-0 rounded-md border border-border-weak px-3 py-1 text-foreground hover:bg-accent transition-colors">
-          {props.error ? 'Retry' : 'Update'}
-        </button>
+        <div className="flex items-center gap-4 px-4 pb-3.5 pl-[44px]">
+          <button
+            onClick={props.onAction}
+            className="text-sm font-semibold text-foreground hover:text-foreground/80 transition-colors"
+          >
+            {props.error ? "Retry" : props.actionLabel}
+          </button>
+          <button
+            onClick={props.onDismiss}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Not yet
+          </button>
+        </div>
       )}
-      {!props.loading && (
-        <button onClick={props.onDismiss} className="shrink-0 text-muted-foreground transition-colors hover:text-foreground" aria-label="Dismiss">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      )}
+
       {props.progress !== undefined && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-secondary">
-          <div className="h-full transition-all duration-300" style={{ width: `${props.progress}%`, background: 'var(--surface-success-strong)' }} />
+        <div className="h-0.5 bg-secondary">
+          <div
+            className="h-full transition-all duration-300 ease-out"
+            style={{ width: `${props.progress}%`, background: 'var(--surface-success-strong)' }}
+          />
         </div>
       )}
     </div>

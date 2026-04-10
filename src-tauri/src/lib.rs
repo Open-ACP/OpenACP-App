@@ -55,10 +55,13 @@ pub fn run() {
             core::sidecar::commands::get_workspace_server_info,
             core::sidecar::commands::get_workspace_server_info_from_dir,
             core::sidecar::commands::remove_instance_registration,
+            core::sidecar::commands::check_workspace_server_alive,
+            core::sidecar::commands::get_workspace_status,
             core::sidecar::commands::start_server,
             core::sidecar::commands::stop_server,
             // Onboarding commands
             core::onboarding::commands::check_openacp_installed,
+            core::onboarding::commands::get_openacp_binary_path,
             core::onboarding::commands::check_openacp_config,
             core::onboarding::commands::check_core_update,
             core::onboarding::commands::run_install_script,
@@ -79,12 +82,21 @@ pub fn run() {
             core::filesystem::commands::read_directory,
             core::filesystem::commands::read_file_content,
             core::filesystem::commands::get_workspace_changes,
+            // Browser panel commands
+            core::browser::browser_show,
+            core::browser::browser_navigate,
+            core::browser::browser_set_mode,
+            core::browser::browser_close,
+            core::browser::browser_suppress,
+            core::browser::browser_unsuppress,
+            core::browser::browser_reset_suppress,
             toggle_devtools,
         ])
         .setup(move |app| {
             app.manage(AppState {
                 sidecar: sidecar.clone(),
             });
+            app.manage(core::browser::BrowserStore::new());
 
             // Auto-start: try to detect already-running OpenACP server
             let sidecar_clone = sidecar.clone();
@@ -101,11 +113,19 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
-            if let tauri::RunEvent::Exit = event {
+        .run(|app, event| match event {
+            tauri::RunEvent::Exit => {
                 tracing::info!("App exiting");
                 // Note: we don't kill the sidecar on exit because OpenACP
                 // server may be used by other clients (Telegram, etc.)
             }
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "browser-pip" => {
+                core::browser::handle_window_close(app);
+            }
+            _ => {}
         });
 }
