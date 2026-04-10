@@ -12,9 +12,9 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
   // After streaming ends, stays in whatever state the user left it.
   const [open, setOpen] = useState(block.isStreaming)
 
-  // Auto-open when a new streaming session starts
+  // Open while streaming so content is visible as it arrives; collapse when done.
   useEffect(() => {
-    if (block.isStreaming) setOpen(true)
+    setOpen(block.isStreaming)
   }, [block.isStreaming])
 
   const summaryText = (() => {
