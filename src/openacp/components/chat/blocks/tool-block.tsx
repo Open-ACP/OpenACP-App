@@ -37,7 +37,7 @@ interface ToolBlockProps {
 }
 
 export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const isPending = block.status === "pending" || block.status === "running"
   const isRejected = isRejectionOutput(block.output)
