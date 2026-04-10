@@ -7,11 +7,17 @@ import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
 
 const MAX_VISIBLE_LINES = 3
+const MAX_VISIBLE_CHARS = 200
 
 function truncateLines(text: string, max: number): { visible: string; hiddenCount: number } {
   const lines = text.split("\n")
-  if (lines.length <= max) return { visible: text, hiddenCount: 0 }
-  return { visible: lines.slice(0, max).join("\n"), hiddenCount: lines.length - max }
+  const linesCapped = lines.length > max
+  const visible = linesCapped ? lines.slice(0, max).join("\n") : text
+  // Also cap by character length to prevent very long lines from taking too much space
+  if (visible.length > MAX_VISIBLE_CHARS) {
+    return { visible: visible.slice(0, MAX_VISIBLE_CHARS) + "…", hiddenCount: lines.length - (linesCapped ? max : 0) }
+  }
+  return { visible, hiddenCount: linesCapped ? lines.length - max : 0 }
 }
 
 const REJECTION_PATTERNS = [
@@ -31,7 +37,7 @@ interface ToolBlockProps {
 }
 
 export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const isPending = block.status === "pending" || block.status === "running"
   const isRejected = isRejectionOutput(block.output)
@@ -136,7 +142,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
                       {truncatedInput.hiddenCount > 0 && (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          className="flex items-center gap-1 mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                           onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
                         >
                           + {truncatedInput.hiddenCount} more lines <ArrowsOut size={10} />
@@ -153,7 +159,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
                       {truncatedOutput.hiddenCount > 0 && (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          className="flex items-center gap-1 mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                           onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
                         >
                           + {truncatedOutput.hiddenCount} more lines <ArrowsOut size={10} />

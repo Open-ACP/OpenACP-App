@@ -257,6 +257,7 @@ export function ChatView() {
               ref={virtuosoRef}
               className="h-full no-scrollbar"
               data={flatItems}
+              computeItemKey={(_, item) => item.message.id}
               itemContent={(_, item) => (
                 <div
                   className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220"

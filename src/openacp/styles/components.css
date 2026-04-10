@@ -705,6 +705,9 @@
   position: relative;
   padding-bottom: 12px;
   user-select: text;
+  /* Skip browser layout/paint for steps outside the scroll viewport */
+  content-visibility: auto;
+  contain-intrinsic-size: 0 48px;
 }
 
 .oac-step::before {
@@ -736,7 +739,7 @@
 
 .oac-step--success::before { background: #a6e3a1; }
 .oac-step--failure::before { background: #f38ba8; }
-.oac-step--progress::before { animation: oac-blink 1s linear infinite; }
+.oac-step--progress::before { animation: oac-blink 1s linear infinite; animation-fill-mode: both; }
 .oac-step:last-child { padding-bottom: 0; }
 
 .oac-step [data-component="markdown"] > p:first-child { margin-top: 0; }
