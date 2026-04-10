@@ -143,7 +143,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
                           className="block mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                           onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
                         >
-                          + {truncatedInput.hiddenCount} more lines ↗
+                          + {truncatedInput.hiddenCount} more lines <ArrowsOut size={10} />
                         </button>
                       )}
                     </div>
@@ -160,7 +160,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
                           className="block mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                           onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
                         >
-                          + {truncatedOutput.hiddenCount} more lines ↗
+                          + {truncatedOutput.hiddenCount} more lines <ArrowsOut size={10} />
                         </button>
                       )}
                     </div>
