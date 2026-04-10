@@ -293,9 +293,15 @@ fn create_child_in_main(app: &AppHandle, url: &str, bounds: Bounds) -> Result<()
     let app_for_nav = app.clone();
     let app_for_load = app.clone();
 
+    // NOTE: do NOT use .auto_resize() here. It binds to the parent window
+    // at creation time and doesn't survive reparent — after moving the webview
+    // to the Pop-out window, auto_resize keeps constraining it to the original
+    // docked-panel dimensions (~480px), causing the webview to only fill a
+    // portion of the Pop-out window. All sizing is handled manually via
+    // fill_window() + on_window_event for Pop-out, and RAF polling in
+    // BrowserPanel's useBoundsSyncDocked for docked mode.
     let builder = WebviewBuilder::new(BROWSER_LABEL, WebviewUrl::External(parsed))
         .initialization_script(INIT_SCRIPT)
-        .auto_resize()
         .on_navigation(move |url| {
             // Skip internal schemes (about:, data:, chrome:, file:, etc.).
             // These fire on initial webview creation and intermediate loading
