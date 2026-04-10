@@ -393,47 +393,13 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       }
     }
 
-    // Single setStore call for ALL text and thought buffer updates
+    // Single setStore call for ALL text and thought buffer updates.
+    // Thought MUST be processed before text so that when both arrive in the same
+    // flush batch, the ThinkingBlock is already appended before text logic runs.
+    // If text ran first it could push a TextBlock after ThinkingBlock, causing
+    // subsequent thought chunks to see an "intervening block" and open a new ThinkingBlock.
     setStore((draft) => {
-      // Apply text buffer updates
-      for (const [sessionID, text] of pendingText) {
-        const msgId = assistantMsgId.current.get(sessionID)
-        if (!msgId) continue
-        const msgs = draft.messagesBySession[sessionID]
-        if (!msgs) continue
-        const msg = msgs.find((m) => m.id === msgId)
-        if (!msg) continue
-
-        // Close thinking block if transitioning to text
-        const thinkDuration = thinkingDurations.get(sessionID)
-        if (thinkDuration != null) {
-          const thinking = [...msg.blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
-          if (thinking) {
-            thinking.isStreaming = false
-            thinking.durationMs = thinkDuration
-          }
-        }
-
-        // Update parts
-        const lastPart = msg.parts[msg.parts.length - 1]
-        if (lastPart?.type === "text") {
-          lastPart.content += text
-        } else {
-          msg.parts.push({ id: nextPartId(), type: "text", content: text })
-        }
-
-        // Update blocks
-        const lastBlock = msg.blocks[msg.blocks.length - 1]
-        if (lastBlock?.type === "text") {
-          (lastBlock as TextBlock).content += text
-        } else {
-          msg.blocks.push({ type: "text", id: nextPartId(), content: text })
-        }
-
-        syncRef(sessionID, draft)
-      }
-
-      // Apply thought buffer updates
+      // Apply thought buffer updates first
       for (const [sessionID, text] of pendingThought) {
         const msgId = assistantMsgId.current.get(sessionID)
         if (!msgId) continue
@@ -477,6 +443,55 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
         syncRef(sessionID, draft)
       }
+
+      // Apply text buffer updates after thought so blocks are correctly positioned
+      for (const [sessionID, text] of pendingText) {
+        const msgId = assistantMsgId.current.get(sessionID)
+        if (!msgId) continue
+        const msgs = draft.messagesBySession[sessionID]
+        if (!msgs) continue
+        const msg = msgs.find((m) => m.id === msgId)
+        if (!msg) continue
+
+        // Close thinking block if transitioning to text
+        const thinkDuration = thinkingDurations.get(sessionID)
+        if (thinkDuration != null) {
+          const thinking = [...msg.blocks].reverse().find((b): b is ThinkingBlock => b.type === "thinking" && b.isStreaming)
+          if (thinking) {
+            thinking.isStreaming = false
+            thinking.durationMs = thinkDuration
+          }
+        }
+
+        // Update parts
+        const lastPart = msg.parts[msg.parts.length - 1]
+        if (lastPart?.type === "text") {
+          lastPart.content += text
+        } else {
+          msg.parts.push({ id: nextPartId(), type: "text", content: text })
+        }
+
+        // Update blocks
+        const lastBlock = msg.blocks[msg.blocks.length - 1]
+        if (lastBlock?.type === "text") {
+          (lastBlock as TextBlock).content += text
+        } else if (lastBlock?.type === "thinking") {
+          // Thinking block interrupted text mid-stream (e.g. "Chào! Cần " + think + "gì không?").
+          // Append to the preceding text block so the sentence isn't split across the boundary.
+          // Note: the thinking block may already be closed (isStreaming: false) because
+          // thinkingDurations processes the close before this block update runs.
+          const prevBlock = msg.blocks.length >= 2 ? msg.blocks[msg.blocks.length - 2] : null
+          if (prevBlock?.type === "text") {
+            (prevBlock as TextBlock).content += text
+          } else {
+            msg.blocks.push({ type: "text", id: nextPartId(), content: text })
+          }
+        } else {
+          msg.blocks.push({ type: "text", id: nextPartId(), content: text })
+        }
+
+        syncRef(sessionID, draft)
+      }
     })
   }
 
@@ -508,6 +523,17 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         break
       }
       case "tool_call": {
+        // Flush any buffered text before inserting the tool block.
+        // Without this, a rAF-deferred flushBuffers could run after updateAssistantBlocks
+        // has already made the tool block the last block, causing subsequent text to be
+        // split into a new text block instead of appending to the existing one.
+        flushBuffers()
+        // Reset the text charStream at tool boundaries. charStream is a continuous buffer for the
+        // whole message; the pre-tool TextBlock has streaming=false so it never subscribes.
+        // Without clearing here, the post-tool TextBlock would subscribe and immediately receive
+        // all pre-tool chars as stale display content, showing duplicate/garbled text.
+        charStream.flush(`${sessionID}:text`)
+        charStream.clearStream(`${sessionID}:text`)
         ensureAssistantMessage(sessionID)
         const diff = extractDiff(evt)
         updateAssistantParts(sessionID, (parts) => {

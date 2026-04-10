@@ -1,6 +1,5 @@
-import React, { memo, useState, useRef, useEffect } from "react"
+import React, { memo, useState, useEffect } from "react"
 import { Markdown } from "../../ui/markdown"
-import * as charStream from "../../../lib/char-stream"
 import type { ThinkingBlock } from "../../../types"
 
 interface ThinkingBlockProps {
@@ -9,16 +8,14 @@ interface ThinkingBlockProps {
 }
 
 export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessionID }: ThinkingBlockProps) {
-  const [streamText, setStreamText] = useState("")
+  // Default open during streaming so content is visible as it streams in.
+  // After streaming ends, stays in whatever state the user left it.
+  const [open, setOpen] = useState(block.isStreaming)
 
-  // During streaming: subscribe CharStream
+  // Auto-open when a new streaming session starts
   useEffect(() => {
-    if (!block.isStreaming || !sessionID) return
-    const unsub = charStream.subscribeDisplay(`${sessionID}:thought`, (displayText) => {
-      setStreamText(displayText)
-    })
-    return unsub
-  }, [block.isStreaming, sessionID])
+    if (block.isStreaming) setOpen(true)
+  }, [block.isStreaming])
 
   const summaryText = (() => {
     if (block.isStreaming) return "Thinking..."
@@ -29,8 +26,11 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
     return "Thinking"
   })()
 
-  const content = block.isStreaming ? streamText : block.content
-  const hasContent = !!content?.trim()
+  // streamId lets Markdown subscribe to charStream directly, same pattern as TextBlockView.
+  // Without streamId, Markdown ignores streaming=true and renders nothing (all effects skip).
+  const streamId = block.isStreaming && sessionID ? `${sessionID}:thought` : undefined
+
+  const hasContent = !!block.content?.trim()
 
   if (!hasContent && !block.isStreaming) {
     return (
@@ -41,16 +41,22 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
   }
 
   return (
-    <details className="oac-thinking">
+    <details
+      className="oac-thinking"
+      open={open}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
       <summary>
         <span>{summaryText}</span>
         <span className="oac-thinking-chevron">&#9654;</span>
       </summary>
       <div className="oac-thinking-content">
         <Markdown
-          text={content || ""}
+          text={block.content || ""}
           cacheKey={block.isStreaming ? undefined : block.id}
+          streamId={streamId}
           streaming={block.isStreaming}
+          noGate
         />
       </div>
     </details>

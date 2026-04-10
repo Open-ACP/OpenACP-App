@@ -53,6 +53,12 @@ export function buildTitle(
 
   // Extract title from input fields first
   if (input) {
+    // Search kind: show pattern first — input.path is the search directory, not a file
+    if (kind === "search") {
+      const pattern = input.pattern ?? input.query
+      if (typeof pattern === "string") return `"${pattern}"`
+    }
+
     // For file tools: show just the filename, full path is still in tooltip
     const filePath = input.file_path ?? input.filePath ?? input.path
     if (typeof filePath === "string" && filePath) {
@@ -65,10 +71,6 @@ export function buildTitle(
       if (typeof desc === "string" && desc) return desc.length > 60 ? desc.slice(0, 57) + "..." : desc
       const cmd = input.command ?? input.cmd
       if (typeof cmd === "string") return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
-    }
-    if (kind === "search") {
-      const pattern = input.pattern ?? input.query
-      if (typeof pattern === "string") return `"${pattern}"`
     }
     if (kind === "agent") {
       const subagentType = input.subagent_type

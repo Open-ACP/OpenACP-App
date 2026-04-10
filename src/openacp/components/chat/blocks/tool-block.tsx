@@ -1,7 +1,6 @@
 import React, { memo, useState, useMemo } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { ArrowsOut, CaretRight } from "@phosphor-icons/react"
-import { TextShimmer } from "../../ui/text-shimmer"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialog"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
@@ -93,7 +92,6 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
             )}
           </>
         )}
-        {isPending && <TextShimmer text="" active className="" />}
         {hasBody && !isPending && (
           <CaretRight
             size={10}
