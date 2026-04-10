@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo, useRef, useEffect } from "react"
+import React, { memo, useState, useMemo } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { ArrowsOut, CaretRight } from "@phosphor-icons/react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialog"
@@ -37,17 +37,10 @@ interface ToolBlockProps {
 }
 
 export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
-  const { shouldAutoExpand, isLoaded } = useToolDisplay()
-  const [expanded, setExpanded] = useState(false)
-  // Sync initial expanded state once settings have loaded from the store.
-  // Using a ref prevents re-initializing if the block re-renders before load completes.
-  const didInitRef = useRef(false)
-  useEffect(() => {
-    if (isLoaded && !didInitRef.current) {
-      didInitRef.current = true
-      setExpanded(shouldAutoExpand(block.kind))
-    }
-  }, [isLoaded])
+  const { shouldAutoExpand } = useToolDisplay()
+  // Lazy initializer runs once at mount. Settings load in <50ms but chat renders
+  // after workspace connection (~seconds), so the correct value is always available here.
+  const [expanded, setExpanded] = useState(() => shouldAutoExpand(block.kind))
   const [modalOpen, setModalOpen] = useState(false)
   const isPending = block.status === "pending" || block.status === "running"
   const isRejected = isRejectionOutput(block.output)
