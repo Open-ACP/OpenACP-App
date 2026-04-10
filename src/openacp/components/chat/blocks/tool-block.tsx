@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react"
 import { ArrowsOut, CaretRight } from "@phosphor-icons/react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialog"
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
+import { useToolDisplay } from "../../../context/tool-display"
 import type { ToolBlock } from "../../../types"
 
 const MAX_VISIBLE_LINES = 3
@@ -36,7 +37,9 @@ interface ToolBlockProps {
 }
 
 export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason }: ToolBlockProps) {
-  const [expanded, setExpanded] = useState(true)
+  const { shouldAutoExpand } = useToolDisplay()
+  // useState initializer only runs once at mount — existing blocks keep their state when settings change
+  const [expanded, setExpanded] = useState(() => shouldAutoExpand(block.kind))
   const [modalOpen, setModalOpen] = useState(false)
   const isPending = block.status === "pending" || block.status === "running"
   const isRejected = isRejectionOutput(block.output)
