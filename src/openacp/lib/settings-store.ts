@@ -10,6 +10,7 @@ export interface AppSettings {
   browserPanel: boolean
   browserLastMode: "docked" | "floating" | "pip"
   browserSearchEngine: "google" | "duckduckgo" | "bing"
+  toolAutoExpand: Record<string, boolean>
 }
 
 const defaults: AppSettings = {
@@ -17,9 +18,20 @@ const defaults: AppSettings = {
   fontSize: "medium",
   language: "en",
   devMode: false,
-  browserPanel: true,
+  browserPanel: false,
   browserLastMode: "docked",
   browserSearchEngine: "google",
+  toolAutoExpand: {
+    read: false,
+    search: false,
+    edit: true,
+    write: true,
+    execute: true,
+    agent: true,
+    web: false,
+    skill: false,
+    other: false,
+  },
 }
 
 let store: Awaited<ReturnType<typeof load>> | null = null
@@ -50,7 +62,9 @@ export async function getAllSettings(): Promise<AppSettings> {
     ((await s.get("browserLastMode")) as AppSettings["browserLastMode"]) ?? defaults.browserLastMode
   const browserSearchEngine =
     ((await s.get("browserSearchEngine")) as AppSettings["browserSearchEngine"]) ?? defaults.browserSearchEngine
-  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine }
+  const toolAutoExpand =
+    ((await s.get("toolAutoExpand")) as AppSettings["toolAutoExpand"]) ?? defaults.toolAutoExpand
+  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand }
 }
 
 /** Apply theme to document element */
