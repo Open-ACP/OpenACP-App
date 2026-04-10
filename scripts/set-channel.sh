@@ -40,10 +40,9 @@ node -e "
       conf.plugins.updater.endpoints = [customEndpoint];
       console.log('  Updater endpoint: ' + customEndpoint);
     } else {
-      delete conf.plugins.updater;
-      console.log('  Updater: disabled (no UPDATER_ENDPOINT set)');
+      console.log('  Updater endpoint: unchanged (no UPDATER_ENDPOINT set)');
     }
-    if (customPubkey && conf.plugins.updater) {
+    if (customPubkey) {
       conf.plugins.updater.pubkey = customPubkey;
     }
   }

@@ -42,6 +42,8 @@ import { BrowserPanel } from "./components/browser-panel";
 import { BrowserPanelProvider, useBrowserPanel } from "./context/browser-panel";
 import { BrowserOverlayProvider } from "./context/browser-overlay";
 import { FloatingBrowserFrame } from "./components/floating-browser-frame";
+import { TerminalProvider } from "./context/terminal";
+import { TerminalPanel } from "./components/terminal-panel";
 import type { ServerInfo } from "./types";
 
 function NoServerScreen({ directory, isRemote, errorMessage, onStart, onReconnect, onRemove }: { directory: string; isRemote?: boolean; errorMessage?: string | null; onStart: () => void; onReconnect: () => void; onRemove?: () => void }) {
@@ -135,7 +137,7 @@ function ChatArea() {
   );
 }
 
-function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath, browserPanelEnabled }: {
+function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, setReviewOpen, fileTreeOpen, workspacePath, browserPanelEnabled, terminalOpen, onCloseTerminal }: {
   sidebarCollapsed: boolean
   reviewOpen: boolean
   onToggleReview: () => void
@@ -143,6 +145,8 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
   fileTreeOpen: boolean
   workspacePath: string
   browserPanelEnabled: boolean
+  terminalOpen: boolean
+  onCloseTerminal: () => void
 }) {
   const permissions = usePermissions();
   const workspaceCtx = useWorkspace();
@@ -188,49 +192,58 @@ function ChatWithPermissions({ sidebarCollapsed, reviewOpen, onToggleReview, set
       onPermissionResolved={(e) => permissions.dismiss(e.sessionId)}
     >
       <SidebarPanel collapsed={sidebarCollapsed} />
-      <ChatArea />
-      <AnimatePresence initial={false}>
-        {reviewOpen && (
-          <motion.div
-            className="shrink-0 h-full overflow-hidden"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "auto", opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            <ReviewPanel onClose={onToggleReview} openFiles={openFiles} onCloseFile={handleCloseFile} requestedTab={requestedTab} onRequestedTabHandled={() => setRequestedTab(null)} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence initial={false}>
-        {fileTreeOpen && workspacePath && !isRemote && (
-          <motion.div
-            className="shrink-0 h-full overflow-hidden"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "auto", opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            <FileTreePanel
-              workspacePath={workspacePath}
-              onOpenFile={handleOpenFile}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence initial={false}>
-        {browser.isVisible && browserPanelEnabled && browser.mode !== "floating" && (
-          <motion.div
-            className="shrink-0 h-full overflow-hidden"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "auto", opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            <BrowserPanel />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="flex flex-1 flex-col min-h-0 min-w-0">
+        <div className="flex flex-1 min-h-0">
+          <ChatArea />
+          <AnimatePresence initial={false}>
+            {reviewOpen && (
+              <motion.div
+                className="shrink-0 h-full overflow-hidden"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: "auto", opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              >
+                <ReviewPanel onClose={onToggleReview} openFiles={openFiles} onCloseFile={handleCloseFile} requestedTab={requestedTab} onRequestedTabHandled={() => setRequestedTab(null)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {fileTreeOpen && workspacePath && !isRemote && (
+              <motion.div
+                className="shrink-0 h-full overflow-hidden"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: "auto", opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              >
+                <FileTreePanel
+                  workspacePath={workspacePath}
+                  onOpenFile={handleOpenFile}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {browser.isVisible && browserPanelEnabled && browser.mode !== "floating" && (
+              <motion.div
+                className="shrink-0 h-full overflow-hidden"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: "auto", opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              >
+                <BrowserPanel />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        <TerminalPanel
+          open={terminalOpen}
+          onClose={onCloseTerminal}
+          workspacePath={workspacePath}
+        />
+      </div>
     </ChatProvider>
   );
 }
@@ -588,6 +601,7 @@ function OpenACPAppInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [browserPanelEnabled, setBrowserPanelEnabled] = useState(false);
 
   // Load browser panel setting
@@ -654,8 +668,11 @@ function OpenACPAppInner() {
             browser.show()
           }
         }}
+        terminalOpen={terminalOpen}
+        onToggleTerminal={() => setTerminalOpen((v) => !v)}
         hideFileTree={activeWorkspace?.type === "remote"}
         hideBrowser={!browserPanelEnabled}
+        hideTerminal={!hasInstance}
         disabled={!isConnected}
       />
       <div className="flex flex-1 min-h-0">
@@ -725,6 +742,7 @@ function OpenACPAppInner() {
                 );
               }}
             >
+              <TerminalProvider>
               <SessionsProvider>
                 <PermissionsProvider>
                   <ChatWithPermissions
@@ -735,9 +753,12 @@ function OpenACPAppInner() {
                     fileTreeOpen={fileTreeOpen}
                     workspacePath={activeWorkspace?.directory ?? ""}
                     browserPanelEnabled={browserPanelEnabled}
+                    terminalOpen={terminalOpen}
+                    onCloseTerminal={() => setTerminalOpen(false)}
                   />
                 </PermissionsProvider>
               </SessionsProvider>
+              </TerminalProvider>
               <PluginsModal open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
               <ShareWorkspaceDialog
                 open={shareOpen}

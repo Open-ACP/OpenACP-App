@@ -104,6 +104,9 @@ importers:
       fuzzysort:
         specifier: ^3.1.0
         version: 3.1.0
+      ghostty-web:
+        specifier: github:anomalyco/ghostty-web#main
+        version: https://codeload.github.com/anomalyco/ghostty-web/tar.gz/4af877d52b523754f113b87084b69835b752fb2c
       immer:
         specifier: ^10.1.1
         version: 10.2.0
@@ -1865,6 +1868,10 @@ packages:
   get-nonce@1.0.1:
     resolution: {integrity: sha512-FJhYRoDaiatfEkUK8HKlicmu/3SGFD51q3itKDGoSTysQJBnfOcxU5GxnhE1E6soB76MbT0MBtnKJuXyAx+96Q==}
     engines: {node: '>=6'}
+
+  ghostty-web@https://codeload.github.com/anomalyco/ghostty-web/tar.gz/4af877d52b523754f113b87084b69835b752fb2c:
+    resolution: {tarball: https://codeload.github.com/anomalyco/ghostty-web/tar.gz/4af877d52b523754f113b87084b69835b752fb2c}
+    version: 0.3.0
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -4017,6 +4024,8 @@ snapshots:
   gensync@1.0.0-beta.2: {}
 
   get-nonce@1.0.1: {}
+
+  ghostty-web@https://codeload.github.com/anomalyco/ghostty-web/tar.gz/4af877d52b523754f113b87084b69835b752fb2c: {}
 
   graceful-fs@4.2.11: {}
 

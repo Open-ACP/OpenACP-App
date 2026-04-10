@@ -29,10 +29,11 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
   }
 
   async function api<T>(path: string, init?: RequestInit): Promise<T> {
+    const hasBody = init?.body !== undefined
     const res = await fetch(`${url}/api/v1${path}`, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
         Authorization: `Bearer ${token}`,
         ...(init?.headers as Record<string, string> | undefined),
       },
@@ -45,7 +46,7 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
         const retry = await fetch(`${url}/api/v1${path}`, {
           ...init,
           headers: {
-            "Content-Type": "application/json",
+            ...(hasBody ? { "Content-Type": "application/json" } : {}),
             Authorization: `Bearer ${token}`,
             ...(init?.headers as Record<string, string> | undefined),
           },
@@ -119,9 +120,9 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
 
     /** Archive a session */
     async archiveSession(sessionId: string): Promise<void> {
-      await api(`/sessions/${encodeURIComponent(sessionId)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "archived" }),
+      await api(`/sessions/${encodeURIComponent(sessionId)}/archive`, {
+        method: "POST",
+        body: JSON.stringify({}),
       })
     },
 

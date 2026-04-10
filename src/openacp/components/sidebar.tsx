@@ -1,6 +1,16 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Trash, DotsThree } from "@phosphor-icons/react";
+import { Archive, DotsThree } from "@phosphor-icons/react";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "./ui/dialog";
 import { ResizeHandle } from "./ui/resize-handle";
 import { Spinner } from "./ui/spinner";
 import { Button } from "./ui/button";
@@ -91,7 +101,7 @@ export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
                 chat.streaming() && chat.activeSession() === session.id
               }
               onClick={() => chat.setActiveSession(session.id)}
-              onDelete={() => sessions.remove(session.id)}
+              onArchive={() => sessions.archive(session.id)}
             />
           ))}
         </nav>
@@ -154,16 +164,14 @@ function SessionItem({
   active,
   streaming,
   onClick,
-  onDelete,
+  onArchive,
 }: {
   session: { id: string; name: string; agent: string; status: string };
   active: boolean;
   streaming: boolean;
   onClick: () => void;
-  onDelete: () => void;
+  onArchive: () => void;
 }) {
-  const [confirmDelete, setConfirmDelete] = React.useState(false)
-
   return (
     <div
       data-session-id={session.id}
@@ -201,36 +209,36 @@ function SessionItem({
           </Button>
         </div>
         <div className="shrink-0 overflow-hidden transition-[width,opacity] w-0 opacity-0 pointer-events-none group-hover/session:w-8 group-hover/session:opacity-100 group-hover/session:pointer-events-auto">
-          {confirmDelete ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Confirm delete"
-              className="text-destructive hover:text-destructive"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete();
-                setConfirmDelete(false);
-              }}
-              onBlur={() => setConfirmDelete(false)}
-            >
-              <Trash size={16} weight="fill" />
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Delete session"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setConfirmDelete(true);
-              }}
-            >
-              <Trash size={16} />
-            </Button>
-          )}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Archive session"
+                onClick={(e) => { e.stopPropagation(); }}
+              >
+                <Archive size={14} />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Archive session</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to archive this session?
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button variant="destructive" onClick={onArchive}>
+                    Archive
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

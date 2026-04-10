@@ -143,42 +143,28 @@ jobs:
           "
 
       # ── macOS Code Signing & Notarization ──
-      # Optional: skip if APPLE_CERTIFICATE secret is not set.
-      # To enable, set these GitHub secrets:
-      #   APPLE_CERTIFICATE          — Base64-encoded .p12 certificate
-      #   APPLE_CERTIFICATE_PASSWORD — Password for the .p12 file
-      #   APPLE_ID                   — Apple Developer email
-      #   APPLE_PASSWORD             — App-specific password (NOT account password)
-      #   APPLE_TEAM_ID              — Apple Developer Team ID
       - name: Import Apple certificate
         if: startsWith(matrix.platform, 'macos') && env.APPLE_CERTIFICATE != ''
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       # ── Build ──
-      # Currently builds unsigned. To enable signing, add these repo secrets:
-      #   TAURI_SIGNING_PRIVATE_KEY       — updater signing key
-      #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-      #   APPLE_CERTIFICATE              — Base64-encoded .p12 (macOS codesign)
-      #   APPLE_CERTIFICATE_PASSWORD
-      #   APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID — macOS notarization
-      # Then uncomment the env vars below.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}

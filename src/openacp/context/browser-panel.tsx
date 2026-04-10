@@ -83,11 +83,15 @@ function reducer(state: State, action: Action): State {
           : s.kind === "navigating"
             ? s.to ?? state.url
             : s.url ?? state.url
+      // On Idle, also reset mode to "docked" — otherwise a stale "floating"
+      // or "pip" mode persists and the next browser.show() opens the wrong
+      // UI (e.g. FloatingBrowserFrame renders with no webview → user stuck).
+      const mode = s.kind === "idle" ? "docked" : (s.mode ?? state.mode)
       return {
         ...state,
         kind: s.kind,
         url,
-        mode: s.mode ?? state.mode,
+        mode,
         canGoBack: action.payload.can_go_back,
         canGoForward: action.payload.can_go_forward,
         suppressed: action.payload.suppressed,

@@ -293,9 +293,15 @@ fn create_child_in_main(app: &AppHandle, url: &str, bounds: Bounds) -> Result<()
     let app_for_nav = app.clone();
     let app_for_load = app.clone();
 
+    // NOTE: do NOT use .auto_resize() here. It binds to the parent window
+    // at creation time and doesn't survive reparent — after moving the webview
+    // to the Pop-out window, auto_resize keeps constraining it to the original
+    // docked-panel dimensions (~480px), causing the webview to only fill a
+    // portion of the Pop-out window. All sizing is handled manually via
+    // fill_window() + on_window_event for Pop-out, and RAF polling in
+    // BrowserPanel's useBoundsSyncDocked for docked mode.
     let builder = WebviewBuilder::new(BROWSER_LABEL, WebviewUrl::External(parsed))
         .initialization_script(INIT_SCRIPT)
-        .auto_resize()
         .on_navigation(move |url| {
             // Skip internal schemes (about:, data:, chrome:, file:, etc.).
             // These fire on initial webview creation and intermediate loading
@@ -402,17 +408,34 @@ fn ensure_pip_window(app: &AppHandle) -> Result<tauri::Window, String> {
     if let Some(w) = app.get_window(PIP_LABEL) {
         return Ok(w);
     }
-    WindowBuilder::new(app, PIP_LABEL)
-        .title("Browser (PiP)")
-        .inner_size(420.0, 300.0)
-        .min_inner_size(280.0, 180.0)
+    let pip = WindowBuilder::new(app, PIP_LABEL)
+        .title("Browser (Pop-out)")
+        .inner_size(1024.0, 720.0)
+        .min_inner_size(400.0, 300.0)
         .resizable(true)
         .decorations(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
         .build()
-        .map_err(|e| format!("pip window build failed: {e}"))
+        .map_err(|e| format!("pip window build failed: {e}"))?;
+
+    // Register a resize listener so the webview fills the window when the
+    // user drags the edges. `auto_resize()` on the WebviewBuilder doesn't
+    // survive reparent, and `set_position(0,0)` in fill_window disables it
+    // entirely (Tauri #9611). Manual tracking is the only reliable approach.
+    let app_for_resize = app.clone();
+    pip.on_window_event(move |event| {
+        if let tauri::WindowEvent::Resized(_) = event {
+            if let Some(wv) = app_for_resize.get_webview(BROWSER_LABEL) {
+                if let Some(win) = app_for_resize.get_window(PIP_LABEL) {
+                    let _ = fill_window(&wv, &win);
+                }
+            }
+        }
+    });
+
+    Ok(pip)
 }
 
 /// Hide a sibling window without destroying it. Used during mode switches

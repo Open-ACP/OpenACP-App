@@ -284,7 +284,7 @@ export function ChatView() {
           <DialogHeader>
             <DialogTitle>Archive session</DialogTitle>
             <DialogDescription>
-              Are you sure you want to archive "{sessionTitle}"? You can restore it later.
+              Are you sure you want to archive "{sessionTitle}"?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

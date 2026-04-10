@@ -394,6 +394,10 @@
   interpolate-size: allow-keywords;
 }
 
+html, body {
+  overscroll-behavior: none;
+}
+
 *[data-tauri-drag-region] {
   app-region: drag;
 }

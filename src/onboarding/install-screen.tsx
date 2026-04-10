@@ -1,102 +1,189 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { platform } from '@tauri-apps/plugin-os';
-import AnsiToHtml from 'ansi-to-html';
+import React, { useState, useEffect, useCallback } from "react"
+import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
+import { writeText } from "@tauri-apps/plugin-clipboard-manager"
+import { platform } from "@tauri-apps/plugin-os"
+import { motion } from "motion/react"
+import { ArrowClockwise, Terminal } from "@phosphor-icons/react"
+import { StepChecklist, type Step, type StepStatus } from "./step-checklist"
+import { CollapsibleLog } from "./collapsible-log"
+import appIcon from "../assets/app-icon.png"
 
-const ansiConverter = new AnsiToHtml({ escapeXML: true, newline: false });
-function ansiToHtml(line: string): string {
-  try { return ansiConverter.toHtml(line); } catch { return line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, ''); }
+interface Props {
+  onSuccess: (configExists: boolean) => void
 }
-function stripAnsi(line: string): string {
-  return line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
+const INSTALL_CMD_MACOS =
+  "curl -fsSL https://raw.githubusercontent.com/Open-ACP/OpenACP/main/scripts/install.sh | bash"
+const INSTALL_CMD_WINDOWS =
+  'powershell -c "irm https://raw.githubusercontent.com/Open-ACP/OpenACP/main/scripts/install.ps1 | iex"'
+
+/** Parse CLI log lines into step progress. The install script emits patterns like [1/3], [2/3], [3/3]. */
+function deriveSteps(lines: string[], overallStatus: "running" | "success" | "error"): Step[] {
+  const stepDefs = [
+    { pattern: /\[1\/3\]/, label: "Preparing environment" },
+    { pattern: /\[2\/3\]/, label: "Installing OpenACP" },
+    { pattern: /\[3\/3\]/, label: "Finalizing" },
+  ]
+
+  let lastMatchedIdx = -1
+  for (const line of lines) {
+    const stripped = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+    for (let i = 0; i < stepDefs.length; i++) {
+      if (stepDefs[i].pattern.test(stripped)) {
+        lastMatchedIdx = Math.max(lastMatchedIdx, i)
+      }
+    }
+  }
+
+  return stepDefs.map((def, i): Step => {
+    let status: StepStatus = "pending"
+    if (overallStatus === "error" && i <= lastMatchedIdx) {
+      status = i === lastMatchedIdx ? "error" : "done"
+    } else if (overallStatus === "success") {
+      status = "done"
+    } else if (i < lastMatchedIdx) {
+      status = "done"
+    } else if (i === lastMatchedIdx) {
+      status = "running"
+    }
+    return { label: def.label, status }
+  })
 }
-
-interface Props { onSuccess: (configExists: boolean) => void; }
-
-const INSTALL_CMD_MACOS = 'curl -fsSL https://raw.githubusercontent.com/Open-ACP/OpenACP/main/scripts/install.sh | bash';
-const INSTALL_CMD_WINDOWS = 'powershell -c "irm https://raw.githubusercontent.com/Open-ACP/OpenACP/main/scripts/install.ps1 | iex"';
 
 export function InstallScreen(props: Props) {
-  const [lines, setLines] = useState<string[]>([]);
-  const [status, setStatus] = useState<'running' | 'success' | 'error'>('running');
-  const [error, setError] = useState('');
-  const [configExists, setConfigExists] = useState(false);
-  const [logsCopied, setLogsCopied] = useState(false);
-  const logEl = useRef<HTMLDivElement>(null);
+  const [lines, setLines] = useState<string[]>([])
+  const [status, setStatus] = useState<"running" | "success" | "error">("running")
+  const [error, setError] = useState("")
+  const [configExists, setConfigExists] = useState(false)
 
-  const runInstall = async () => {
-    setLines([]); setStatus('running'); setError(''); setLogsCopied(false);
-    const unlisten = await listen<string>('install-output', (event) => {
-      setLines((prev) => [...prev, event.payload]);
-      logEl.current?.scrollTo({ top: logEl.current.scrollHeight, behavior: 'smooth' });
-    });
+  const runInstall = useCallback(async () => {
+    setLines([])
+    setStatus("running")
+    setError("")
+    const unlisten = await listen<string>("install-output", (event) => {
+      setLines((prev) => [...prev, event.payload])
+    })
     try {
-      await invoke('run_install_script');
-      const exists = await invoke<boolean>('check_openacp_config').catch(() => false);
-      setConfigExists(exists); setStatus('success');
-    } catch (err) { setStatus('error'); setError(String(err)); } finally { unlisten(); }
-  };
+      await invoke("run_install_script")
+      const exists = await invoke<boolean>("check_openacp_config").catch(() => false)
+      setConfigExists(exists)
+      setStatus("success")
+    } catch (err) {
+      setStatus("error")
+      setError(String(err))
+    } finally {
+      unlisten()
+    }
+  }, [])
 
-  useEffect(() => { runInstall(); }, []);
+  useEffect(() => {
+    runInstall()
+  }, [runInstall])
 
-  const copyCommand = async () => { const os = await platform(); await writeText(os === 'windows' ? INSTALL_CMD_WINDOWS : INSTALL_CMD_MACOS); };
+  const copyCommand = async () => {
+    const os = await platform()
+    await writeText(os === "windows" ? INSTALL_CMD_WINDOWS : INSTALL_CMD_MACOS)
+  }
 
-  const copyLogs = async () => {
-    const text = lines.map(stripAnsi).join('\n');
-    await writeText(text);
-    setLogsCopied(true);
-    setTimeout(() => setLogsCopied(false), 2000);
-  };
-
-  const progressPercent = () => { const l = lines.length; if (status === 'success') return 100; if (status === 'error') return l; return Math.min(95, l * 3); };
-
-  const logHeight = status === 'error' ? 'h-[340px]' : 'h-[200px]';
+  const steps = deriveSteps(lines, status)
+  const progressPercent =
+    status === "success" ? 100 : status === "error" ? Math.min(95, lines.length * 3) : Math.min(95, lines.length * 3)
 
   return (
-    <div className="flex h-screen w-screen flex-col items-center justify-start bg-background-base p-8 pt-16">
-      <div className="flex w-full max-w-[520px] flex-col items-center gap-6">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-text-strong">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--background-stronger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
-        </div>
-        <div className="flex flex-col items-center gap-2"><h1 className="text-xl font-medium text-text-strong">Installing OpenACP</h1><p className="text-base font-normal text-text-weak">Setting up the OpenACP CLI on your system...</p></div>
+    <div className="flex h-screen w-screen flex-col items-center justify-center bg-background-base p-8">
+      <div className="flex w-full max-w-[480px] flex-col items-center gap-5">
+        {/* Header */}
+        <motion.div
+          className="flex flex-col items-center gap-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        >
+          <img src={appIcon} alt="" className="h-12 w-12 rounded-xl" />
+          <div className="flex flex-col items-center gap-1">
+            <h1 className="text-lg font-medium text-foreground">Installing OpenACP</h1>
+            <p className="text-sm text-muted-foreground">Setting up the CLI on your system</p>
+          </div>
+        </motion.div>
+
+        {/* Progress line */}
         <div className="w-full">
-          <div ref={logEl} className={`${logHeight} w-full overflow-y-auto rounded-lg bg-[#1a1a1a] p-4 text-12-mono text-[#a3a3a3]`}>
-            {lines.map((line, i) => <div key={i} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />)}
-            {status === 'running' && <span className="animate-pulse text-[#737373]">|</span>}
+          <div className="h-px w-full overflow-hidden rounded-full bg-zinc-800">
+            <motion.div
+              className={`h-full ${
+                status === "error"
+                  ? "bg-destructive"
+                  : status === "success"
+                    ? "bg-emerald-400"
+                    : "bg-foreground"
+              }`}
+              initial={{ width: "0%" }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            />
           </div>
-          {lines.length > 0 && (
-            <div className="mt-1 flex justify-end">
-              <button onClick={copyLogs} className="text-xs text-[#737373] hover:text-[#a3a3a3] transition-colors">
-                {logsCopied ? 'Copied!' : 'Copy logs'}
-              </button>
-            </div>
-          )}
         </div>
-        <div className="flex w-full flex-col gap-2">
-          <div className="flex w-full items-center justify-between"><span className="text-sm font-normal text-text-weak">{status === 'success' ? 'Completed' : status === 'error' ? 'Failed' : 'Installing...'}</span><span className="text-sm font-medium text-text-strong">{progressPercent()}%</span></div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised-base"><div className={`h-full rounded-full transition-all duration-300 ${status === 'running' ? 'bg-text-strong' : status === 'success' ? 'bg-surface-success-strong' : 'bg-surface-critical-strong'}`} style={{ width: `${progressPercent()}%` }} /></div>
-        </div>
-        {status === 'success' && (
-          <div className="flex w-full items-center justify-between rounded-lg border border-border-base bg-surface-raised-base px-4 py-3">
-            <span className="text-base font-normal text-surface-success-strong">OpenACP installed successfully</span>
-            <button onClick={() => props.onSuccess(configExists)} className="text-base font-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Get Started</button>
-          </div>
+
+        {/* Step checklist */}
+        <motion.div
+          className="w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <StepChecklist steps={steps} />
+        </motion.div>
+
+        {/* Collapsible log output */}
+        <CollapsibleLog lines={lines} isRunning={status === "running"} />
+
+        {/* Success state */}
+        {status === "success" && (
+          <motion.div
+            className="flex w-full items-center justify-between"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          >
+            <span className="text-sm text-emerald-400">Installation complete</span>
+            <button
+              onClick={() => props.onSuccess(configExists)}
+              className="rounded-lg bg-foreground px-5 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+            >
+              Continue
+            </button>
+          </motion.div>
         )}
-        {status === 'error' && (
-          <div className="w-full rounded-lg border border-surface-critical-strong bg-surface-raised-base p-4">
-            <p className="text-base font-medium mb-1 text-surface-critical-strong">Installation Failed</p><p className="text-base font-normal mb-4 text-surface-critical-strong">{error}</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={copyLogs} className="text-base font-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">
-                {logsCopied ? 'Copied!' : 'Copy logs'}
+
+        {/* Error state */}
+        {status === "error" && (
+          <motion.div
+            className="flex w-full flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          >
+            <p className="text-sm text-destructive">{error}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={copyCommand}
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
+              >
+                <Terminal size={14} />
+                Copy command
               </button>
-              <button onClick={copyCommand} className="text-base font-medium rounded-md border border-border-base bg-background-stronger px-4 py-2 text-text-strong transition-colors hover:bg-surface-raised-base-hover">Copy command</button>
-              <button onClick={runInstall} className="text-base font-medium rounded-md bg-text-strong px-4 py-2 text-background-stronger transition-opacity hover:opacity-90">Retry</button>
+              <button
+                onClick={runInstall}
+                className="flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
+              >
+                <ArrowClockwise size={14} />
+                Retry
+              </button>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
-  );
+  )
 }

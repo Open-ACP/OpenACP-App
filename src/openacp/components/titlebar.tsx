@@ -1,4 +1,4 @@
-import { Sidebar, TextAlignLeft, FolderOpen, Globe } from "@phosphor-icons/react"
+import { Sidebar, TextAlignLeft, FolderOpen, Globe, Terminal } from "@phosphor-icons/react"
 
 interface TitlebarProps {
   sidebarCollapsed: boolean
@@ -9,12 +9,15 @@ interface TitlebarProps {
   onToggleFileTree: () => void
   browserOpen: boolean
   onToggleBrowser: () => void
+  terminalOpen: boolean
+  onToggleTerminal: () => void
   hideFileTree?: boolean
   hideBrowser?: boolean
+  hideTerminal?: boolean
   disabled?: boolean
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, hideFileTree, hideBrowser, disabled }: TitlebarProps) {
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, terminalOpen, onToggleTerminal, hideFileTree, hideBrowser, hideTerminal, disabled }: TitlebarProps) {
   const btnDisabled = disabled ? "opacity-30 pointer-events-none" : ""
 
   return (
@@ -67,6 +70,16 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
             onClick={disabled ? undefined : onToggleBrowser}
           >
             <Globe size={18} />
+          </button>
+        )}
+        {!hideTerminal && (
+          <button
+            type="button"
+            className={`oac-titlebar-btn ${terminalOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
+            title="Terminal"
+            onClick={disabled ? undefined : onToggleTerminal}
+          >
+            <Terminal size={18} />
           </button>
         )}
       </div>
