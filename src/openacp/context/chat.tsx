@@ -268,6 +268,11 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   // ── History loading ─────────────────────────────────────────────────────
 
   async function loadHistory(sessionID: string) {
+    // Snapshot the streaming placeholder ID now. If a new message:processing event fires
+    // during the async history fetch it will update assistantMsgId — comparing before vs
+    // after the await lets us detect whether a new turn started while we were waiting.
+    const streamingPlaceholderAtStart = assistantMsgId.current.get(sessionID)
+
     const localMsgs = messagesRef.current[sessionID] ?? []
     const hasInMemory = localMsgs.length > 0
 
@@ -291,13 +296,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
         if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
           const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
-          // Use lastServerTime without a large buffer so rapid consecutive turns are preserved.
-          // The streaming assistant message (if any) is always included explicitly.
-          const streamingMsgId = assistantMsgId.current.get(sessionID)
-          const inFlight = local.filter((m) =>
-            m.createdAt > lastServerTime ||
-            (streamingMsgId != null && m.id === streamingMsgId)
-          )
+          // Server has fully captured all assistant work — the local streaming placeholder (if any)
+          // is superseded by the completed turn in history. Clear it to prevent duplicate rendering.
+          // Guard: only reset if assistantMsgId hasn't changed since we started the fetch.
+          // A changed ID means a new message:processing arrived during the await — an active
+          // turn we must not interrupt.
+          if (assistantMsgId.current.get(sessionID) === streamingPlaceholderAtStart) {
+            assistantMsgId.current.delete(sessionID)
+            setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
+          }
+          const inFlight = local.filter((m) => m.createdAt > lastServerTime)
           setMessages(sessionID, [...serverMessages, ...inFlight])
           void cacheMessages(sessionID, serverMessages)
         } else if (local.length === 0) {
@@ -393,6 +401,31 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       }
     }
 
+    // Reset the thought charStream for sessions that will create a new thinking block.
+    // Same pattern as the text stream reset at tool_call boundaries: without this, a new
+    // ThinkingBlockView subscribes to the same stream key and immediately receives all
+    // previously-drained chars from the old block, producing duplicate/carry-over content.
+    for (const [sessionID, text] of pendingThought) {
+      const local = messagesRef.current[sessionID] ?? []
+      const msgId = assistantMsgId.current.get(sessionID)
+      const msg = local.find((m) => m.id === msgId)
+      // msg is expected to exist: ensureAssistantMessage() was called just above.
+      // If it's still missing (rare ref sync lag), skip — setStore will create the block fresh.
+      if (msg) {
+        const lastThinkingIdx = msg.blocks.findLastIndex((b) => b.type === "thinking")
+        const hasInterveningBlock = lastThinkingIdx >= 0 &&
+          msg.blocks.slice(lastThinkingIdx + 1).some((b) => b.type === "tool" || b.type === "text")
+        // INVARIANT: this condition must match the else-branch inside setStore below (~line 452).
+        // Both decide whether the current flush batch requires a new thinking block.
+        const willCreateNewBlock = lastThinkingIdx < 0 || hasInterveningBlock
+        if (willCreateNewBlock) {
+          charStream.flush(`${sessionID}:thought`)
+          charStream.clearStream(`${sessionID}:thought`)
+          charStream.pushChars(`${sessionID}:thought`, text)
+        }
+      }
+    }
+
     // Single setStore call for ALL text and thought buffer updates.
     // Thought MUST be processed before text so that when both arrive in the same
     // flush batch, the ThinkingBlock is already appended before text logic runs.
@@ -416,7 +449,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           msg.parts.push({ id: nextPartId(), type: "thinking", content: text })
         }
 
-        // Update blocks — append to existing thinking if no tool/text block intervened
+        // Update blocks — append to existing thinking if no tool/text block intervened.
+        // INVARIANT: the else-branch (new block creation) must match willCreateNewBlock in
+        // the pre-setStore loop above. Keep both in sync when modifying this condition.
         const lastThinkingIdx = msg.blocks.findLastIndex((b) => b.type === "thinking")
         const hasInterveningBlock = lastThinkingIdx >= 0 &&
           msg.blocks.slice(lastThinkingIdx + 1).some((b) => b.type === "tool" || b.type === "text")
