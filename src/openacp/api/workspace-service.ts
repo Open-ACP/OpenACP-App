@@ -18,6 +18,7 @@ export interface WorkspaceStatus {
   server_alive: boolean
   port: number | null
   instance_name: string | null
+  instance_id: string | null
 }
 
 export interface CreateWorkspaceResult {
@@ -139,16 +140,22 @@ export async function registerWorkspace(directory: string): Promise<WorkspaceEnt
       type: 'local',
     }
   } catch (cliErr) {
-    // Fallback: maybe it's already registered but CLI reported differently
+    // Fallback: read instance_id directly from config.json via get_workspace_status.
+    // Works even when CLI is unavailable or reports the instance as already existing.
+    // Path matching is intentionally avoided — config.json is the source of truth for id.
     try {
-      const instances = await listWorkspaces()
-      const match = instances.find(i => i.directory === directory)
-      if (match) {
-        return { id: match.id, name: match.name ?? match.id, directory: match.directory, type: 'local' }
+      const status = await invoke<WorkspaceStatus>('get_workspace_status', { directory })
+      if (status.instance_id) {
+        const dirBasename = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p
+        return {
+          id: status.instance_id,
+          name: status.instance_name ?? dirBasename(directory),
+          directory,
+          type: 'local',
+        }
       }
     } catch { /* fallback also failed */ }
 
-    // Re-throw original CLI error with context
     if (cliErr instanceof WorkspaceServiceError) throw cliErr
     throw new WorkspaceServiceError(
       `Failed to register workspace at ${directory}: ${cliErr}`,
