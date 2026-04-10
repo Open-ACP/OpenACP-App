@@ -592,13 +592,16 @@
 /* ── Diff view ───────────────────────────────────────────────────────────── */
 
 .oac-diff-view {
-  width: fit-content;
+  /* Constrained to parent width so overflow-x: auto creates a scroll container.
+     Lines inside use min-width: max-content to push past this boundary. */
   min-width: 100%;
   line-height: 20px;
 }
 
 .oac-diff-line {
   display: flex;
+  /* Force each line to its natural content width so long lines create scroll. */
+  min-width: max-content;
   min-height: 20px;
   white-space: pre;
 }
@@ -622,7 +625,6 @@
 
 .oac-diff-content {
   flex: 1;
-  min-width: 0;
   padding-right: 12px;
 }
 
