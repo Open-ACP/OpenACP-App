@@ -849,10 +849,6 @@
   font-size: 11px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  max-height: 60px;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, black 50px, transparent 60px);
-  mask-image: linear-gradient(to bottom, black 50px, transparent 60px);
 }
 
 .oac-tool-card-row-content--expanded {

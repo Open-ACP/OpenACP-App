@@ -6,6 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialo
 import { kindIcon, kindLabel, formatToolInput } from "../block-utils"
 import type { ToolBlock } from "../../../types"
 
+const MAX_VISIBLE_LINES = 3
+
+function truncateLines(text: string, max: number): { visible: string; hiddenCount: number } {
+  const lines = text.split("\n")
+  if (lines.length <= max) return { visible: text, hiddenCount: 0 }
+  return { visible: lines.slice(0, max).join("\n"), hiddenCount: lines.length - max }
+}
+
 const REJECTION_PATTERNS = [
   "user doesn't want to proceed",
   "tool use was rejected",
@@ -31,6 +39,14 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
   const icon = useMemo(() => kindIcon(block.kind), [block.kind])
   const label = useMemo(() => kindLabel(block.kind), [block.kind])
   const inputText = useMemo(() => formatToolInput(block.input), [block.input])
+  const truncatedInput = useMemo(
+    () => (inputText ? truncateLines(inputText, MAX_VISIBLE_LINES) : null),
+    [inputText]
+  )
+  const truncatedOutput = useMemo(
+    () => (block.output && !isRejected ? truncateLines(block.output, MAX_VISIBLE_LINES) : null),
+    [block.output, isRejected]
+  )
   const reason = feedbackReason && isRejected ? feedbackReason : undefined
   const hasBody = !!inputText || (!!block.output && !isRejected) || !!reason
 
@@ -116,16 +132,38 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
                 <ArrowsOut size={12} className="text-muted-foreground" />
               </button>
               <div className="oac-tool-card-grid">
-                {inputText && (
+                {truncatedInput && (
                   <div className="oac-tool-card-row">
                     <div className="oac-tool-card-row-label">IN</div>
-                    <div className="oac-tool-card-row-content">{inputText}</div>
+                    <div className="oac-tool-card-row-content">
+                      {truncatedInput.visible}
+                      {truncatedInput.hiddenCount > 0 && (
+                        <button
+                          type="button"
+                          className="block mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
+                        >
+                          + {truncatedInput.hiddenCount} more lines <ArrowsOut size={10} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
-                {block.output && !isRejected && (
+                {truncatedOutput && (
                   <div className="oac-tool-card-row">
                     <div className="oac-tool-card-row-label">OUT</div>
-                    <div className="oac-tool-card-row-content">{block.output}</div>
+                    <div className="oac-tool-card-row-content">
+                      {truncatedOutput.visible}
+                      {truncatedOutput.hiddenCount > 0 && (
+                        <button
+                          type="button"
+                          className="block mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={(e) => { e.stopPropagation(); setModalOpen(true) }}
+                        >
+                          + {truncatedOutput.hiddenCount} more lines <ArrowsOut size={10} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
