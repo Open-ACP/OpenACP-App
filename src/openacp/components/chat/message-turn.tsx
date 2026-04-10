@@ -167,9 +167,13 @@ interface AssistantBlockRowProps {
   isLastBlock: boolean
   /** True only for the last block of the last streaming message */
   streaming: boolean
+  /** True when the parent message is actively streaming (any block). Suppresses the footer
+   *  and interrupted banner while the message is still being built to prevent height jumps
+   *  as blocks are added and isLastBlock shifts between items. */
+  messageStreaming?: boolean
 }
 
-export function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlock, streaming }: AssistantBlockRowProps) {
+export function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlock, streaming, messageStreaming }: AssistantBlockRowProps) {
   // Only needed for MessageFooter on the last block; computed once per row but cheap.
   const textContent = useMemo(() =>
     message.blocks?.filter((b): b is TextBlock => b.type === "text").map(b => b.content).join("\n").trim() ?? "",
@@ -206,10 +210,10 @@ export function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlo
       <div className="oac-timeline">
         {stepContent}
       </div>
-      {isLastBlock && !streaming && (message.usage || textContent) && (
+      {isLastBlock && !messageStreaming && (message.usage || textContent) && (
         <MessageFooter usage={message.usage} textContent={textContent || undefined} />
       )}
-      {isLastBlock && !streaming && message.interrupted && (
+      {isLastBlock && !messageStreaming && message.interrupted && (
         <div className="oac-interrupted" style={{ paddingLeft: 30 }}>
           <span className="oac-interrupted-label">Interrupted</span>
         </div>

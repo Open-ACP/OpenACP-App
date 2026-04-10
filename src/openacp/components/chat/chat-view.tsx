@@ -360,6 +360,7 @@ export function ChatView() {
                       isFirstBlock={item.isFirstBlock}
                       isLastBlock={item.isLastBlock}
                       streaming={streaming && item.isLastMsg && item.isLastBlock}
+                      messageStreaming={streaming && item.isLastMsg}
                     />
                   )}
                 </div>
