@@ -351,27 +351,35 @@ export function ChatView() {
               className="h-full no-scrollbar"
               data={flatItems}
               computeItemKey={(_, item) => item.key}
-              itemContent={(_, item) => (
-                <div
-                  className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220"
-                  style={{ paddingTop: item.topSpacing }}
-                >
-                  {item.type === "user" ? (
-                    <UserMessage message={item.message} />
-                  ) : item.type === "assistant-empty" ? (
-                    <AssistantEmptyRow streaming={streaming && item.isLastMsg} />
-                  ) : (
-                    <AssistantBlockRow
-                      message={item.message}
-                      renderItem={item.renderItem}
-                      isFirstBlock={item.isFirstBlock}
-                      isLastBlock={item.isLastBlock}
-                      streaming={streaming && item.isLastMsg && item.isLastBlock}
-                      messageStreaming={streaming && item.isLastMsg}
-                    />
-                  )}
-                </div>
-              )}
+              itemContent={(_, item) => {
+                // Tool blocks with diffs break out of the conversation max-width to use
+                // the full panel width, giving more horizontal room for code content.
+                const isFullWidth = item.type === "assistant-block" &&
+                  item.renderItem.kind === "block" &&
+                  item.renderItem.block.type === "tool" &&
+                  item.renderItem.block.diff != null
+                return (
+                  <div
+                    className={isFullWidth ? "px-6" : "px-6 md:max-w-180 md:mx-auto 2xl:max-w-220"}
+                    style={{ paddingTop: item.topSpacing }}
+                  >
+                    {item.type === "user" ? (
+                      <UserMessage message={item.message} />
+                    ) : item.type === "assistant-empty" ? (
+                      <AssistantEmptyRow streaming={streaming && item.isLastMsg} />
+                    ) : (
+                      <AssistantBlockRow
+                        message={item.message}
+                        renderItem={item.renderItem}
+                        isFirstBlock={item.isFirstBlock}
+                        isLastBlock={item.isLastBlock}
+                        streaming={streaming && item.isLastMsg && item.isLastBlock}
+                        messageStreaming={streaming && item.isLastMsg}
+                      />
+                    )}
+                  </div>
+                )
+              }}
               atBottomStateChange={(isAtBottom) => {
                 setAtBottom(isAtBottom)
                 atBottomRef.current = isAtBottom
