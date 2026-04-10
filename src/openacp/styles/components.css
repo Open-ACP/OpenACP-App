@@ -731,13 +731,17 @@
 }
 
 .oac-step--first::after { top: 12px; }
+/* Remove bottom padding explicitly via class — replaces :last-child so the flat
+   (block-level Virtuoso) structure works correctly when each step is the sole
+   child of its own .oac-timeline wrapper. */
+.oac-step--last { padding-bottom: 0; }
 .oac-step--last::after { bottom: auto; height: 15px; }
+.oac-step--no-line { padding-bottom: 0; }
 .oac-step--no-line::after { display: none; }
 
 .oac-step--success::before { background: #a6e3a1; }
 .oac-step--failure::before { background: #f38ba8; }
-.oac-step--progress::before { animation: oac-blink 1s linear infinite; }
-.oac-step:last-child { padding-bottom: 0; }
+.oac-step--progress::before { animation: oac-blink 1s linear infinite; animation-fill-mode: both; }
 
 .oac-step [data-component="markdown"] > p:first-child { margin-top: 0; }
 .oac-step [data-component="markdown"] > p:last-child { margin-bottom: 0; }
@@ -849,10 +853,6 @@
   font-size: 11px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  max-height: 60px;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, black 50px, transparent 60px);
-  mask-image: linear-gradient(to bottom, black 50px, transparent 60px);
 }
 
 .oac-tool-card-row-content--expanded {

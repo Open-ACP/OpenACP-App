@@ -17,7 +17,7 @@ interface MessageTurnProps {
   streaming?: boolean
 }
 
-type RenderItem =
+export type RenderItem =
   | { kind: "block"; block: MessageBlock; index: number }
   | { kind: "noise-group"; tools: ToolBlock[] }
 
@@ -64,7 +64,7 @@ function mergeThinkingBlocks(blocks: MessageBlock[]): MessageBlock[] {
   return result
 }
 
-function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
+export function groupBlocks(blocks: MessageBlock[]): RenderItem[] {
   const merged = mergeThinkingBlocks(blocks)
   const items: RenderItem[] = []
   let noiseBuffer: ToolBlock[] = []
@@ -146,9 +146,99 @@ function MessageFooter({ usage, textContent }: { usage?: import("../../types").U
   )
 }
 
-export const MessageTurn = React.memo(function MessageTurn({ message, streaming }: MessageTurnProps) {
+// Isolated wrapper so only this component re-renders on permissions context changes,
+// not the entire MessageTurn tree.
+function ToolBlockWithFeedback({ block, sessionID }: { block: ToolBlock; sessionID: string }) {
   const permissions = usePermissions()
-  const feedbackReason = permissions.lastFeedback(message.sessionID)
+  const feedbackReason = permissions.lastFeedback(sessionID)
+  return <ToolBlockView block={block} feedbackReason={feedbackReason} />
+}
+
+// ── Flat block rendering ─────────────────────────────────────────────────────
+//
+// These are used by chat-view.tsx for block-level Virtuoso virtualization.
+// Each assistant message's blocks are flattened into individual Virtuoso items,
+// so Virtuoso only mounts the blocks that are currently in view.
+
+interface AssistantBlockRowProps {
+  message: Message
+  renderItem: RenderItem
+  isFirstBlock: boolean
+  isLastBlock: boolean
+  /** True only for the last block of the last streaming message */
+  streaming: boolean
+}
+
+export function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlock, streaming }: AssistantBlockRowProps) {
+  // Only needed for MessageFooter on the last block; computed once per row but cheap.
+  const textContent = useMemo(() =>
+    message.blocks?.filter((b): b is TextBlock => b.type === "text").map(b => b.content).join("\n").trim() ?? "",
+    [message.blocks]
+  )
+
+  let stepContent: React.ReactNode
+  if (renderItem.kind === "noise-group") {
+    // ToolGroup manages its own TimelineStep internally
+    stepContent = (
+      <ToolGroup tools={renderItem.tools} isFirst={isFirstBlock} isLast={isLastBlock} />
+    )
+  } else {
+    const block = renderItem.block
+    stepContent = (
+      <TimelineStep status={blockStatus(block)} isFirst={isFirstBlock} isLast={isLastBlock}>
+        {block.type === "text" ? (
+          <TextBlockView block={block as TextBlock} streaming={streaming} sessionID={message.sessionID} />
+        ) : block.type === "thinking" ? (
+          <ThinkingBlockView block={block as ThinkingBlock} sessionID={message.sessionID} />
+        ) : block.type === "tool" ? (
+          <ToolBlockWithFeedback block={block as ToolBlock} sessionID={message.sessionID} />
+        ) : block.type === "plan" ? (
+          <PlanBlockView block={block as PlanBlock} />
+        ) : block.type === "error" ? (
+          <ErrorBlockView block={block as ErrorBlock} />
+        ) : null}
+      </TimelineStep>
+    )
+  }
+
+  return (
+    <div data-component="oac-assistant-message" className="px-1">
+      <div className="oac-timeline">
+        {stepContent}
+      </div>
+      {isLastBlock && !streaming && (message.usage || textContent) && (
+        <MessageFooter usage={message.usage} textContent={textContent || undefined} />
+      )}
+      {isLastBlock && !streaming && message.interrupted && (
+        <div className="oac-interrupted" style={{ paddingLeft: 30 }}>
+          <span className="oac-interrupted-label">Interrupted</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Renders the empty/loading state for an assistant message with no blocks yet */
+export function AssistantEmptyRow({ streaming }: { streaming: boolean }) {
+  if (streaming) {
+    return (
+      <div data-component="oac-assistant-message" className="px-1">
+        <div className="oac-timeline">
+          {/* Single step with no connecting line */}
+          <div className="oac-step oac-step--progress oac-step--no-line">
+            <TextShimmer text="Thinking" active className="text-base font-normal text-muted-foreground" style={{ fontStyle: "italic" }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+  return <div data-component="oac-assistant-message" className="px-1" />
+}
+
+// ── Legacy full-message renderer ─────────────────────────────────────────────
+// Kept for reference; the main chat view uses AssistantBlockRow instead.
+
+export const MessageTurn = React.memo(function MessageTurn({ message, streaming }: MessageTurnProps) {
   const blocks = useMemo(() => message.blocks ?? [], [message.blocks])
   const isEmpty = blocks.length === 0
   const renderItems = useMemo(() => groupBlocks(blocks), [blocks])
@@ -190,7 +280,7 @@ export const MessageTurn = React.memo(function MessageTurn({ message, streaming 
               ) : block.type === "thinking" ? (
                 <ThinkingBlockView block={block as ThinkingBlock} sessionID={message.sessionID} />
               ) : block.type === "tool" ? (
-                <ToolBlockView block={block as ToolBlock} feedbackReason={feedbackReason} />
+                <ToolBlockWithFeedback block={block as ToolBlock} sessionID={message.sessionID} />
               ) : block.type === "plan" ? (
                 <PlanBlockView block={block as PlanBlock} />
               ) : block.type === "error" ? (

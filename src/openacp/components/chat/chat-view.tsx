@@ -1,14 +1,11 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { DotsThree, GitBranch } from "@phosphor-icons/react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { DotsThree } from "@phosphor-icons/react";
 import { BrandIcon } from "../brand-loader";
 import { useChat } from "../../context/chat";
 import { useSessions } from "../../context/sessions";
-import { useWorkspace } from "../../context/workspace";
-import { usePermissions } from "../../context/permissions";
-import { useAutoScroll } from "../../hooks/use-auto-scroll";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { UserMessage } from "./user-message";
-import { MessageTurn } from "./message-turn";
+import { AssistantBlockRow, AssistantEmptyRow, groupBlocks, type RenderItem } from "./message-turn";
 import { PermissionRequestCard } from "./permission-request";
 import { showToast } from "../../lib/toast";
 import type { Message } from "../../types";
@@ -76,29 +73,131 @@ function ScrollToBottomButton({
   );
 }
 
+// Each assistant message is flattened into one FlatItem per RenderItem (block/noise-group).
+// This allows Virtuoso to virtualize at the block level — a message with 200+ blocks only
+// mounts the blocks currently in view instead of all at once.
+type FlatItem =
+  | { key: string; type: "user"; message: Message; topSpacing: number }
+  | { key: string; type: "assistant-block"; message: Message; renderItem: RenderItem; isFirstBlock: boolean; isLastBlock: boolean; isLastMsg: boolean; topSpacing: number }
+  | { key: string; type: "assistant-empty"; message: Message; isLastMsg: boolean; topSpacing: number }
+
+
+// Footer rendered by Virtuoso below the last message item.
+// Reads from context directly because Virtuoso's Footer receives no props.
+function ChatFooter() {
+  const chat = useChat()
+  const streaming = chat.streaming()
+  const messages = chat.messages()
+  const activeSessionId = chat.activeSession()
+
+  const showCursor = (() => {
+    if (!streaming) return false
+    const lastMsg = messages[messages.length - 1]
+    if (lastMsg?.role === "assistant" && lastMsg.blocks.length > 0) {
+      const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
+      if (lastBlock.type === "text" && lastBlock.content.length > 0) return false
+      if (lastBlock.type === "tool" && (lastBlock.status === "running" || lastBlock.status === "pending")) return false
+    }
+    return true
+  })()
+
+  return (
+    <div className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220">
+      {activeSessionId && <PermissionRequestCard sessionId={activeSessionId} />}
+      {showCursor && (
+        <div className="oac-stream-indicator" style={{ paddingLeft: 30 }}>
+          <span className="oac-stream-cursor" />
+        </div>
+      )}
+      {/* Spacer so the last message is not obscured by the Composer (replaces pb-80) */}
+      <div style={{ height: 320 }} />
+    </div>
+  )
+}
+
 export function ChatView() {
   const chat = useChat();
-  const permissions = usePermissions();
   const activeSessionId = chat.activeSession();
 
-  const autoScroll = useAutoScroll({
-    working: chat.streaming(),
-    bottomThreshold: 120,
-  });
+  const virtuosoRef = useRef<VirtuosoHandle>(null)
+  const [atBottom, setAtBottom] = useState(true)
 
-  // Force scroll to bottom when switching sessions — use double rAF + setTimeout fallback
-  // to ensure messages are rendered before scrolling
-  useEffect(() => {
-    autoScroll.forceScrollToBottom();
-    // Fallback: setTimeout ensures scroll fires after React commit + paint
-    const timer = setTimeout(() => autoScroll.forceScrollToBottom(), 80);
-    return () => clearTimeout(timer);
-  }, [chat.activeSession()]);
+  const messages = chat.messages()
+  const streaming = chat.streaming()
 
-  // Scroll to bottom when scrollTrigger fires (user sends message, cross-adapter message, history loaded)
+  // Cache groupBlocks results per Message object reference so we only recompute
+  // when a message actually changes (during streaming only the last message changes).
+  const groupBlocksCacheRef = useRef(new WeakMap<Message, RenderItem[]>())
+
+  const flatItems = useMemo<FlatItem[]>(() => {
+    const cache = groupBlocksCacheRef.current
+    const items: FlatItem[] = []
+
+    for (const msg of messages) {
+      if (msg.role === "user") {
+        items.push({ key: `u-${msg.id}`, type: "user", message: msg, topSpacing: items.length === 0 ? 12 : 28 })
+      } else {
+        const topSpacing = items.length === 0 ? 12 : 20
+
+        if (!cache.has(msg)) {
+          cache.set(msg, groupBlocks(msg.blocks ?? []))
+        }
+        const renderItems = cache.get(msg)!
+
+        if (renderItems.length === 0) {
+          items.push({ key: `ae-${msg.id}`, type: "assistant-empty", message: msg, isLastMsg: false, topSpacing })
+        } else {
+          for (let i = 0; i < renderItems.length; i++) {
+            items.push({
+              key: `ab-${msg.id}-${i}`,
+              type: "assistant-block",
+              message: msg,
+              renderItem: renderItems[i],
+              isFirstBlock: i === 0,
+              isLastBlock: i === renderItems.length - 1,
+              isLastMsg: false,
+              // Only the first block in a message gets the top spacing; the rest
+              // have topSpacing=0 so block-level items within a message are adjacent
+              // (needed for timeline connecting lines to render correctly).
+              topSpacing: i === 0 ? topSpacing : 0,
+            })
+          }
+        }
+      }
+    }
+
+    // Mark isLastMsg on every item belonging to the last assistant message
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i]
+      if (item.type === "assistant-block" || item.type === "assistant-empty") {
+        // Mark all items in this message
+        const lastMsgId = item.message.id
+        for (let j = i; j >= 0; j--) {
+          const it = items[j]
+          if ((it.type === "assistant-block" || it.type === "assistant-empty") && it.message.id === lastMsgId) {
+            items[j] = { ...it, isLastMsg: true }
+          } else {
+            break
+          }
+        }
+        break
+      }
+    }
+
+    return items
+  }, [messages])
+
+  // Scroll to bottom on session switch
   useEffect(() => {
-    if (chat.scrollTrigger() > 0) autoScroll.forceScrollToBottom();
-  }, [chat.scrollTrigger()]);
+    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" })
+  }, [activeSessionId])
+
+  // Scroll to bottom when triggered (user sent message, cross-adapter turn, history loaded)
+  useEffect(() => {
+    if (chat.scrollTrigger() > 0) {
+      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" })
+    }
+  }, [chat.scrollTrigger()])
 
   const sessions = useSessions();
   const sessionTitle = useMemo(() => {
@@ -106,7 +205,7 @@ export function ChatView() {
     return sessions.list().find((s) => s.id === activeSessionId)?.name || ""
   }, [activeSessionId, sessions.list()])
 
-  const hasMessages = chat.activeSession() && chat.messages().length > 0;
+  const hasMessages = activeSessionId && messages.length > 0
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -197,102 +296,41 @@ export function ChatView() {
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {hasMessages ? (
           <>
-            <div
-              ref={autoScroll.scrollRef}
-              className="h-full overflow-y-auto no-scrollbar pt-3"
-              onScroll={autoScroll.handleScroll}
-            >
-              <div
-                ref={autoScroll.contentRef}
-                className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 pb-80 flex flex-col"
-                onClick={autoScroll.handleInteraction}
-              >
-                {(() => {
-                  const messages = chat.messages();
-                  const groups: { user: Message; assistants: Message[] }[] = [];
-                  let current: { user: Message; assistants: Message[] } | null =
-                    null;
-
-                  for (const msg of messages) {
-                    if (msg.role === "user") {
-                      current = { user: msg, assistants: [] };
-                      groups.push(current);
-                    } else if (current) {
-                      current.assistants.push(msg);
-                    } else {
-                      // assistant without preceding user (edge case)
-                      groups.push({ user: null as any, assistants: [msg] });
-                    }
-                  }
-
-                  return groups.map((group, gi) => {
-                    const isLastGroup = gi === groups.length - 1;
-                    if (!group.user) {
-                      // Orphan assistant messages
-                      return group.assistants.map((msg, ai) => (
-                        <div
-                          key={msg.id}
-                          style={{
-                            marginTop: gi === 0 && ai === 0 ? "0px" : "20px",
-                          }}
-                        >
-                          <MessageTurn
-                            message={msg}
-                            streaming={
-                              chat.streaming() &&
-                              isLastGroup &&
-                              ai === group.assistants.length - 1
-                            }
-                          />
-                        </div>
-                      ));
-                    }
-                    return (
-                      <div
-                        key={group.user.id}
-                        style={{ marginTop: gi === 0 ? "0px" : "28px" }}
-                      >
-                        <UserMessage message={group.user} />
-                        {group.assistants.map((msg, ai) => (
-                          <div key={msg.id} style={{ marginTop: "20px" }}>
-                            <MessageTurn
-                              message={msg}
-                              streaming={
-                                chat.streaming() &&
-                                isLastGroup &&
-                                ai === group.assistants.length - 1
-                              }
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  });
-                })()}
-                {activeSessionId && (
-                  <PermissionRequestCard sessionId={activeSessionId} />
-                )}
-                {(() => {
-                  if (!chat.streaming()) return null;
-                  const msgs = chat.messages();
-                  const lastMsg = msgs[msgs.length - 1];
-                  // Don't show cursor when content is actively visible (text streaming or tool running)
-                  if (lastMsg?.role === "assistant" && lastMsg.blocks.length > 0) {
-                    const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1];
-                    if (lastBlock.type === "text" && lastBlock.content.length > 0) return null;
-                    if (lastBlock.type === "tool" && (lastBlock.status === "running" || lastBlock.status === "pending")) return null;
-                  }
-                  return (
-                    <div className="oac-stream-indicator" style={{ paddingLeft: 30 }}>
-                      <span className="oac-stream-cursor" />
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
+            <Virtuoso
+              ref={virtuosoRef}
+              className="h-full no-scrollbar"
+              data={flatItems}
+              computeItemKey={(_, item) => item.key}
+              itemContent={(_, item) => (
+                <div
+                  className="px-6 md:max-w-180 md:mx-auto 2xl:max-w-220"
+                  style={{ paddingTop: item.topSpacing }}
+                >
+                  {item.type === "user" ? (
+                    <UserMessage message={item.message} />
+                  ) : item.type === "assistant-empty" ? (
+                    <AssistantEmptyRow streaming={streaming && item.isLastMsg} />
+                  ) : (
+                    <AssistantBlockRow
+                      message={item.message}
+                      renderItem={item.renderItem}
+                      isFirstBlock={item.isFirstBlock}
+                      isLastBlock={item.isLastBlock}
+                      streaming={streaming && item.isLastMsg && item.isLastBlock}
+                    />
+                  )}
+                </div>
+              )}
+              followOutput={streaming ? "smooth" : false}
+              atBottomStateChange={setAtBottom}
+              atBottomThreshold={100}
+              components={{ Footer: ChatFooter }}
+              increaseViewportBy={{ top: 1200, bottom: 600 }}
+              defaultItemHeight={80}
+            />
             <ScrollToBottomButton
-              visible={autoScroll.userScrolled()}
-              onClick={() => autoScroll.resume()}
+              visible={!atBottom}
+              onClick={() => virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "smooth" })}
             />
           </>
         ) : (

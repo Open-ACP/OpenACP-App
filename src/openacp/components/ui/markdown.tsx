@@ -102,7 +102,7 @@ function sanitize(html: string) {
 }
 
 const cache = new Map<string, { hash: string; html: string }>()
-const MAX_CACHE = 200
+const MAX_CACHE = 2000
 
 function hashString(s: string): string {
   let h = 0
@@ -110,19 +110,35 @@ function hashString(s: string): string {
   return h.toString(36)
 }
 
-// ── Paragraph gating ────────────────────────────────────────────────────────
+// ── Code fence gating ────────────────────────────────────────────────────────
 //
-// During streaming, the last paragraph is incomplete and may contain partial
-// markdown constructs (unclosed fences, half-formed lists). Rendering it can
-// produce layout jitter or malformed output. We drop the trailing incomplete
-// paragraph and only render fully-completed paragraphs. Once streaming ends
-// the full text is rendered with Shiki highlighting.
+// During streaming, an unclosed code fence causes the fast parser to render
+// the remaining text as a raw code block or garbled output, creating visible
+// layout jitter. We hide everything from the unclosed fence onwards and let
+// prose text stream through unobstructed. Once streaming ends the full text
+// is rendered with Shiki highlighting.
 
-function gatePartialParagraph(text: string): string {
-  const parts = text.split(/\n\n+/)
-  if (parts.length <= 1) return text
-  parts.pop()
-  return parts.join("\n\n")
+function gateUnclosedFence(text: string): string {
+  const lines = text.split("\n")
+  let inFence = false
+  let fenceStart = -1
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trimStart()
+    if (!inFence && trimmed.startsWith("```")) {
+      inFence = true
+      fenceStart = i
+    } else if (inFence && trimmed.startsWith("```") && trimmed.replace(/`+/, "").trim() === "") {
+      inFence = false
+      fenceStart = -1
+    }
+  }
+
+  // Only gate when there is an unclosed fence with content before it
+  if (inFence && fenceStart > 0) {
+    return lines.slice(0, fenceStart).join("\n")
+  }
+  return text
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -132,10 +148,13 @@ interface MarkdownProps {
   cacheKey?: string
   streamId?: string
   streaming?: boolean
+  /** Disable paragraph gating during streaming. Use for prose content (e.g. thinking) where
+   *  gating causes visible jumps as each paragraph appears as a block instead of character by character. */
+  noGate?: boolean
   className?: string
 }
 
-export function Markdown({ text, cacheKey, streamId, streaming, className }: MarkdownProps) {
+export function Markdown({ text, cacheKey, streamId, streaming, noGate, className }: MarkdownProps) {
   const elRef = useRef<HTMLDivElement>(null)
   const renderingRef = useRef(false)
   const prevStreamingRef = useRef(streaming)
@@ -169,20 +188,34 @@ export function Markdown({ text, cacheKey, streamId, streaming, className }: Mar
       if (elRef.current) {
         morphdom(elRef.current, `<div data-component="markdown">${safe}</div>`, { childrenOnly: true })
       }
+
+      // If text was updated while async Shiki render was in progress, render the
+      // newer version now. Without this, the newer text would be silently dropped
+      // because the non-streaming effect already fired but hit renderingRef = true.
+      if (!isStreaming && textRef.current !== mdText) {
+        renderMarkdown(textRef.current, false)
+      }
     }
 
-    if (result instanceof Promise) result.then(apply)
-    else apply(result)
+    if (result instanceof Promise) {
+      result.then(apply).catch(() => {
+        // On Shiki failure: unblock future renders so the component can recover.
+        renderingRef.current = false
+        lastTextRef.current = ""
+      })
+    } else {
+      apply(result)
+    }
   }, [cacheKey])
 
   // Streaming: subscribe to CharStream for character-by-character display
   useEffect(() => {
     if (!streaming || !streamId) return
     const unsub = charStream.subscribeDisplay(streamId, (displayText) => {
-      renderMarkdown(gatePartialParagraph(displayText), true)
+      renderMarkdown(noGate ? displayText : gateUnclosedFence(displayText), true)
     })
     return unsub
-  }, [streaming, streamId, renderMarkdown])
+  }, [streaming, streamId, noGate, renderMarkdown])
 
   // When streaming ends: final full Shiki render
   useEffect(() => {
@@ -208,6 +241,15 @@ export function Markdown({ text, cacheKey, streamId, streaming, className }: Mar
         morphdom(elRef.current, `<div data-component="markdown">${cached.html}</div>`, { childrenOnly: true })
       }
       return
+    }
+
+    // For messages with fenced code blocks: apply fast render (no Shiki) immediately
+    // so text is visible right away, then Shiki highlights it asynchronously.
+    if (text.includes("```") && !elRef.current.innerHTML) {
+      const fast = getFastParser().parse(text)
+      if (typeof fast === "string") {
+        morphdom(elRef.current, `<div data-component="markdown">${sanitize(fast)}</div>`, { childrenOnly: true })
+      }
     }
 
     renderMarkdown(text, false)
