@@ -6,7 +6,7 @@ import { useChat } from "../../context/chat";
 import { useSessions } from "../../context/sessions";
 import { useWorkspace } from "../../context/workspace";
 import { usePermissions } from "../../context/permissions";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { UserMessage } from "./user-message";
 import { MessageTurn } from "./message-turn";
 import { PermissionRequestCard } from "./permission-request";
@@ -76,7 +76,7 @@ function ScrollToBottomButton({
   );
 }
 
-type MessageGroup = { user: Message | null; assistants: Message[] }
+type MessageGroup = { user: Message | null; assistants: Message[] };
 
 interface ChatGroupProps {
   group: MessageGroup
