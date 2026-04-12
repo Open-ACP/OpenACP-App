@@ -92,6 +92,90 @@ pub fn read_file_content(path: String) -> Result<FileContent, String> {
     Ok(FileContent { content, language })
 }
 
+/// Read a file as base64 data URL for drag-drop attachments.
+/// Supports images, PDFs, text, and code files up to 10 MB.
+#[tauri::command]
+pub fn read_file_base64(path: String) -> Result<DroppedFile, String> {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+
+    let p = Path::new(&path);
+    if !p.is_file() {
+        return Err(format!("Not a file: {path}"));
+    }
+
+    let metadata = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    if metadata.len() > 10 * 1024 * 1024 {
+        return Err("File too large (>10 MB)".into());
+    }
+
+    let file_name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let mime = mime_from_ext(&ext);
+
+    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+    let b64 = STANDARD.encode(&bytes);
+    let data_url = format!("data:{};base64,{}", mime, b64);
+
+    Ok(DroppedFile {
+        file_name,
+        mime_type: mime.to_string(),
+        data_url,
+        size: metadata.len(),
+    })
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct DroppedFile {
+    #[serde(rename = "fileName")]
+    pub file_name: String,
+    #[serde(rename = "mimeType")]
+    pub mime_type: String,
+    #[serde(rename = "dataUrl")]
+    pub data_url: String,
+    pub size: u64,
+}
+
+fn mime_from_ext(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        "json" => "application/json",
+        "csv" => "text/csv",
+        "xml" => "application/xml",
+        "yaml" | "yml" => "text/yaml",
+        "toml" => "text/plain",
+        "md" => "text/markdown",
+        "txt" | "log" => "text/plain",
+        "html" | "htm" => "text/html",
+        "css" => "text/css",
+        "js" | "mjs" | "cjs" => "text/javascript",
+        "ts" | "tsx" | "jsx" => "text/typescript",
+        "rs" => "text/x-rust",
+        "py" => "text/x-python",
+        "go" => "text/x-go",
+        "java" => "text/x-java",
+        "c" | "h" => "text/x-c",
+        "cpp" | "hpp" | "cc" => "text/x-c++",
+        "swift" => "text/x-swift",
+        "rb" => "text/x-ruby",
+        "php" => "text/x-php",
+        "sh" | "bash" | "zsh" => "text/x-shellscript",
+        "sql" => "text/x-sql",
+        _ => "application/octet-stream",
+    }
+}
+
 /// Get git changes for a workspace directory.
 #[tauri::command]
 pub fn get_workspace_changes(path: String) -> Result<Vec<FileChange>, String> {

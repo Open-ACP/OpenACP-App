@@ -270,44 +270,69 @@ export function Composer() {
     return () => window.removeEventListener("add-code-snippet", handleSnippet);
   }, []);
 
-  // ── Drag & drop ────────────────────────────────────────────────────────
+  // ── Drag & drop (Tauri native events) ───────────────────────────────────
+  // macOS WKWebView doesn't support HTML5 file drag-drop, so we use
+  // Tauri's native onDragDropEvent which provides file paths from the OS.
+
+  const composerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function onDragEnter(e: DragEvent) {
-      e.preventDefault();
-      dragCounter.current++;
-      if (e.dataTransfer?.types.includes("Files")) setDragging(true);
-    }
-    function onDragLeave(e: DragEvent) {
-      e.preventDefault();
-      dragCounter.current--;
-      if (dragCounter.current <= 0) {
-        dragCounter.current = 0;
-        setDragging(false);
-      }
-    }
-    function onDragOver(e: DragEvent) {
-      e.preventDefault();
-    }
-    function onDrop(e: DragEvent) {
-      e.preventDefault();
-      dragCounter.current = 0;
-      setDragging(false);
-      const files = e.dataTransfer?.files;
-      if (files?.length) void addFiles(Array.from(files));
-    }
+    let unlisten: (() => void) | null = null;
 
-    document.addEventListener("dragenter", onDragEnter);
-    document.addEventListener("dragleave", onDragLeave);
-    document.addEventListener("dragover", onDragOver);
-    document.addEventListener("drop", onDrop);
-    return () => {
-      document.removeEventListener("dragenter", onDragEnter);
-      document.removeEventListener("dragleave", onDragLeave);
-      document.removeEventListener("dragover", onDragOver);
-      document.removeEventListener("drop", onDrop);
-    };
-  }, [addFiles]);
+    (async () => {
+      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      const unlistenFn = await getCurrentWebview().onDragDropEvent(async (event) => {
+        const { type } = event.payload;
+        if (type === "enter") {
+          setDragging(true);
+        } else if (type === "leave") {
+          setDragging(false);
+        } else if (type === "drop") {
+          setDragging(false);
+          const { paths } = event.payload;
+          if (!paths?.length) return;
+
+          for (const filePath of paths) {
+            if (attachments.length >= MAX_ATTACHMENTS) {
+              showToast({ title: "Attachment limit", description: `Maximum ${MAX_ATTACHMENTS} files` });
+              break;
+            }
+            try {
+              const result = await invoke<{
+                fileName: string;
+                mimeType: string;
+                dataUrl: string;
+                size: number;
+              }>("read_file_base64", { path: filePath });
+
+              if (result.size > MAX_FILE_SIZE) {
+                showToast({ title: "File too large", description: `${result.fileName} exceeds 10 MB limit` });
+                continue;
+              }
+
+              const att: FileAttachment = {
+                id: nextAttachId(),
+                fileName: result.fileName,
+                mimeType: result.mimeType,
+                dataUrl: result.dataUrl,
+                size: result.size,
+              };
+              setAttachments((prev) => [...prev, att]);
+            } catch (err) {
+              const name = filePath.split("/").pop() ?? filePath;
+              showToast({ title: "Unsupported file", description: `${name}: ${String(err)}` });
+            }
+          }
+        }
+      });
+
+      unlisten = unlistenFn;
+    })();
+
+    return () => { unlisten?.(); };
+  }, [attachments.length]);
 
   // ── Clipboard paste ────────────────────────────────────────────────────
 
@@ -425,8 +450,12 @@ export function Composer() {
 
   return (
     <div className="w-full pb-3 flex flex-col justify-center items-center pointer-events-none [&>*]:pointer-events-auto">
-      <div className="w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative">
-        <div className="w-full rounded-xl border border-border bg-background-weak relative">
+      <div ref={composerRef} className={`w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative ${dragging ? "z-50" : ""}`}>
+        <div className={`w-full rounded-xl border bg-background-weak relative transition-colors ${
+          dragging
+            ? "border-dashed border-2 border-primary/60 bg-primary/5"
+            : "border-border"
+        }`}>
         {paletteOpen && (
           <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
             <CommandPalette
@@ -456,6 +485,16 @@ export function Composer() {
               editorRef.current?.focus();
             }}
           >
+            {/* Drop hint overlay inside composer */}
+            {dragging && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg bg-primary/5 pointer-events-none">
+                <div className="flex items-center gap-2 text-sm font-medium text-primary/80">
+                  <ImageIcon size={20} />
+                  Drop files to attach
+                </div>
+              </div>
+            )}
+
             {/* Snippet + Attachment chips */}
             {(snippets.length > 0 || attachments.length > 0) && (
               <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
@@ -700,16 +739,9 @@ export function Composer() {
         </div>
       </div>
 
-      {/* Drag overlay */}
+      {/* Drag overlay — scrim over whole window to funnel attention to composer */}
       {dragging && (
-        <div className="fixed inset-0 z-50 bg-background/80 flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 border-dashed border-border-selected">
-            <ImageIcon size={40} className="text-primary" />
-            <span className="text-base font-medium leading-normal text-foreground">
-              Drop files to attach
-            </span>
-          </div>
-        </div>
+        <div className="fixed inset-0 z-40 bg-background/60 pointer-events-none" />
       )}
     </div>
   );

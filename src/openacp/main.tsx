@@ -11,6 +11,7 @@ import { SetupWizard } from "../onboarding/setup-wizard"
 import { UpdateToasts } from "../onboarding/update-toast"
 import { determineStartupScreen, type StartupScreen } from "../onboarding/startup"
 import { saveWorkspaces, loadWorkspaces, type WorkspaceEntry } from "./api/workspace-store"
+import { WindowDragBar } from "../onboarding/window-drag-bar"
 
 // Intercept all external link clicks — open in browser panel or system browser
 document.addEventListener("click", (e) => {
@@ -129,6 +130,7 @@ function RepairScreen({ onRepaired, onReset }: { onRepaired: () => void; onReset
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center gap-5 bg-background-base">
+      <WindowDragBar />
       <div className="flex flex-col items-center gap-3 max-w-sm text-center">
         <div className="text-lg font-medium text-foreground">Workspace needs repair</div>
         <p className="text-sm text-muted-foreground">

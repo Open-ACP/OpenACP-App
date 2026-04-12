@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { CircleNotch } from "@phosphor-icons/react"
 import appIcon from "../assets/app-icon.png"
+import { WindowDragBar } from "./window-drag-bar"
 
 export function SplashScreen({ visible = true }: { visible?: boolean }) {
   const [mounted, setMounted] = useState(false)
@@ -15,6 +16,7 @@ export function SplashScreen({ visible = true }: { visible?: boolean }) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
         >
+          <WindowDragBar />
           {/* Logo — clipped to rounded shape, no square black border */}
           <motion.div
             className="relative overflow-hidden rounded-3xl"

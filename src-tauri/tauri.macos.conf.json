@@ -2,10 +2,16 @@
   "app": {
     "windows": [
       {
-        "titleBarStyle": "Overlay",
+        "label": "main",
+        "title": "OpenACP",
+        "width": 1400,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
         "hiddenTitle": true,
-        "decorations": true,
         "transparent": true,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
         "trafficLightPosition": {
           "x": 20,
           "y": 23.5
@@ -13,7 +19,8 @@
         "windowEffects": {
           "effects": ["fullScreenUI", "blur"],
           "state": "active"
-        }
+        },
+        "dragDropEnabled": true
       }
     ]
   },
