@@ -78,7 +78,7 @@
 
   /* Links */
   a {
-    color: var(--color-text-interactive-base);
+    color: var(--color-interactive);
     text-decoration: none;
     font-weight: inherit;
   }
@@ -180,7 +180,7 @@
       background: var(--bg-strong);
       color: var(--primary-foreground);
       padding: 2px 8px;
-      border: 1px solid var(--border-weak-base, rgba(0, 0, 0, 0.07));
+      border: 1px solid var(--border-weak);
       box-shadow: var(--shadow-md);
 
       pointer-events: none;
@@ -209,7 +209,7 @@
   }
 
   [data-slot="markdown-copy-button"][data-variant="secondary"] [data-slot="icon-svg"] {
-    color: var(--icon-base);
+    color: var(--fg-weak);
   }
 
   [data-component="markdown-code"]:hover [data-slot="markdown-copy-button"] {
@@ -545,19 +545,19 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--icon-weak);
+  color: var(--fg-weaker);
   cursor: pointer;
   transition: color 0.15s ease, background-color 0.15s ease;
   flex-shrink: 0;
 }
 
 .oac-copy-btn:hover {
-  color: var(--icon-base);
+  color: var(--fg-weak);
   background-color: var(--accent);
 }
 
 .oac-copy-btn:active {
-  color: var(--icon-strong);
+  color: var(--fg-base);
 }
 
 /* Remove focus outline that could trigger focus-within */

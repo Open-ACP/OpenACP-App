@@ -95,7 +95,7 @@ export function PermissionRequestCard({ sessionId }: Props) {
                 background: highlighted === idx
                   ? "var(--color-interactive-weak)"
                   : "var(--bg-weaker)",
-                border: "1px solid var(--border-weaker-base)",
+                border: "1px solid var(--border-weaker)",
               }}
             >
               <span
@@ -119,7 +119,7 @@ export function PermissionRequestCard({ sessionId }: Props) {
           className="w-full bg-transparent text-sm font-normal text-foreground placeholder:text-muted-foreground focus:outline-none rounded-md px-2.5 py-1.5"
           style={{
             background: "var(--bg-weaker)",
-            border: "1px solid var(--border-weaker-base)",
+            border: "1px solid var(--border-weaker)",
           }}
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
