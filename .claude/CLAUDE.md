@@ -79,6 +79,8 @@ Tauri-specific integrations: command bindings, updater, zoom controls, app menu,
 
 Minimal Rust layer. Key command: `get_workspace_server_info` (reads `.openacp/api.port` + `.openacp/api-secret` from workspace directory).
 
+**Secrets**: the repo-root `.openacp/` directory contains a local OpenACP workspace (API secrets, bot tokens, etc.). **Never read, commit, or reference files inside it.**
+
 ### Component Hierarchy
 
 ```
@@ -107,6 +109,17 @@ PlatformProvider > AppBaseProviders > AppInterface > OpenACPApp
 
 ## Git Workflow
 
+This local repo is a clone of the **fork** `lngdao/OpenACP-App`. Upstream is `Open-ACP/OpenACP-App` (added as `upstream` remote). All pushes go to `origin` (the fork). Never create PRs to upstream — the maintainer handles that.
+
+**Working mode**: the user works **directly on `develop`** (no feature branches for now).
+
+**Cadence rules (strict — user preference):**
+- **Sync continuously**: `develop` moves from multiple machines/CIs. Always `git pull --rebase origin develop` before starting anything and before every commit.
+- **Start of feature**: pull `develop` first, then begin work.
+- **End of feature**: only push when the feature is *done* and verified (build green, feature works). Don't push half-finished work just to checkpoint.
+- **Don't spam commits**: commit only at logical stopping points — one coherent change per commit. Avoid chains of tiny WIP commits during a single feature. If you touched 5 files for one feature, that's usually *one* commit, not five.
+- **End-of-turn reminder**: if there are uncommitted changes or unpushed commits on `develop`, surface a short reminder.
+
 Two long-lived branches:
 
 - **`main`** — stable, release-ready. Tags are cut from here.
@@ -132,6 +145,10 @@ Use `<type>/<short-name>` where `<type>` matches the conventional commit type:
 ### Sync
 
 Use `git rebase develop` (not merge) to keep feature branches up to date.
+
+### Merge conflicts
+
+Read both sides of the conflict carefully before resolving — never blindly pick one side. Default to **keeping both changes** (combine them) unless they're truly mutually exclusive. If unsure, ask the user before discarding any code.
 
 ### Typical flow
 
