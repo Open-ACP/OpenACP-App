@@ -47,6 +47,38 @@
     0 6.38px 14.177px 0 rgba(0, 0, 0, 0.05),
     0 3.127px 6.95px 0 rgba(0, 0, 0, 0.06),
     0 1.237px 2.748px 0 rgba(0, 0, 0, 0.09);
+
+  /* shadcn/ui aliases (theme-independent — resolve via raw tokens per theme) */
+  --background: var(--bg-base);
+  --foreground: var(--fg-base);
+  --card: var(--bg-strong);
+  --card-foreground: var(--fg-base);
+  --popover: var(--bg-strong);
+  --popover-foreground: var(--fg-base);
+  --primary: var(--fg-base);
+  --primary-foreground: var(--bg-strong);
+  --secondary: var(--bg-weak);
+  --secondary-foreground: var(--fg-base);
+  --muted: var(--bg-weak);
+  --muted-foreground: var(--fg-weaker);
+  --accent: var(--bg-weak);
+  --accent-foreground: var(--fg-base);
+  --destructive: var(--color-critical);
+  --destructive-foreground: var(--bg-strong);
+  --border: var(--border-base);
+  --input: var(--border-base);
+  --ring: var(--color-interactive);
+  --radius: 0.5rem;
+
+  /* Sidebar aliases */
+  --sidebar-background: var(--bg-base);
+  --sidebar-foreground: var(--fg-base);
+  --sidebar-primary: var(--fg-base);
+  --sidebar-primary-foreground: var(--bg-base);
+  --sidebar-accent: var(--bg-weak);
+  --sidebar-accent-foreground: var(--fg-base);
+  --sidebar-border: var(--border-weak);
+  --sidebar-ring: var(--color-interactive);
 }
 
 /* ── Light theme (default) ─────────────────────────────────────────────────── */
@@ -137,44 +169,12 @@
   --markdown-image: #3b7dd8;
   --markdown-image-text: #318795;
   --markdown-code-block: #1a1a1a;
-
-  /* shadcn/ui aliases (compat layer — point at bg/fg/color tokens) */
-  --background: var(--bg-base);
-  --foreground: var(--fg-base);
-  --card: var(--bg-strong);
-  --card-foreground: var(--fg-base);
-  --popover: var(--bg-strong);
-  --popover-foreground: var(--fg-base);
-  --primary: var(--fg-base);
-  --primary-foreground: var(--bg-strong);
-  --secondary: var(--bg-weak);
-  --secondary-foreground: var(--fg-base);
-  --muted: var(--bg-weak);
-  --muted-foreground: var(--fg-weaker);
-  --accent: var(--bg-weak);
-  --accent-foreground: var(--fg-base);
-  --destructive: var(--color-critical);
-  --destructive-foreground: var(--bg-strong);
-  --border: var(--border-base);
-  --input: var(--border-base);
-  --ring: var(--color-interactive);
-  --radius: 0.5rem;
-
-  /* Sidebar */
-  --sidebar-background: var(--bg-base);
-  --sidebar-foreground: var(--fg-base);
-  --sidebar-primary: var(--fg-base);
-  --sidebar-primary-foreground: var(--bg-base);
-  --sidebar-accent: var(--bg-weak);
-  --sidebar-accent-foreground: var(--fg-base);
-  --sidebar-border: var(--border-weak);
-  --sidebar-ring: var(--color-interactive);
 }
 
 /* ── Dark theme ────────────────────────────────────────────────────────────── */
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     color-scheme: dark;
 
     /* Background */
