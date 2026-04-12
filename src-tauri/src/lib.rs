@@ -9,61 +9,6 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 
-/// Reposition macOS traffic lights to align with our custom titlebar (h-12 = 48px).
-/// Must be called on setup AND after window-state restoration / resize events,
-/// because `tauri-plugin-window-state` can reset the position from config.
-///
-/// Uses raw NSWindow access because Tauri 2.x doesn't expose
-/// `set_traffic_light_position` on the public `WebviewWindow` API.
-#[cfg(target_os = "macos")]
-fn reposition_traffic_lights(window: &tauri::WebviewWindow) {
-    use objc2_app_kit::{NSWindow, NSWindowButton};
-    use objc2_foundation::NSRect;
-
-    const INSET_X: f64 = 20.0;
-    const INSET_Y: f64 = 23.5;
-
-    let Ok(ns_win_ptr) = window.ns_window() else {
-        return;
-    };
-    // SAFETY: ns_window() returns a valid NSWindow pointer while the window is alive.
-    unsafe {
-        let ns_window: &NSWindow = &*(ns_win_ptr as *const NSWindow);
-
-        let Some(close) = ns_window.standardWindowButton(NSWindowButton::CloseButton) else {
-            return;
-        };
-        let Some(miniaturize) =
-            ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton)
-        else {
-            return;
-        };
-        let Some(zoom) = ns_window.standardWindowButton(NSWindowButton::ZoomButton) else {
-            return;
-        };
-
-        // Resize the title bar container to match our desired inset
-        let Some(title_bar_view) = close.superview().and_then(|v| v.superview()) else {
-            return;
-        };
-
-        let close_frame: NSRect = close.frame();
-        let title_bar_height = close_frame.size.height + INSET_Y;
-        let mut title_bar_rect: NSRect = title_bar_view.frame();
-        title_bar_rect.size.height = title_bar_height;
-        title_bar_rect.origin.y = ns_window.frame().size.height - title_bar_height;
-        title_bar_view.setFrame(title_bar_rect);
-
-        // Reposition each button horizontally
-        let space_between = miniaturize.frame().origin.x - close_frame.origin.x;
-        for (i, button) in [close, miniaturize, zoom].iter().enumerate() {
-            let mut rect: NSRect = button.frame();
-            rect.origin.x = INSET_X + (i as f64 * space_between);
-            button.setFrameOrigin(rect.origin);
-        }
-    }
-}
-
 #[tauri::command]
 fn toggle_devtools(app: tauri::AppHandle, open: bool) {
     if let Some(window) = app.get_webview_window("main") {
@@ -161,27 +106,6 @@ pub fn run() {
                 pty: pty.clone(),
             });
             app.manage(core::browser::BrowserStore::new());
-
-            // macOS: set traffic light position programmatically and re-apply on
-            // window events so it survives window-state plugin restoration.
-            #[cfg(target_os = "macos")]
-            {
-                if let Some(window) = app.get_webview_window("main") {
-                    reposition_traffic_lights(&window);
-
-                    let win = window.clone();
-                    window.on_window_event(move |event| {
-                        if matches!(
-                            event,
-                            tauri::WindowEvent::Resized { .. }
-                                | tauri::WindowEvent::Focused(true)
-                                | tauri::WindowEvent::ThemeChanged { .. }
-                        ) {
-                            reposition_traffic_lights(&win);
-                        }
-                    });
-                }
-            }
 
             // Auto-start: try to detect already-running OpenACP server
             let sidecar_clone = sidecar.clone();
