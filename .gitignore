@@ -20,3 +20,4 @@ docs/design/pencil/images/
 
 # OpenACP local workspace (contains secrets)
 .openacp
+/CLAUDE.md
