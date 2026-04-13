@@ -2929,6 +2929,7 @@ dependencies = [
 name = "openacp-desktop"
 version = "2026.408.3"
 dependencies = [
+ "base64 0.22.1",
  "dirs",
  "ignore",
  "portable-pty",

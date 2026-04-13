@@ -8,6 +8,7 @@ import { ArrowClockwise, Terminal } from "@phosphor-icons/react"
 import { StepChecklist, type Step, type StepStatus } from "./step-checklist"
 import { CollapsibleLog } from "./collapsible-log"
 import appIcon from "../assets/app-icon.png"
+import { WindowDragBar } from "./window-drag-bar"
 
 interface Props {
   onSuccess: (configExists: boolean) => void
@@ -92,6 +93,7 @@ export function InstallScreen(props: Props) {
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center bg-background-base p-8">
+      <WindowDragBar />
       <div className="flex w-full max-w-[480px] flex-col items-center gap-5">
         {/* Header */}
         <motion.div

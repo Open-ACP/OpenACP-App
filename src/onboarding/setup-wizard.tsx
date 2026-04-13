@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react"
 import { FolderOpen, Check, CircleNotch, MagnifyingGlass, CaretRight } from "@phosphor-icons/react"
 import { StepChecklist, type Step, type StepStatus } from "./step-checklist"
 import { CollapsibleLog } from "./collapsible-log"
+import { WindowDragBar } from "./window-drag-bar"
 
 interface AgentEntry {
   key: string
@@ -193,6 +194,7 @@ export function SetupWizard(props: Props) {
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center bg-background-base p-8">
+      <WindowDragBar />
       <div className="w-full max-w-[480px]">
         {/* Step indicator — minimal dots */}
         <div className="mb-10 flex items-center justify-center gap-2">
