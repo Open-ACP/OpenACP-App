@@ -762,9 +762,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   }
 
   function handleMessageQueued(ev: MessageQueuedEvent) {
-    // Skip if this app instance sent this message
-    if (ownTurnIds.current.has(ev.turnId)) return
-    // Race condition guard
+    // Race condition guard: if we are mid-send and this is our active session,
+    // the message will go straight to processing — skip adding to pending.
     if (sendingRef.current && ev.sessionId === store.activeSession) return
 
     // Detect old Core: if sender field is absent, fall back to legacy behavior
