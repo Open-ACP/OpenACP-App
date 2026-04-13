@@ -36,6 +36,7 @@ import {
 } from "../lib/file-utils";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { PendingIndicator } from "./chat/pending-indicator";
 
 function formatK(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -466,6 +467,8 @@ export function Composer() {
             />
           </div>
         )}
+
+        <PendingIndicator />
 
         <DockShellForm
           onSubmit={handleSubmit}
