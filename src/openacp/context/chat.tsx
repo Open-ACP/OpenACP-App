@@ -320,7 +320,24 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
             assistantMsgId.current.delete(sessionID)
             setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
           }
-          const inFlight = local.filter((m) => m.createdAt > lastServerTime)
+          // Only keep user messages as in-flight — assistant messages are already
+          // in serverMessages (completed turns) and local copies would cause duplicates
+          // because handleMessageProcessing sets createdAt: Date.now() (client timestamp)
+          // which can be > lastServerTime even for turns the server has captured.
+          // Secondary de-dup: lastServerTime is the turn START timestamp, so a recently
+          // sent user message (createdAt ≈ send time) can be > lastServerTime even when
+          // the server already has it. Exclude inFlight items whose text is already in
+          // serverMessages to prevent that duplicate.
+          const serverUserTexts = new Set(
+            serverMessages
+              .filter((m) => m.role === "user")
+              .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as { content: string }).content))
+          )
+          const inFlight = local.filter((m) => {
+            if (m.createdAt <= lastServerTime || m.role !== "user") return false
+            const text = m.parts.find((p) => p.type === "text") as { content: string } | undefined
+            return !text || !serverUserTexts.has(text.content)
+          })
           setMessages(sessionID, [...serverMessages, ...inFlight])
           void cacheMessages(sessionID, serverMessages)
         } else if (local.length === 0) {
@@ -839,6 +856,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         createdAt: Date.now(),
       })
       setStore((draft) => {
+        // If a before_prompt plugin modified the prompt, update the user message
+        // to show finalPrompt — matches what server stores in history.
+        if (ev.finalPrompt && ev.finalPrompt !== ev.userPrompt && userMsgId) {
+          const msgs = draft.messagesBySession[sid]
+          const userMsg = msgs?.find((m) => m.id === userMsgId)
+          if (userMsg) {
+            userMsg.parts = [{ id: nextPartId(), type: "text", content: ev.finalPrompt }]
+            userMsg.blocks = [{ type: "text", id: nextPartId(), content: ev.finalPrompt }]
+          }
+        }
         draft.streaming = true
         draft.streamingSession = sid
         draft.scrollTrigger++
@@ -864,12 +891,15 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       const msgs = draft.messagesBySession[sid] ??= []
 
       if (userMsgId && ev.userPrompt) {
+        // Show finalPrompt (after plugin modifications) to match server history;
+        // fall back to userPrompt if finalPrompt is not available (legacy Core).
+        const displayText = ev.finalPrompt || ev.userPrompt
         msgs.push({
           id: userMsgId,
           role: "user",
           sessionID: sid,
-          parts: [{ id: nextPartId(), type: "text", content: ev.userPrompt }],
-          blocks: [{ type: "text", id: nextPartId(), content: ev.userPrompt }],
+          parts: [{ id: nextPartId(), type: "text", content: displayText }],
+          blocks: [{ type: "text", id: nextPartId(), content: displayText }],
           createdAt: new Date(ev.timestamp).getTime(),
           sourceAdapterId: ev.sourceAdapterId,
         })
@@ -894,10 +924,11 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     // Sync ref so loadHistory's inFlight calculation includes the new messages
     const refMsgs = messagesRef.current[sid] ??= []
     if (userMsgId && ev.userPrompt) {
+      const displayText = ev.finalPrompt || ev.userPrompt
       refMsgs.push({
         id: userMsgId, role: "user", sessionID: sid,
-        parts: [{ id: nextPartId(), type: "text", content: ev.userPrompt }],
-        blocks: [{ type: "text", id: nextPartId(), content: ev.userPrompt }],
+        parts: [{ id: nextPartId(), type: "text", content: displayText }],
+        blocks: [{ type: "text", id: nextPartId(), content: displayText }],
         createdAt: new Date(ev.timestamp).getTime(), sourceAdapterId: ev.sourceAdapterId,
       })
     }
@@ -968,7 +999,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   }
 
   const sendPrompt = useCallback(async (text: string, attachments?: import("../types").FileAttachment[]): Promise<boolean> => {
-    if (sendingRef.current) return false
+    // No blocking guard — App supports queuing multiple messages like Telegram/API adapters.
+    // Each send is independent; Core handles serial processing via PromptQueue.
     sendingRef.current = true
     try {
       return await doSendPrompt(text, attachments)
