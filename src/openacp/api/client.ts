@@ -167,6 +167,15 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       return (res as { turnId?: string }) ?? {}
     },
 
+    /** Get the current queue state for a session (pending items + processing flag) */
+    async getQueue(sessionID: string): Promise<{
+      pending: Array<{ userPrompt: string; turnId?: string }>
+      processing: boolean
+      queueDepth: number
+    }> {
+      return api(`/sessions/${encodeURIComponent(sessionID)}/queue`)
+    },
+
     /** Cancel/abort the current prompt in a session */
     async cancelPrompt(sessionID: string): Promise<void> {
       await api(`/sessions/${encodeURIComponent(sessionID)}/cancel`, {
