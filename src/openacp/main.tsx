@@ -3,16 +3,19 @@
  */
 import React, { useState, useEffect } from "react"
 import { createRoot } from "react-dom/client"
+import { invoke } from "@tauri-apps/api/core"
 import { TooltipProvider } from "./components/ui/tooltip"
 import "./styles/index.css"
 import { OpenACPApp } from "./app"
 import { SplashScreen } from "../onboarding/splash-screen"
 import { InstallScreen } from "../onboarding/install-screen"
 import { SetupWizard } from "../onboarding/setup-wizard"
-import { UpdateToasts } from "../onboarding/update-toast"
 import { determineStartupScreen, type StartupScreen } from "../onboarding/startup"
 import { saveWorkspaces, loadWorkspaces, type WorkspaceEntry } from "./api/workspace-store"
+import { restartWorkspaceServer } from "./api/workspace-service"
 import { WindowDragBar } from "../onboarding/window-drag-bar"
+import { compareVersions, parseVersionString, MIN_CORE_VERSION } from "./lib/version"
+import { ArrowLineDown } from "@phosphor-icons/react"
 
 // Intercept all external link clicks — open in browser panel or system browser
 document.addEventListener("click", (e) => {
@@ -28,10 +31,14 @@ document.addEventListener("click", (e) => {
 
 function App() {
   const [screen, setScreen] = useState<StartupScreen>('splash')
+  const [coreVersion, setCoreVersion] = useState<string | null>(null)
+
+  const coreBelowMin = coreVersion !== null
+    && MIN_CORE_VERSION !== '0.0.0'
+    && compareVersions(coreVersion, MIN_CORE_VERSION) < 0
 
   useEffect(() => {
     ;(async () => {
-      const { invoke } = await import("@tauri-apps/api/core")
       const [, [installedResult, configResult, workspaces]] = await Promise.all([
         new Promise(r => setTimeout(r, 2000)),
         Promise.all([
@@ -55,13 +62,26 @@ function App() {
         error: checkError,
       }
 
-      const screen = determineStartupScreen(result)
-      console.log('[onboard] check result:', JSON.stringify(result))
+      const parsedVersion = installedResult ? parseVersionString(installedResult) : null
+      if (parsedVersion) setCoreVersion(parsedVersion)
+
+      // If core is installed but below minimum:
+      // - No config yet (first install) → install screen (will install latest)
+      // - Has config (existing user) → let it go to 'ready', hard block screen will handle
+      const belowMin = parsedVersion
+        && MIN_CORE_VERSION !== '0.0.0'
+        && compareVersions(parsedVersion, MIN_CORE_VERSION) < 0
+
+      const normalScreen = determineStartupScreen(result)
+      const screen = (belowMin && (normalScreen === 'setup' || normalScreen === 'repair'))
+        ? 'install'
+        : normalScreen
+      console.log('[onboard] check result:', JSON.stringify(result), belowMin ? '(core below min)' : '')
       console.log('[onboard] → screen:', screen)
 
-      // If going to setup/install, clear stale workspace entries
+      // If going to setup/install (but NOT because of a core update), clear stale workspace entries
       // (handles dev_reset or reinstall where CLI config is gone but app store persists)
-      if (screen === 'setup' || screen === 'install') {
+      if ((screen === 'setup' || screen === 'install') && !belowMin) {
         await saveWorkspaces([])
       }
 
@@ -73,7 +93,23 @@ function App() {
     <TooltipProvider delayDuration={300}>
       {screen === 'splash' && <SplashScreen />}
       {screen === 'install' && (
-        <InstallScreen onSuccess={() => setScreen('setup')} />
+        <InstallScreen onSuccess={async () => {
+          // After install, re-check state to determine correct next screen
+          // (user may already have config + workspaces if this was a core update, not first install)
+          const [installedResult, configResult, workspaces] = await Promise.all([
+            invoke<string | null>('check_openacp_installed').catch(() => null),
+            invoke<boolean>('check_openacp_config').catch(() => false),
+            loadWorkspaces().catch(() => []),
+          ])
+          if (installedResult) setCoreVersion(parseVersionString(installedResult))
+          const next = determineStartupScreen({
+            installed: installedResult !== null,
+            version: installedResult,
+            configExists: Boolean(configResult),
+            hasWorkspaces: workspaces.length > 0,
+          })
+          setScreen(next)
+        }} />
       )}
       {screen === 'setup' && (
         <SetupWizard onSuccess={async (entry: WorkspaceEntry) => {
@@ -85,10 +121,11 @@ function App() {
         <RepairScreen onRepaired={() => setScreen('ready')} onReset={() => setScreen('setup')} />
       )}
       {screen === 'ready' && (
-        <>
+        coreBelowMin ? (
+          <CoreUpdateRequired coreVersion={coreVersion!} onSkip={() => setCoreVersion(null)} />
+        ) : (
           <OpenACPApp />
-          <UpdateToasts />
-        </>
+        )
       )}
     </TooltipProvider>
   )
@@ -153,6 +190,69 @@ function RepairScreen({ onRepaired, onReset }: { onRepaired: () => void; onReset
             Start fresh
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function CoreUpdateRequired({ coreVersion, onSkip }: { coreVersion: string; onSkip?: () => void }) {
+  const [updating, setUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleUpdate() {
+    setUpdating(true)
+    setError(null)
+    try {
+      await invoke('run_install_script')
+
+      // Restart all local workspace servers so they use the new binary
+      try {
+        const workspaces = await loadWorkspaces()
+        await Promise.allSettled(
+          workspaces
+            .filter(ws => ws.type === 'local' && ws.directory)
+            .map(ws => restartWorkspaceServer(ws.directory))
+        )
+      } catch { /* best-effort */ }
+
+      location.reload()
+    } catch (err) {
+      setError(typeof err === 'string' ? err : (err as any)?.message ?? 'Update failed')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-screen flex-col items-center justify-center gap-5 bg-bg-base relative">
+      <WindowDragBar />
+      {onSkip && (
+        <button
+          onClick={onSkip}
+          className="absolute top-12 right-8 text-2xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Skip
+        </button>
+      )}
+      <div className="flex flex-col items-center gap-4 max-w-sm text-center px-6">
+        <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center">
+          <ArrowLineDown size={24} weight="duotone" className="text-destructive" />
+        </div>
+        <div className="space-y-1.5">
+          <h2 className="text-lg font-medium text-foreground">Update Required</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            OpenACP Core v{coreVersion} is no longer supported.
+            Update to v{MIN_CORE_VERSION} or newer to continue.
+          </p>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <button
+          onClick={handleUpdate}
+          disabled={updating}
+          className="h-9 px-5 rounded-lg bg-foreground text-background text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {updating ? 'Updating...' : error ? 'Retry' : 'Update Now'}
+        </button>
       </div>
     </div>
   )

@@ -193,6 +193,7 @@ export function SidebarRail(props: {
   onTogglePin: (id: string) => void
   onReorder: (activeId: string, overId: string) => void
   onRename: (id: string, name: string) => void
+  hasUpdates?: boolean
 }) {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
@@ -360,8 +361,11 @@ export function SidebarRail(props: {
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-md" onClick={props.onOpenSettings}>
+            <Button variant="ghost" size="icon-md" onClick={props.onOpenSettings} className="relative">
               <GearSix className="text-fg-weak" />
+              {props.hasUpdates && (
+                <span className="absolute top-1 right-1 size-2 rounded-full bg-accent" />
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">Settings</TooltipContent>

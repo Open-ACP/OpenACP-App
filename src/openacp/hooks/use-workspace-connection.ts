@@ -112,6 +112,13 @@ async function resolveServer(workspace: WorkspaceEntry): Promise<ServerInfo> {
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
+const IDLE_STATE: WorkspaceConnectionState = {
+  status: 'idle',
+  server: null,
+  error: null,
+  retryCount: 0,
+}
+
 export function useWorkspaceConnection(
   workspace: WorkspaceEntry | null,
   options?: {
@@ -120,12 +127,7 @@ export function useWorkspaceConnection(
     onError?: (error: string) => void
   },
 ): UseWorkspaceConnectionReturn {
-  const [state, setState] = useState<WorkspaceConnectionState>({
-    status: 'idle',
-    server: null,
-    error: null,
-    retryCount: 0,
-  })
+  const [state, setState] = useState<WorkspaceConnectionState>(IDLE_STATE)
 
   const retryTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const cancelledRef = useRef(false)
@@ -253,7 +255,7 @@ export function useWorkspaceConnection(
   const disconnect = useCallback(() => {
     cancelledRef.current = true
     stopRetry()
-    setState({ status: 'idle', server: null, error: null, retryCount: 0 })
+    setState(IDLE_STATE)
     options?.onDisconnected?.()
   }, [stopRetry, options])
 
@@ -287,7 +289,7 @@ export function useWorkspaceConnection(
     autoStartAttemptedRef.current = false
 
     if (!workspace) {
-      setState({ status: 'idle', server: null, error: null, retryCount: 0 })
+      setState(IDLE_STATE)
       return
     }
 

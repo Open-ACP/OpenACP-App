@@ -51,10 +51,12 @@ export function SettingsDialog({
   serverUrl,
   serverConnected,
   initialPage = "general",
+  onAboutViewed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspacePath: string;
+  onAboutViewed?: () => void;
   serverUrl: string | null;
   serverConnected: boolean;
   initialPage?: SettingsPage;
@@ -126,7 +128,7 @@ export function SettingsDialog({
                 connected={serverConnected}
               />
             )}
-            {page === "about" && <SettingsAbout />}
+            {page === "about" && <SettingsAbout onViewed={onAboutViewed} />}
           </div>
         </div>
       </DialogContent>

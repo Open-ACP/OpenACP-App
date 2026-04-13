@@ -33,12 +33,15 @@ import {
 } from "./components/settings/settings-dialog";
 import { SetupModal } from "./components/add-workspace/setup-modal";
 import { showToast } from "./lib/toast";
+import { toast } from "sonner";
+import { ArrowLineDown, Package, X } from "@phosphor-icons/react";
 import { Toaster } from "./components/ui/toaster";
 import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
 import {
   useWorkspaceConnection,
   type ConnectionStatus,
 } from "./hooks/use-workspace-connection";
+import { useUpdateCheck } from "./hooks/use-update-check";
 import {
   getAllSettings,
   getSetting,
@@ -54,6 +57,31 @@ import { FloatingBrowserFrame } from "./components/floating-browser-frame";
 import { TerminalProvider } from "./context/terminal";
 import { TerminalPanel } from "./components/terminal-panel";
 import type { ServerInfo } from "./types";
+
+function UpdateToastRow({
+  icon,
+  title,
+  actionLabel,
+  onAction,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-3.5 py-2.5">
+      <div className="shrink-0 text-muted-foreground">{icon}</div>
+      <p className="flex-1 text-sm text-foreground">{title}</p>
+      <button
+        onClick={onAction}
+        className="shrink-0 text-xs font-medium text-accent-foreground bg-accent px-2.5 py-1 rounded-md hover:opacity-90 transition-opacity"
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
 
 function NoServerScreen({
   directory,
@@ -329,6 +357,69 @@ function OpenACPAppInner() {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+
+  // Unified update system
+  const { state: updateState, updateCore, installAppUpdate } = useUpdateCheck();
+  const [updatesSeen, setUpdatesSeen] = useState(false);
+  const updateToastShownRef = useRef(false);
+  useEffect(() => {
+    if (updateState.settled && updateState.hasUpdates && !updateToastShownRef.current) {
+      updateToastShownRef.current = true;
+
+      const openAbout = () => {
+        setSettingsPage("about");
+        setShowSettings(true);
+        setUpdatesSeen(true);
+      };
+
+      toast.custom((id) => (
+        <div className="w-[360px] rounded-lg border border-border bg-card shadow-lg relative overflow-hidden">
+          {updateState.appUpdateAvailable && (
+            <UpdateToastRow
+              icon={<ArrowLineDown size={18} weight="duotone" />}
+              title={`App v${updateState.appLatestVersion} available`}
+              actionLabel="Install and restart"
+              onAction={() => { toast.dismiss(id); void installAppUpdate(); }}
+            />
+          )}
+          {updateState.coreUpdateAvailable && (
+            <UpdateToastRow
+              icon={<Package size={18} weight="duotone" />}
+              title={`Core v${updateState.coreLatestVersion} available`}
+              actionLabel="Update"
+              onAction={() => { toast.dismiss(id); void updateCore(); }}
+            />
+          )}
+          <div className="flex items-center justify-between px-3.5 pb-2.5 pt-1">
+            <button
+              onClick={() => { toast.dismiss(id); openAbout(); }}
+              className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View in Settings
+            </button>
+            <button
+              onClick={() => toast.dismiss(id)}
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+              aria-label="Dismiss"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      ), { duration: 20000 });
+    }
+  }, [updateState.settled, updateState.hasUpdates, updateState.appUpdateAvailable, updateState.appLatestVersion, updateState.coreUpdateAvailable, updateState.coreLatestVersion, installAppUpdate, updateCore]);
+
+  // Listen for macOS menu "Check for Updates"
+  useEffect(() => {
+    function handleOpenAbout() {
+      setSettingsPage("about");
+      setShowSettings(true);
+      setUpdatesSeen(true);
+    }
+    window.addEventListener("open-settings-about", handleOpenAbout);
+    return () => window.removeEventListener("open-settings-about", handleOpenAbout);
+  }, []);
 
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [addWorkspaceDefaultTab, setAddWorkspaceDefaultTab] = useState<
@@ -887,6 +978,7 @@ function OpenACPAppInner() {
             setSettingsPage("general");
             setShowSettings(true);
           }}
+          hasUpdates={updateState.hasUpdates && !updatesSeen}
         />
 
         {hasInstance ? (
@@ -1012,6 +1104,7 @@ function OpenACPAppInner() {
         serverUrl={connectionState.server?.url ?? null}
         serverConnected={connectionStatus === "connected"}
         initialPage={settingsPage}
+        onAboutViewed={() => setUpdatesSeen(true)}
       />
       <Toaster />
     </div>
