@@ -3,6 +3,7 @@
  */
 import React, { useState, useEffect } from "react"
 import { createRoot } from "react-dom/client"
+import { TooltipProvider } from "./components/ui/tooltip"
 import "./styles/index.css"
 import { OpenACPApp } from "./app"
 import { SplashScreen } from "../onboarding/splash-screen"
@@ -69,7 +70,7 @@ function App() {
   }, [])
 
   return (
-    <>
+    <TooltipProvider delayDuration={300}>
       {screen === 'splash' && <SplashScreen />}
       {screen === 'install' && (
         <InstallScreen onSuccess={() => setScreen('setup')} />
@@ -89,7 +90,7 @@ function App() {
           <UpdateToasts />
         </>
       )}
-    </>
+    </TooltipProvider>
   )
 }
 

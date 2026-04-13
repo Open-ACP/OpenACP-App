@@ -111,7 +111,7 @@ export function SettingsDialog({
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 overflow-y-auto bg-bg-base">
+        <div className="flex-1 min-w-0 overflow-y-auto bg-bg-strong">
           <div className="mx-auto px-8 py-6">
             {page === "general" && (
               <SettingsGeneral workspacePath={workspacePath} />

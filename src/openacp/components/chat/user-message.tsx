@@ -35,7 +35,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={handleCopy}
       title={copied ? "Copied" : "Copy"}
     >
-      {copied ? <Check size={14} /> : <CopySimple size={14} />}
+      {copied ? <Check /> : <CopySimple />}
     </Button>
   );
 }
@@ -74,11 +74,14 @@ export const UserMessage = memo(function UserMessage({
   const text = useMemo(() => getUserText(message), [message]);
 
   return (
-    <div data-component="oac-user-message" className="group flex flex-col items-end max-w-[85%] ml-auto">
-      <div className="rounded-md border border-border-weak py-2 px-3 w-fit">
+    <div
+      data-component="oac-user-message"
+      className="group flex flex-col items-end max-w-[85%] ml-auto w-fit"
+    >
+      <div className="rounded-xl bg-bg-weak border border-border-weakest py-2 px-3">
         {message.sourceAdapterId ? (
           <div className="flex items-center gap-1 mb-1">
-            <span className="text-2xs font-normal text-muted-foreground select-none">
+            <span className="text-2xs font-normal text-fg-weaker select-none">
               via {adapterLabel(message.sourceAdapterId)}
             </span>
           </div>
@@ -88,7 +91,7 @@ export const UserMessage = memo(function UserMessage({
             {message.attachments.map((att) => (
               <div
                 key={att.id}
-                className="flex items-center gap-1.5 h-7 pl-1.5 pr-2 rounded-md border border-border-weak bg-muted"
+                className="flex items-center gap-1.5 h-7 pl-1.5 pr-2 rounded-md border border-border-weak bg-bg-weak"
               >
                 {isImageMime(att.mimeType) && att.dataUrl ? (
                   <img
@@ -97,26 +100,21 @@ export const UserMessage = memo(function UserMessage({
                     className="size-4 rounded-sm object-cover flex-shrink-0"
                   />
                 ) : (
-                  <FileIcon
-                    size={14}
-                    className="text-fg-weakest flex-shrink-0"
-                  />
+                  <FileIcon className="size-3.5 text-fg-weakest flex-shrink-0" />
                 )}
-                <span className="text-[12px] text-fg-weak truncate max-w-[200px] leading-none">
+                <span className="text-xs text-fg-weak truncate max-w-50 leading-none">
                   {att.fileName}
                 </span>
               </div>
             ))}
           </div>
         ) : null}
-        <div className="text-base font-normal text-foreground whitespace-pre-wrap break-words leading-relaxed">
+        <div className="text-sm font-normal text-fg-base whitespace-pre-wrap break-words leading-relaxed">
           {text}
         </div>
       </div>
-      <div
-        className="flex items-center gap-2 mt-1 justify-end invisible group-hover:visible"
-      >
-        <span className="text-2xs font-normal text-muted-foreground select-none">
+      <div className="flex items-center gap-1 mt-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <span className="text-2xs font-normal text-fg-weaker select-none">
           {timeStr}
         </span>
         <CopyButton text={text} />

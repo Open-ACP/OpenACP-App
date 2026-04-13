@@ -1,5 +1,6 @@
 import React from "react"
 import { X, ArrowLineDown } from "@phosphor-icons/react"
+import { Button } from "./ui/button"
 
 interface UpdateNotificationProps {
   version: string
@@ -26,7 +27,7 @@ export function UpdateNotification({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between">
-            <p className="text-sm font-medium text-foreground">Update available</p>
+            <p className="text-base font-medium text-foreground">Update available</p>
             {!downloading && (
               <button
                 onClick={onDismiss}
@@ -37,7 +38,7 @@ export function UpdateNotification({
               </button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
             {error
               ? error
               : downloading
@@ -48,19 +49,13 @@ export function UpdateNotification({
       </div>
 
       {!downloading && (
-        <div className="flex items-center gap-4 px-4 pb-3.5 pl-[44px]">
-          <button
-            onClick={onUpdate}
-            className="text-sm font-semibold text-foreground hover:text-foreground/80 transition-colors"
-          >
+        <div className="flex items-center gap-2 px-4 pb-3.5 pl-[44px]">
+          <Button variant="default" size="sm" onClick={onUpdate}>
             {error ? "Retry" : "Install and restart"}
-          </button>
-          <button
-            onClick={onDismiss}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={onDismiss}>
             Not yet
-          </button>
+          </Button>
         </div>
       )}
 

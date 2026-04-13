@@ -127,7 +127,7 @@ The two sets resolve to the same pixel values — this rule is about consistency
 
 **Spacing & Layout** (in `index.css` `@theme`):
 - Base spacing: `--spacing: 0.25rem`
-- Radius: xs (0.125rem) → xl (0.625rem)
+- Radius: xs (0.125rem) → xl (0.625rem), 2xl (1rem), 3xl (1.5rem), full (9999px)
 - Shadows: xs, sm, md, lg, xl, 2xl + border shadows (`--shadow-xs-border`, etc.)
 
 ### Theming

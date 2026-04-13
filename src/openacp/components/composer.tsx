@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   Plus,
   Command,
@@ -16,15 +22,21 @@ import { CommandPalette } from "./command-palette";
 import { ConfigSelector } from "./config-selector";
 import { Spinner } from "./ui/spinner";
 import { showToast } from "../lib/toast";
-import { Code, ListChecks, Circle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
+import {
+  Code,
+  ListChecks,
+  Circle,
+  CheckCircle,
+  CircleNotch,
+} from "@phosphor-icons/react";
 import type { FileAttachment, UsageInfo, PlanEntry } from "../types";
 
 export interface CodeSnippet {
-  id: string
-  filePath: string
-  lines: [number, number]
-  code: string
-  comment: string
+  id: string;
+  filePath: string;
+  lines: [number, number];
+  code: string;
+  comment: string;
 }
 import {
   validateFileMime,
@@ -35,19 +47,29 @@ import {
   ACCEPTED_FILE_TYPES,
 } from "../lib/file-utils";
 import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 function formatK(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toString()
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
 }
 
 function ContextBadge({ usage }: { usage: UsageInfo }) {
-  const used = usage.tokensUsed ?? 0
-  const ctx = usage.contextSize ?? 0
-  const pct = ctx > 0 ? ((used / ctx) * 100) : 0
-  const color = pct > 80 ? "var(--destructive)" : pct > 50 ? "var(--warning, #e5a50a)" : "var(--muted-foreground)"
+  const used = usage.tokensUsed ?? 0;
+  const ctx = usage.contextSize ?? 0;
+  const pct = ctx > 0 ? (used / ctx) * 100 : 0;
+  const color =
+    pct > 80
+      ? "var(--destructive)"
+      : pct > 50
+        ? "var(--warning, #e5a50a)"
+        : "var(--muted-foreground)";
 
   return (
     <TooltipProvider>
@@ -55,64 +77,111 @@ function ContextBadge({ usage }: { usage: UsageInfo }) {
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1.5 cursor-default px-1.5 py-0.5">
             <svg width="14" height="14" viewBox="0 0 18 18">
-              <circle cx="9" cy="9" r="7" fill="none" stroke="var(--border-weak)" strokeWidth="2" />
-              <circle cx="9" cy="9" r="7" fill="none" stroke={color} strokeWidth="2"
+              <circle
+                cx="9"
+                cy="9"
+                r="7"
+                fill="none"
+                stroke="var(--border-weak)"
+                strokeWidth="2"
+              />
+              <circle
+                cx="9"
+                cy="9"
+                r="7"
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
                 strokeDasharray={`${(pct / 100) * 44} 44`}
                 strokeLinecap="round"
                 transform="rotate(-90 9 9)"
               />
             </svg>
-            <span style={{ fontSize: 11, color, fontWeight: 500 }}>{pct.toFixed(1)}%</span>
+            <span className="text-2xs font-medium" style={{ color }}>
+              {pct.toFixed(1)}%
+            </span>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={8} className="bg-card border border-border-weak text-foreground px-3 py-2 min-w-[160px]">
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="px-3 py-2 min-w-40"
+        >
           <div className="flex justify-between gap-4 mb-1">
-            <span style={{ color, fontWeight: 600 }}>{pct.toFixed(1)}%</span>
-            <span className="text-fg-weak font-mono">{formatK(used)} / {formatK(ctx)}</span>
+            <span className="font-medium" style={{ color }}>
+              {pct.toFixed(1)}%
+            </span>
+            <span className="font-mono">
+              {formatK(used)} / {formatK(ctx)}
+            </span>
           </div>
           <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Text</span>
-            <span className="text-fg-weak font-mono">{formatK(used)}</span>
+            <span className="opacity-70">Text</span>
+            <span className="font-mono">{formatK(used)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Remaining</span>
-            <span className="text-fg-weak font-mono">{formatK(Math.max(0, ctx - used))}</span>
+            <span className="opacity-70">Remaining</span>
+            <span className="font-mono">
+              {formatK(Math.max(0, ctx - used))}
+            </span>
           </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  )
+  );
 }
 
 function PlanBadge({ entries }: { entries: PlanEntry[] }) {
-  const completed = entries.filter(e => e.status === "completed").length
-  const inProgress = entries.filter(e => e.status === "in_progress").length
-  const total = entries.length
-  const allDone = completed === total
-  const color = allDone ? "var(--color-success)" : inProgress > 0 ? "var(--primary)" : "var(--muted-foreground)"
+  const completed = entries.filter((e) => e.status === "completed").length;
+  const inProgress = entries.filter((e) => e.status === "in_progress").length;
+  const total = entries.length;
+  const allDone = completed === total;
+  const color = allDone
+    ? "var(--color-success)"
+    : inProgress > 0
+      ? "var(--fg-base)"
+      : "var(--fg-weaker)";
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1 cursor-default px-1.5 py-0.5">
-            <ListChecks size={14} style={{ color }} />
-            <span style={{ fontSize: 11, color, fontWeight: 500 }}>{completed}/{total}</span>
+            <ListChecks className="size-3.5" style={{ color }} />
+            <span className="text-2xs font-medium" style={{ color }}>
+              {completed}/{total}
+            </span>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={8} className="bg-card border border-border-weak text-foreground px-3 py-2.5 max-w-[280px]">
-          <div className="text-xs font-medium text-foreground mb-2">Plan</div>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="px-3 py-2.5 max-w-70"
+        >
+          <div className="text-xs font-medium mb-2">Plan</div>
           <div className="flex flex-col gap-1.5">
             {entries.map((entry, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
                 {entry.status === "completed" ? (
-                  <CheckCircle size={14} weight="fill" className="text-green-500 shrink-0 mt-0.5" />
+                  <CheckCircle
+                    weight="fill"
+                    className="size-3.5 text-success shrink-0 mt-0.5"
+                  />
                 ) : entry.status === "in_progress" ? (
-                  <CircleNotch size={14} weight="bold" className="text-primary shrink-0 mt-0.5 animate-spin" />
+                  <CircleNotch
+                    weight="bold"
+                    className="size-3.5 shrink-0 mt-0.5 animate-spin"
+                  />
                 ) : (
-                  <Circle size={14} className="text-muted-foreground shrink-0 mt-0.5" />
+                  <Circle className="size-3.5 opacity-60 shrink-0 mt-0.5" />
                 )}
-                <span className={entry.status === "completed" ? "text-muted-foreground line-through" : "text-foreground"}>
+                <span
+                  className={
+                    entry.status === "completed"
+                      ? "opacity-60 line-through"
+                      : ""
+                  }
+                >
                   {entry.content}
                 </span>
               </div>
@@ -121,7 +190,7 @@ function PlanBadge({ entries }: { entries: PlanEntry[] }) {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  )
+  );
 }
 
 let attachIdCounter = 0;
@@ -169,10 +238,12 @@ export function Composer() {
       if (planFound) break;
     }
     if (!planFound) return null;
-    const allDone = planFound.every(e => e.status === "completed");
+    const allDone = planFound.every((e) => e.status === "completed");
     if (allDone) {
       // Check if user sent a message after the plan message
-      const hasUserMsgAfter = messages.slice(planMsgIndex + 1).some(m => m.role === "user");
+      const hasUserMsgAfter = messages
+        .slice(planMsgIndex + 1)
+        .some((m) => m.role === "user");
       if (hasUserMsgAfter) return null;
     }
     return planFound;
@@ -198,7 +269,6 @@ export function Composer() {
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
-  const space = "52px";
 
   // ── Attachment helpers ──────────────────────────────────────────────────
 
@@ -257,13 +327,16 @@ export function Composer() {
     function handleSnippet(e: Event) {
       const { comment, code, lines, filePath } = (e as CustomEvent).detail;
       const fileName = filePath?.split("/").pop() || "unknown";
-      setSnippets((prev) => [...prev, {
-        id: `snippet-${Date.now()}`,
-        filePath: fileName,
-        lines,
-        code,
-        comment,
-      }]);
+      setSnippets((prev) => [
+        ...prev,
+        {
+          id: `snippet-${Date.now()}`,
+          filePath: fileName,
+          lines,
+          code,
+          comment,
+        },
+      ]);
       editorRef.current?.focus();
     }
     window.addEventListener("add-code-snippet", handleSnippet);
@@ -283,55 +356,68 @@ export function Composer() {
       const { getCurrentWebview } = await import("@tauri-apps/api/webview");
       const { invoke } = await import("@tauri-apps/api/core");
 
-      const unlistenFn = await getCurrentWebview().onDragDropEvent(async (event) => {
-        const { type } = event.payload;
-        if (type === "enter") {
-          setDragging(true);
-        } else if (type === "leave") {
-          setDragging(false);
-        } else if (type === "drop") {
-          setDragging(false);
-          const { paths } = event.payload;
-          if (!paths?.length) return;
+      const unlistenFn = await getCurrentWebview().onDragDropEvent(
+        async (event) => {
+          const { type } = event.payload;
+          if (type === "enter") {
+            setDragging(true);
+          } else if (type === "leave") {
+            setDragging(false);
+          } else if (type === "drop") {
+            setDragging(false);
+            const { paths } = event.payload;
+            if (!paths?.length) return;
 
-          for (const filePath of paths) {
-            if (attachments.length >= MAX_ATTACHMENTS) {
-              showToast({ title: "Attachment limit", description: `Maximum ${MAX_ATTACHMENTS} files` });
-              break;
-            }
-            try {
-              const result = await invoke<{
-                fileName: string;
-                mimeType: string;
-                dataUrl: string;
-                size: number;
-              }>("read_file_base64", { path: filePath });
-
-              if (result.size > MAX_FILE_SIZE) {
-                showToast({ title: "File too large", description: `${result.fileName} exceeds 10 MB limit` });
-                continue;
+            for (const filePath of paths) {
+              if (attachments.length >= MAX_ATTACHMENTS) {
+                showToast({
+                  title: "Attachment limit",
+                  description: `Maximum ${MAX_ATTACHMENTS} files`,
+                });
+                break;
               }
+              try {
+                const result = await invoke<{
+                  fileName: string;
+                  mimeType: string;
+                  dataUrl: string;
+                  size: number;
+                }>("read_file_base64", { path: filePath });
 
-              const att: FileAttachment = {
-                id: nextAttachId(),
-                fileName: result.fileName,
-                mimeType: result.mimeType,
-                dataUrl: result.dataUrl,
-                size: result.size,
-              };
-              setAttachments((prev) => [...prev, att]);
-            } catch (err) {
-              const name = filePath.split("/").pop() ?? filePath;
-              showToast({ title: "Unsupported file", description: `${name}: ${String(err)}` });
+                if (result.size > MAX_FILE_SIZE) {
+                  showToast({
+                    title: "File too large",
+                    description: `${result.fileName} exceeds 10 MB limit`,
+                  });
+                  continue;
+                }
+
+                const att: FileAttachment = {
+                  id: nextAttachId(),
+                  fileName: result.fileName,
+                  mimeType: result.mimeType,
+                  dataUrl: result.dataUrl,
+                  size: result.size,
+                };
+                setAttachments((prev) => [...prev, att]);
+              } catch (err) {
+                const name = filePath.split("/").pop() ?? filePath;
+                showToast({
+                  title: "Unsupported file",
+                  description: `${name}: ${String(err)}`,
+                });
+              }
             }
           }
-        }
-      });
+        },
+      );
 
       unlisten = unlistenFn;
     })();
 
-    return () => { unlisten?.(); };
+    return () => {
+      unlisten?.();
+    };
   }, [attachments.length]);
 
   // ── Clipboard paste ────────────────────────────────────────────────────
@@ -384,9 +470,12 @@ export function Composer() {
       // Build prompt with snippet context
       let prompt = value;
       if (snippets.length > 0) {
-        const snippetContext = snippets.map((s) =>
-          `[${s.filePath}:${s.lines[0]}${s.lines[0] !== s.lines[1] ? `-${s.lines[1]}` : ""}] ${s.comment}\n\`\`\`\n${s.code}\n\`\`\``
-        ).join("\n\n");
+        const snippetContext = snippets
+          .map(
+            (s) =>
+              `[${s.filePath}:${s.lines[0]}${s.lines[0] !== s.lines[1] ? `-${s.lines[1]}` : ""}] ${s.comment}\n\`\`\`\n${s.code}\n\`\`\``,
+          )
+          .join("\n\n");
         prompt = prompt ? `${snippetContext}\n\n${prompt}` : snippetContext;
       }
       setAttachments([]);
@@ -450,298 +539,294 @@ export function Composer() {
 
   return (
     <div className="w-full pb-3 flex flex-col justify-center items-center pointer-events-none [&>*]:pointer-events-auto">
-      <div ref={composerRef} className={`w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative ${dragging ? "z-50" : ""}`}>
-        <div className={`w-full rounded-xl border bg-bg-weak relative transition-colors ${
-          dragging
-            ? "border-dashed border-2 border-primary/60 bg-primary/5"
-            : "border-border"
-        }`}>
-        {paletteOpen && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
-            <CommandPalette
-              sessionID={chat.activeSession()}
-              onClose={closePalette}
-              onConfigChanged={() => setConfigVersion((v) => v + 1)}
-              initialFilter={paletteFilter?.replace("/", "")}
-            />
-          </div>
-        )}
-
-        <DockShellForm
-          onSubmit={handleSubmit}
-          className="group/prompt-input border-b border-border rounded-lg overflow-hidden focus-within:shadow-xs focus-within:border-border-strong"
-          style={
-            isBypass
-              ? { borderColor: "var(--destructive)", borderWidth: "1.5px" }
-              : undefined
-          }
+      <div
+        ref={composerRef}
+        className={`w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative ${dragging ? "z-50" : ""}`}
+      >
+        <div
+          className={`w-full rounded-xl bg-bg-weak relative transition-colors ring-1 ring-inset ${
+            dragging ? "ring-fg-base/60" : "ring-border-base"
+          }`}
         >
-          <div
-            className="relative"
-            onMouseDown={(e) => {
-              const target = e.target;
-              if (!(target instanceof HTMLElement)) return;
-              if (target.closest("[data-action]")) return;
-              editorRef.current?.focus();
-            }}
-          >
-            {/* Drop hint overlay inside composer */}
-            {dragging && (
-              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg bg-primary/5 pointer-events-none">
-                <div className="flex items-center gap-2 text-sm font-medium text-primary/80">
-                  <ImageIcon size={20} />
-                  Drop files to attach
-                </div>
-              </div>
-            )}
+          {paletteOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
+              <CommandPalette
+                sessionID={chat.activeSession()}
+                onClose={closePalette}
+                onConfigChanged={() => setConfigVersion((v) => v + 1)}
+                initialFilter={paletteFilter?.replace("/", "")}
+              />
+            </div>
+          )}
 
-            {/* Snippet + Attachment chips */}
-            {(snippets.length > 0 || attachments.length > 0) && (
-              <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-                {snippets.map((snip) => (
-                  <div
-                    key={snip.id}
-                    className="group flex flex-col gap-0.5 max-w-[240px] pl-2 pr-1 py-1 rounded-md border border-border-weak bg-muted hover:bg-muted-hover transition-colors"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Code size={14} className="text-primary flex-shrink-0" />
-                      <span className="text-[12px] text-foreground truncate leading-none font-medium">
-                        {snip.filePath}:{snip.lines[0]}{snip.lines[0] !== snip.lines[1] ? `-${snip.lines[1]}` : ""}
+          <DockShellForm
+            onSubmit={handleSubmit}
+            className="group/prompt-input bg-bg-strong border border-border-strong rounded-xl overflow-hidden focus-within:shadow-xs focus-within:border-border-strong"
+            style={
+              isBypass
+                ? { borderColor: "var(--destructive)", borderWidth: "1px" }
+                : undefined
+            }
+          >
+            <div
+              className="relative"
+              onMouseDown={(e) => {
+                const target = e.target;
+                if (!(target instanceof HTMLElement)) return;
+                if (target.closest("[data-action]")) return;
+                editorRef.current?.focus();
+              }}
+            >
+              {/* Drop hint overlay inside composer */}
+              {dragging && (
+                <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg bg-fg-base/5 pointer-events-none">
+                  <div className="flex items-center gap-2 text-sm font-medium text-fg-base/80">
+                    <ImageIcon className="size-5" />
+                    Drop files to attach
+                  </div>
+                </div>
+              )}
+
+              {/* Snippet + Attachment chips */}
+              {(snippets.length > 0 || attachments.length > 0) && (
+                <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+                  {snippets.map((snip) => (
+                    <div
+                      key={snip.id}
+                      className="group flex flex-col gap-0.5 max-w-60 pl-2 pr-1 py-1 rounded-md border border-border-weak bg-bg-weak hover:bg-bg-weaker transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Code className="size-3.5 text-fg-base flex-shrink-0" />
+                        <span className="text-xs text-fg-base truncate leading-none font-medium">
+                          {snip.filePath}:{snip.lines[0]}
+                          {snip.lines[0] !== snip.lines[1]
+                            ? `-${snip.lines[1]}`
+                            : ""}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => removeSnippet(snip.id)}
+                          className="size-4 flex-shrink-0 ml-auto"
+                        >
+                          <X weight="bold" className="size-2.5" />
+                        </Button>
+                      </div>
+                      <span className="text-2xs text-fg-weak truncate leading-none pl-5">
+                        {snip.comment}
+                      </span>
+                    </div>
+                  ))}
+                  {attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="group flex items-center gap-1.5 h-7 pl-1.5 pr-1 rounded-md border border-border-weak bg-bg-weak hover:bg-bg-weaker transition-colors"
+                    >
+                      {isImageMime(att.mimeType) ? (
+                        <img
+                          src={att.dataUrl}
+                          alt=""
+                          className="size-4 rounded-sm object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <FileIcon className="size-3.5 text-fg-weakest flex-shrink-0" />
+                      )}
+                      <span className="text-xs text-fg-weak truncate max-w-40 leading-none">
+                        {att.fileName}
                       </span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        onClick={() => removeSnippet(snip.id)}
-                        className="size-4 flex-shrink-0 ml-auto"
+                        onClick={() => removeAttachment(att.id)}
+                        className="size-4 flex-shrink-0"
                       >
-                        <X size={10} weight="bold" />
+                        <X weight="bold" className="size-2.5" />
                       </Button>
                     </div>
-                    <span className="text-[11px] text-fg-weak truncate leading-none pl-5">
-                      {snip.comment}
-                    </span>
-                  </div>
-                ))}
-                {attachments.map((att) => (
-                  <div
-                    key={att.id}
-                    className="group flex items-center gap-1.5 h-7 pl-1.5 pr-1 rounded-md border border-border-weak bg-muted hover:bg-muted-hover transition-colors"
-                  >
-                    {isImageMime(att.mimeType) ? (
-                      <img
-                        src={att.dataUrl}
-                        alt=""
-                        className="size-4 rounded-sm object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <FileIcon
-                        size={14}
-                        className="text-fg-weakest flex-shrink-0"
-                      />
-                    )}
-                    <span className="text-[12px] text-fg-weak truncate max-w-[160px] leading-none">
-                      {att.fileName}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => removeAttachment(att.id)}
-                      className="size-4 flex-shrink-0"
-                    >
-                      <X size={10} weight="bold" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            <div
-              className="relative max-h-[240px] overflow-y-auto no-scrollbar"
-              style={{ scrollPaddingBottom: space }}
-            >
-              <div
-                ref={editorRef}
-                data-component="prompt-input"
-                role="textbox"
-                aria-multiline="true"
-                contentEditable="true"
-                onInput={handleInput}
-                onKeyDown={handleKeyDown}
-                className="select-text w-full pl-3 pr-2 pt-2 text-base leading-relaxed text-foreground focus:outline-none whitespace-pre-wrap"
-                style={{ paddingBottom: space }}
-              />
-              {!text.trim() && !attachments.length && !snippets.length && (
+              <div className="relative max-h-60 overflow-y-auto no-scrollbar scroll-pb-13">
                 <div
-                  className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 text-base leading-relaxed text-muted-foreground pointer-events-none whitespace-nowrap truncate"
-                  style={{ paddingBottom: space }}
-                >
-                  Ask anything...
-                </div>
-              )}
-            </div>
+                  ref={editorRef}
+                  data-component="prompt-input"
+                  role="textbox"
+                  aria-multiline="true"
+                  contentEditable="true"
+                  onInput={handleInput}
+                  onKeyDown={handleKeyDown}
+                  className="select-text w-full pl-3 pr-2 pt-2 pb-13 text-base leading-relaxed text-fg-base focus:outline-none whitespace-pre-wrap"
+                />
+                {!text.trim() && !attachments.length && !snippets.length && (
+                  <div className="absolute top-0 inset-x-0 pl-3 pr-2 pt-2 pb-13 text-base leading-relaxed text-fg-weaker pointer-events-none whitespace-nowrap truncate">
+                    Ask anything...
+                  </div>
+                )}
+              </div>
 
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0"
-              style={{
-                height: space,
-                background:
-                  "linear-gradient(to top, var(--bg-strong) calc(100% - 20px), transparent)",
-              }}
-            />
+              <div
+                aria-hidden="true"
+                className="oac-composer-fade pointer-events-none absolute inset-x-0 bottom-0 h-13"
+              />
 
-            <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
-              {(planEntries?.length || contextUsage?.contextSize) && (
-                <div className="flex items-center rounded-lg border border-border-weak px-0.5 py-0.5 pointer-events-auto">
-                  {planEntries && planEntries.length > 0 && (
-                    <PlanBadge entries={planEntries} />
-                  )}
-                  {contextUsage?.contextSize && (
-                    <ContextBadge usage={contextUsage} />
-                  )}
+              <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
+                {(planEntries?.length || contextUsage?.contextSize) && (
+                  <div className="flex items-center h-8 rounded-lg border border-border-weak px-1 pointer-events-auto">
+                    {planEntries && planEntries.length > 0 && (
+                      <PlanBadge entries={planEntries} />
+                    )}
+                    {contextUsage?.contextSize && (
+                      <ContextBadge usage={contextUsage} />
+                    )}
+                  </div>
+                )}
+                <div className="pointer-events-auto">
+                  <Button
+                    data-action="prompt-submit"
+                    type="submit"
+                    size="icon-sm"
+                    disabled={
+                      !text.trim() &&
+                      !attachments.length &&
+                      !snippets.length &&
+                      !chat.streaming()
+                    }
+                    className="bg-fg-base text-bg-strong hover:bg-fg-base/90"
+                    onClick={
+                      chat.streaming()
+                        ? (e: React.MouseEvent) => {
+                            e.preventDefault();
+                            chat.abort();
+                          }
+                        : undefined
+                    }
+                  >
+                    {sending ? (
+                      <Spinner className="size-3.5" />
+                    ) : chat.streaming() ? (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                      >
+                        <rect
+                          x="5"
+                          y="5"
+                          width="10"
+                          height="10"
+                          fill="currentColor"
+                          rx="1"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                      >
+                        <path
+                          d="M10 15.8337V4.16699M4.16699 10.0003L10 4.16699L15.8337 10.0003"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </Button>
                 </div>
-              )}
-              <div className="pointer-events-auto">
-                <Button
-                  data-action="prompt-submit"
-                  type="submit"
-                  size="icon-sm"
-                  disabled={
-                    !text.trim() && !attachments.length && !snippets.length && !chat.streaming()
-                  }
-                  className="bg-text-strong text-bg-strong hover:bg-text-strong/90"
-                  onClick={
-                    chat.streaming()
-                      ? (e: React.MouseEvent) => {
-                          e.preventDefault();
-                          chat.abort();
-                        }
-                      : undefined
-                  }
-                >
-                  {sending ? (
-                    <Spinner className="size-3.5" />
-                  ) : chat.streaming() ? (
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                      <rect
-                        x="5"
-                        y="5"
-                        width="10"
-                        height="10"
-                        fill="currentColor"
-                        rx="1"
-                      />
-                    </svg>
-                  ) : (
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-                      <path
-                        d="M10 15.8337V4.16699M4.16699 10.0003L10 4.16699L15.8337 10.0003"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </Button>
+              </div>
+
+              <div className="pointer-events-none absolute bottom-2 left-2">
+                <div className="pointer-events-auto flex items-center gap-0.5">
+                  <Button
+                    data-action="prompt-attach"
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Plus weight="bold" className="text-fg-weak" />
+                  </Button>
+                  <Button
+                    data-action="prompt-command"
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPaletteFilter(undefined);
+                      setPaletteOpen(!paletteOpen);
+                    }}
+                  >
+                    <Command weight="regular" className="text-fg-weak" />
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="pointer-events-none absolute bottom-2 left-2">
-              <div className="pointer-events-auto flex items-center gap-0.5">
-                <Button
-                  data-action="prompt-attach"
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Plus
-                    size={18}
-                    weight="bold"
-                    className="text-fg-weak"
-                  />
-                </Button>
-                <Button
-                  data-action="prompt-command"
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setPaletteFilter(undefined);
-                    setPaletteOpen(!paletteOpen);
-                  }}
-                >
-                  <Command
-                    size={18}
-                    weight="regular"
-                    className="text-fg-weak"
-                  />
-                </Button>
-              </div>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ACCEPTED_FILE_TYPES}
+              className="hidden"
+              onChange={(e) => {
+                const list = e.target.files;
+                if (list) void addFiles(Array.from(list));
+                e.target.value = "";
+              }}
+            />
+          </DockShellForm>
+
+          <DockTray attach="top" className="rounded-lg">
+            <div className="px-2 py-1.5 flex items-center gap-1.5 min-w-0">
+              <AgentSelector
+                current={agent}
+                sessionID={chat.activeSession()}
+                onSelect={setAgent}
+                onSwitched={() => setConfigVersion((v) => v + 1)}
+                onInstallAgent={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("open-settings", {
+                      detail: { page: "agents" },
+                    }),
+                  );
+                }}
+              />
+              <ConfigSelector
+                category="model"
+                sessionID={chat.activeSession()}
+                refreshKey={configVersion}
+              />
+              <BranchIndicator />
+              <div className="flex-1" />
+              <ConfigSelector
+                category="mode"
+                sessionID={chat.activeSession()}
+                refreshKey={configVersion}
+                onValueChange={(v) => {
+                  const val = v.toLowerCase();
+                  setIsBypass(
+                    val.includes("bypass") || val.includes("dangerous"),
+                  );
+                }}
+              />
             </div>
-          </div>
-
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_FILE_TYPES}
-            className="hidden"
-            onChange={(e) => {
-              const list = e.target.files;
-              if (list) void addFiles(Array.from(list));
-              e.target.value = "";
-            }}
-          />
-        </DockShellForm>
-
-        <DockTray attach="top" className="rounded-lg">
-          <div className="px-2 pt-2 pb-2 flex items-center gap-1.5 min-w-0">
-            <AgentSelector
-              current={agent}
-              sessionID={chat.activeSession()}
-              onSelect={setAgent}
-              onSwitched={() => setConfigVersion((v) => v + 1)}
-              onInstallAgent={() => {
-                window.dispatchEvent(
-                  new CustomEvent("open-settings", {
-                    detail: { page: "agents" },
-                  }),
-                );
-              }}
-            />
-            <ConfigSelector
-              category="model"
-              sessionID={chat.activeSession()}
-              refreshKey={configVersion}
-            />
-            <BranchIndicator />
-            <div className="flex-1" />
-            <ConfigSelector
-              category="mode"
-              sessionID={chat.activeSession()}
-              refreshKey={configVersion}
-              onValueChange={(v) => {
-                const val = v.toLowerCase();
-                setIsBypass(
-                  val.includes("bypass") || val.includes("dangerous"),
-                );
-              }}
-            />
-          </div>
-        </DockTray>
+          </DockTray>
         </div>
       </div>
 
       {/* Drag overlay — scrim over whole window to funnel attention to composer */}
       {dragging && (
-        <div className="fixed inset-0 z-40 bg-background/60 pointer-events-none" />
+        <div className="fixed inset-0 z-40 bg-bg-base/60 pointer-events-none" />
       )}
     </div>
   );

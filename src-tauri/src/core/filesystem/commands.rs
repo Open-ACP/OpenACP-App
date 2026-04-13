@@ -303,6 +303,31 @@ fn collect_branches(dir: &std::path::Path, prefix: &str, out: &mut Vec<String>) 
     }
 }
 
+/// Read the `origin` remote URL from a workspace directory by parsing .git/config.
+/// Returns the raw URL (https or git@) or None if not a git repo / no origin remote.
+#[tauri::command]
+pub fn get_git_remote_url(directory: String) -> Option<String> {
+    let config = std::path::Path::new(&directory).join(".git/config");
+    let content = std::fs::read_to_string(config).ok()?;
+    let mut in_origin = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_origin = trimmed == "[remote \"origin\"]";
+            continue;
+        }
+        if in_origin {
+            if let Some(rest) = trimmed.strip_prefix("url") {
+                let rest = rest.trim_start();
+                if let Some(eq) = rest.strip_prefix('=') {
+                    return Some(eq.trim().to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {
     std::path::Path::new(&path).exists()

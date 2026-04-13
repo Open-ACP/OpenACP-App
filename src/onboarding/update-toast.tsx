@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { check as checkAppUpdate, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { ArrowLineDown, Package, X } from '@phosphor-icons/react';
+import { Button } from '../openacp/components/ui/button';
 
 interface CoreUpdate { current: string; latest: string; }
 
@@ -129,7 +130,7 @@ function UpdateCard(props: {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between">
-            <p className="text-sm font-medium text-foreground">{props.title}</p>
+            <p className="text-base font-medium text-foreground">{props.title}</p>
             {!props.loading && (
               <button
                 onClick={props.onDismiss}
@@ -140,29 +141,23 @@ function UpdateCard(props: {
               </button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
             {props.error || props.description}
           </p>
           {props.error && (
-            <p className="text-xs text-destructive mt-0.5">{props.error}</p>
+            <p className="text-sm text-destructive mt-0.5">{props.error}</p>
           )}
         </div>
       </div>
 
       {!props.loading && (
-        <div className="flex items-center gap-4 px-4 pb-3.5 pl-[44px]">
-          <button
-            onClick={props.onAction}
-            className="text-sm font-semibold text-foreground hover:text-foreground/80 transition-colors"
-          >
+        <div className="flex items-center gap-2 px-4 pb-3.5 pl-[44px]">
+          <Button variant="default" size="sm" onClick={props.onAction}>
             {props.error ? "Retry" : props.actionLabel}
-          </button>
-          <button
-            onClick={props.onDismiss}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={props.onDismiss}>
             Not yet
-          </button>
+          </Button>
         </div>
       )}
 

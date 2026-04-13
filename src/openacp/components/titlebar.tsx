@@ -1,4 +1,7 @@
 import { Sidebar, TextAlignLeft, FolderOpen, Globe, Terminal } from "@phosphor-icons/react"
+import { Button } from "./ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
+import { cn } from "src/lib/utils"
 
 interface TitlebarProps {
   sidebarCollapsed: boolean
@@ -17,9 +20,34 @@ interface TitlebarProps {
   disabled?: boolean
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, terminalOpen, onToggleTerminal, hideFileTree, hideBrowser, hideTerminal, disabled }: TitlebarProps) {
-  const btnDisabled = disabled ? "opacity-30 pointer-events-none" : ""
+interface IconButtonProps {
+  label: string
+  active?: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}
 
+function TitlebarIconButton({ label, active, disabled, onClick, children }: IconButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-md"
+          disabled={disabled}
+          onClick={onClick}
+          className={cn("text-fg-weak", active && "bg-black/10 dark:bg-white/10")}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, terminalOpen, onToggleTerminal, hideFileTree, hideBrowser, hideTerminal, disabled }: TitlebarProps) {
   return (
     <header
       className="h-12 shrink-0 relative grid items-center border-b border-border-weak px-2"
@@ -29,58 +57,57 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
       {/* Left: traffic light spacer + sidebar toggle */}
       <div className="flex items-center min-w-0" data-tauri-drag-region>
         <div style={{ width: 80 }} className="shrink-0" data-tauri-drag-region />
-        <button
-          type="button"
-          className={`oac-titlebar-btn ${btnDisabled}`}
-          title={sidebarCollapsed ? "Show sessions" : "Hide sessions"}
-          onClick={disabled ? undefined : onToggleSidebar}
+        <TitlebarIconButton
+          label={sidebarCollapsed ? "Show sessions" : "Hide sessions"}
+          disabled={disabled}
+          onClick={onToggleSidebar}
         >
-          <Sidebar size={18} />
-        </button>
+          <Sidebar />
+        </TitlebarIconButton>
       </div>
 
       {/* Center: empty, draggable */}
       <div data-tauri-drag-region />
 
-      {/* Right: Review + File Tree + Browser */}
+      {/* Right: Review + File Tree + Browser + Terminal */}
       <div className="flex items-center justify-end gap-1 min-w-0 pr-1" data-tauri-drag-region>
-        <button
-          type="button"
-          className={`oac-titlebar-btn ${reviewOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
-          title="Review changes"
-          onClick={disabled ? undefined : onToggleReview}
+        <TitlebarIconButton
+          label="Review changes"
+          active={reviewOpen}
+          disabled={disabled}
+          onClick={onToggleReview}
         >
-          <TextAlignLeft size={18} />
-        </button>
+          <TextAlignLeft />
+        </TitlebarIconButton>
         {!hideFileTree && (
-          <button
-            type="button"
-            className={`oac-titlebar-btn ${fileTreeOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
-            title="File tree"
-            onClick={disabled ? undefined : onToggleFileTree}
+          <TitlebarIconButton
+            label="File tree"
+            active={fileTreeOpen}
+            disabled={disabled}
+            onClick={onToggleFileTree}
           >
-            <FolderOpen size={18} />
-          </button>
+            <FolderOpen />
+          </TitlebarIconButton>
         )}
         {!hideBrowser && (
-          <button
-            type="button"
-            className={`oac-titlebar-btn ${browserOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
-            title="Browser"
-            onClick={disabled ? undefined : onToggleBrowser}
+          <TitlebarIconButton
+            label="Browser"
+            active={browserOpen}
+            disabled={disabled}
+            onClick={onToggleBrowser}
           >
-            <Globe size={18} />
-          </button>
+            <Globe />
+          </TitlebarIconButton>
         )}
         {!hideTerminal && (
-          <button
-            type="button"
-            className={`oac-titlebar-btn ${terminalOpen ? "oac-titlebar-btn--active" : ""} ${btnDisabled}`}
-            title="Terminal"
-            onClick={disabled ? undefined : onToggleTerminal}
+          <TitlebarIconButton
+            label="Terminal"
+            active={terminalOpen}
+            disabled={disabled}
+            onClick={onToggleTerminal}
           >
-            <Terminal size={18} />
-          </button>
+            <Terminal />
+          </TitlebarIconButton>
         )}
       </div>
     </header>
