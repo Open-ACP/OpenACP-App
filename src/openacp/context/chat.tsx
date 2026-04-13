@@ -203,8 +203,6 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const hadDisconnect = useRef(false)
   const msgCounter = useRef(0)
   const partCounter = useRef(0)
-  const sendingRef = useRef(false)
-
   // Text batching
   const textBuffer = useRef(new Map<string, string>())
   const thoughtBuffer = useRef(new Map<string, string>())
@@ -779,10 +777,6 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   }
 
   function handleMessageQueued(ev: MessageQueuedEvent) {
-    // Race condition guard: if we are mid-send and this is our active session,
-    // the message will go straight to processing — skip adding to pending.
-    if (sendingRef.current && ev.sessionId === store.activeSession) return
-
     // Detect old Core: if sender field is absent, fall back to legacy behavior
     if (!('sender' in ev)) {
       // Legacy path — add user message to conversation directly (existing behavior)
@@ -827,6 +821,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
   function handleMessageProcessing(ev: MessageProcessingEvent) {
     const sid = ev.sessionId
+    const processingStartedAt = new Date(ev.timestamp).getTime()
 
     // Remove from pending list
     setStore(draft => {
@@ -838,15 +833,49 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     })
 
     if (ownTurnIds.current.has(ev.turnId)) {
-      // Self-sent: user message already visible via optimistic UI.
-      // Create assistant message now (optimistic UI no longer creates it).
+      // Self-sent: create both messages only when this turn actually starts processing.
+      const userMsgId = nextId("usr")
       const astMsgId = nextId("ast")
-      const userMsgId = turnIdToUserMsgId.current.get(ev.turnId)
+      const displayText = ev.finalPrompt || ev.userPrompt || ""
+      turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
       assistantMsgId.current.set(sid, astMsgId)
       turnIdToAssistantMsgId.current.set(ev.turnId, astMsgId)
       ownTurnIds.current.delete(ev.turnId)
 
-      addMessage(sid, {
+      setStore((draft) => {
+        const msgs = draft.messagesBySession[sid] ??= []
+        msgs.push({
+          id: userMsgId,
+          role: "user",
+          sessionID: sid,
+          parts: [{ id: nextPartId(), type: "text", content: displayText }],
+          blocks: [{ type: "text", id: nextPartId(), content: displayText }],
+          createdAt: processingStartedAt,
+        })
+        msgs.push({
+          id: astMsgId,
+          role: "assistant",
+          sessionID: sid,
+          parentID: userMsgId,
+          parts: [],
+          blocks: [],
+          createdAt: Date.now(),
+        })
+        msgs.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+        draft.streaming = true
+        draft.streamingSession = sid
+        draft.scrollTrigger++
+      })
+      const refMsgs = messagesRef.current[sid] ??= []
+      refMsgs.push({
+        id: userMsgId,
+        role: "user",
+        sessionID: sid,
+        parts: [{ id: nextPartId(), type: "text", content: displayText }],
+        blocks: [{ type: "text", id: nextPartId(), content: displayText }],
+        createdAt: processingStartedAt,
+      })
+      refMsgs.push({
         id: astMsgId,
         role: "assistant",
         sessionID: sid,
@@ -855,21 +884,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         blocks: [],
         createdAt: Date.now(),
       })
-      setStore((draft) => {
-        // If a before_prompt plugin modified the prompt, update the user message
-        // to show finalPrompt — matches what server stores in history.
-        if (ev.finalPrompt && ev.finalPrompt !== ev.userPrompt && userMsgId) {
-          const msgs = draft.messagesBySession[sid]
-          const userMsg = msgs?.find((m) => m.id === userMsgId)
-          if (userMsg) {
-            userMsg.parts = [{ id: nextPartId(), type: "text", content: ev.finalPrompt }]
-            userMsg.blocks = [{ type: "text", id: nextPartId(), content: ev.finalPrompt }]
-          }
-        }
-        draft.streaming = true
-        draft.streamingSession = sid
-        draft.scrollTrigger++
-      })
+      refMsgs.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      window.dispatchEvent(new CustomEvent("workspace-activity"))
       return
     }
 
@@ -966,34 +982,21 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       setActiveSession(sessionID)
     }
 
-    const userMsgId = nextId("usr")
-    addMessage(sessionID, {
-      id: userMsgId, role: "user", sessionID,
-      parts: [{ id: nextPartId(), type: "text", content: text }],
-      blocks: [{ type: "text", id: nextPartId(), content: text }],
-      attachments: attachments?.length ? attachments : undefined,
-      createdAt: Date.now(),
-    })
-
-    setStore((draft) => {
-      draft.scrollTrigger++
-    })
-
     connect()
 
-    // Generate turnId client-side and register it BEFORE the API call so the SSE echo
-    // (message:queued) is guaranteed to be suppressed even if it arrives before the response.
+    // Generate turnId client-side and register it BEFORE the API call.
+    // No optimistic user message here — the message appears in the pending list
+    // via message:queued, then moves to the conversation on message:processing.
+    // This prevents multiple turns from appearing in the conversation before their
+    // predecessors finish, which happened with optimistic UI under rapid sends.
     const turnId = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
     ownTurnIds.current.add(turnId)
-    // Track user message by turnId so message:processing can set it as parentID on the assistant msg
-    turnIdToUserMsgId.current.set(turnId, userMsgId)
 
     try {
       await workspace.client.sendPrompt(sessionID, text, attachments, turnId)
       return true
     } catch {
       ownTurnIds.current.delete(turnId)
-      turnIdToUserMsgId.current.delete(turnId)
       return false
     }
   }
@@ -1001,12 +1004,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const sendPrompt = useCallback(async (text: string, attachments?: import("../types").FileAttachment[]): Promise<boolean> => {
     // No blocking guard — App supports queuing multiple messages like Telegram/API adapters.
     // Each send is independent; Core handles serial processing via PromptQueue.
-    sendingRef.current = true
-    try {
-      return await doSendPrompt(text, attachments)
-    } finally {
-      sendingRef.current = false
-    }
+    return await doSendPrompt(text, attachments)
   }, [store.activeSession, workspace.client])
 
   const addCommandResponse = useCallback((sessionID: string, text: string, role: "user" | "assistant" = "assistant") => {
