@@ -137,6 +137,8 @@ export interface Message {
   usage?: UsageInfo
   /** Whether the user interrupted/aborted this response */
   interrupted?: boolean
+  /** Server turn index — used for cache↔server merge matching */
+  turnId?: string
 }
 
 // ── Agents ──────────────────────────────────────────────────────────────────

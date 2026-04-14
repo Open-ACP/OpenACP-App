@@ -11,6 +11,7 @@ export interface AppSettings {
   browserLastMode: "docked" | "floating" | "pip"
   browserSearchEngine: "google" | "duckduckgo" | "bing"
   toolAutoExpand: Record<string, boolean>
+  messageMode: "queue" | "instant"
 }
 
 const defaults: AppSettings = {
@@ -32,6 +33,7 @@ const defaults: AppSettings = {
     skill: false,
     other: false,
   },
+  messageMode: "queue",
 }
 
 let store: Awaited<ReturnType<typeof load>> | null = null
@@ -64,7 +66,9 @@ export async function getAllSettings(): Promise<AppSettings> {
     ((await s.get("browserSearchEngine")) as AppSettings["browserSearchEngine"]) ?? defaults.browserSearchEngine
   const toolAutoExpand =
     ((await s.get("toolAutoExpand")) as AppSettings["toolAutoExpand"]) ?? defaults.toolAutoExpand
-  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand }
+  const messageMode =
+    ((await s.get("messageMode")) as AppSettings["messageMode"]) ?? defaults.messageMode
+  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand, messageMode }
 }
 
 /** Apply theme to document element. `system` resolves to the OS preference so that

@@ -39,6 +39,7 @@ export interface WorkspaceItem {
   directory: string
   name: string
   type: "local" | "remote"
+  host?: string
   pinned?: boolean
   customName?: string
 }
@@ -107,12 +108,12 @@ function ContextMenu(props: {
 
       <div className="my-1 border-t border-border-weak" />
 
-      {props.workspace.directory && (
+      {(props.workspace.directory || props.workspace.type === "remote") && (
         <button
           className={menuBtnClass}
           onClick={() => { props.onCopyPath(); props.onClose() }}
         >
-          Copy path
+          {props.workspace.type === "remote" ? "Copy host URL" : "Copy path"}
         </button>
       )}
       {props.isConnected && props.workspace.type !== "remote" && (
@@ -140,28 +141,37 @@ function ContextMenu(props: {
           </button>
         )
       )}
-      {props.isConnected ? (
+      {props.workspace.type === "local" ? (
+        props.isConnected ? (
+          <button
+            className={menuBtnClass}
+            onClick={() => { props.onStop(); props.onClose() }}
+          >
+            Stop server
+          </button>
+        ) : (
+          <>
+            <button
+              className={menuBtnClass}
+              onClick={() => { props.onStart(); props.onClose() }}
+            >
+              Start server
+            </button>
+            <button
+              className={menuBtnClass}
+              onClick={() => { props.onReconnect(); props.onClose() }}
+            >
+              Reconnect
+            </button>
+          </>
+        )
+      ) : (
         <button
           className={menuBtnClass}
-          onClick={() => { props.onStop(); props.onClose() }}
+          onClick={() => { props.onReconnect(); props.onClose() }}
         >
-          Stop server
+          Reconnect
         </button>
-      ) : (
-        <>
-          <button
-            className={menuBtnClass}
-            onClick={() => { props.onStart(); props.onClose() }}
-          >
-            Start server
-          </button>
-          <button
-            className={menuBtnClass}
-            onClick={() => { props.onReconnect(); props.onClose() }}
-          >
-            Reconnect
-          </button>
-        </>
       )}
       <div className="my-1 border-t border-border-weak" />
       <button
@@ -385,14 +395,15 @@ export function SidebarRail(props: {
             isPinned={props.pinnedIds.has(ws.id)}
             onCopyPath={async () => {
               try {
-                await navigator.clipboard.writeText(ws.directory)
-                showToast({ description: "Path copied to clipboard" })
+                const value = ws.type === "remote" ? (ws.host ?? ws.directory) : ws.directory
+                await navigator.clipboard.writeText(value)
+                showToast({ description: ws.type === "remote" ? "Host URL copied" : "Path copied to clipboard" })
               } catch { /* fallback */ }
             }}
             onShare={() => props.onShareWorkspace?.(contextMenu.id)}
             onCopyShareLink={() => props.onCopyShareLink?.(contextMenu.id)}
             onStopSharing={() => props.onStopSharing?.(contextMenu.id)}
-            onReconnect={() => props.onSwitchWorkspace(contextMenu.id)}
+            onReconnect={() => props.onReconnect?.(contextMenu.id)}
             onStart={async () => {
               try {
                 showToast({ description: "Starting server..." })

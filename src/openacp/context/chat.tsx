@@ -15,6 +15,7 @@ import {
   resolveKind, buildTitle, extractDescription, extractCommand, isNoiseTool, validatePlanEntries,
 } from "../components/chat/block-utils"
 import * as charStream from "../lib/char-stream"
+import { getSetting } from "../lib/settings-store"
 
 interface ChatContext {
   messages: () => Message[]
@@ -111,6 +112,8 @@ function turnToMessage(turn: HistoryTurn, sessionId: string): Message {
     id, role: turn.role, sessionID: sessionId,
     parts, blocks,
     createdAt: new Date(turn.timestamp).getTime(),
+    turnId: String(turn.index),
+    interrupted: turn.stopReason === "interrupted" || undefined,
   }
 
   if (turn.usage) {
@@ -192,6 +195,10 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const messagesRef = useRef<Record<string, Message[]>>({})
 
   const abortedSessions = useRef(new Set<string>())
+  /** turnId of the turn that was aborted — used to allow next queued turn to proceed */
+  const abortedTurnId = useRef<string | undefined>(undefined)
+  /** Cached messageMode setting — read on mount + settings change, avoids async in critical path */
+  const messageModeRef = useRef<"queue" | "instant">("queue")
   const assistantMsgId = useRef(new Map<string, string>())
   const thinkingStartTime = useRef(new Map<string, number>())
   // Maps turnId → userMsgId for cross-adapter messages (message:queued → message:processing pairing)
@@ -294,7 +301,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     if (!hasInMemory) {
       try {
         const cached = await loadCachedMessages(sessionID)
-        if (cached && cached.length > 0) {
+        // Only use cache if messages have turnId (new format). Old cache without
+        // turnId can't participate in interrupted-message merge and may have stale ordering.
+        if (cached && cached.length > 0 && cached.some((m) => m.turnId)) {
           setMessages(sessionID, cached)
         }
       } catch { /* cache unavailable */ }
@@ -310,24 +319,14 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         const localAstBlocks = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
 
         if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
-          const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
-          // Server has fully captured all assistant work — the local streaming placeholder (if any)
-          // is superseded by the completed turn in history. Clear it to prevent duplicate rendering.
-          // Guard: only reset if assistantMsgId hasn't changed since we started the fetch.
-          // A changed ID means a new message:processing arrived during the await — an active
-          // turn we must not interrupt.
+          // Server is authoritative — interrupted turns already have stopReason: "interrupted"
+          // which turnToMessage() maps to interrupted: true. No cache merge needed.
           if (assistantMsgId.current.get(sessionID) === streamingPlaceholderAtStart) {
             assistantMsgId.current.delete(sessionID)
             setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
           }
-          // Only keep user messages as in-flight — assistant messages are already
-          // in serverMessages (completed turns) and local copies would cause duplicates
-          // because handleMessageProcessing sets createdAt: Date.now() (client timestamp)
-          // which can be > lastServerTime even for turns the server has captured.
-          // Secondary de-dup: lastServerTime is the turn START timestamp, so a recently
-          // sent user message (createdAt ≈ send time) can be > lastServerTime even when
-          // the server already has it. Exclude inFlight items whose text is already in
-          // serverMessages to prevent that duplicate.
+
+          const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
           const serverUserTexts = new Set(
             serverMessages
               .filter((m) => m.role === "user")
@@ -338,12 +337,13 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
             const text = m.parts.find((p) => p.type === "text") as { content: string } | undefined
             return !text || !serverUserTexts.has(text.content)
           })
+
           setMessages(sessionID, [...serverMessages, ...inFlight])
           void cacheMessages(sessionID, serverMessages)
         } else if (local.length === 0) {
           setMessages(sessionID, serverMessages)
         }
-        // else: local data is richer, keep it
+        // else: local data is richer (active streaming), keep it
       }
     } catch {
       // Server unavailable — local cache/in-memory used as fallback
@@ -569,7 +569,11 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   function handleAgentEvent(event: AgentEvent) {
     const sessionID = event.sessionId
     if (!sessionID) return
-    if (abortedSessions.current.has(sessionID)) return
+    // Drop events belonging to the aborted turn; allow events from subsequent turns.
+    // If abortedTurnId is unknown (turn completed before abort), block ALL events for safety.
+    if (abortedSessions.current.has(sessionID)) {
+      if (!abortedTurnId.current || event.turnId === abortedTurnId.current) return
+    }
 
     // Broadcast for consumers outside chat context (file tree, notifications, etc.)
     window.dispatchEvent(new CustomEvent("agent-event", { detail: event }))
@@ -812,6 +816,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       return
     }
 
+    // Instant mode: skip pending UI — message will be processed immediately
+    if (messageModeRef.current === "instant" && ownTurnIds.current.has(ev.turnId)) return
+
     // New path: add to pending list, NOT to conversation
     const currentPending = store.pendingBySession[ev.sessionId] || []
     console.log('[PendingQueue] message:queued', {
@@ -835,6 +842,15 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
   function handleMessageProcessing(ev: MessageProcessingEvent) {
     const sid = ev.sessionId
+
+    // If this session was aborted, check if this is the aborted turn or a new one
+    if (abortedSessions.current.has(sid)) {
+      if (ev.turnId === abortedTurnId.current) return // still the aborted turn
+      // New turn from queue — clear abort guard so it can proceed
+      abortedSessions.current.delete(sid)
+      abortedTurnId.current = undefined
+    }
+
     const processingStartedAt = new Date(ev.timestamp).getTime()
 
     // Remove from pending list
@@ -849,59 +865,77 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
 
     if (ownTurnIds.current.has(ev.turnId)) {
       // Self-sent: create both messages only when this turn actually starts processing.
-      const userMsgId = nextId("usr")
-      const astMsgId = nextId("ast")
+      // If optimistic messages were already injected (empty-session fast path),
+      // reuse those IDs instead of creating duplicates.
+      const existingUserMsgId = turnIdToUserMsgId.current.get(ev.turnId)
+      const existingAstMsgId = turnIdToAssistantMsgId.current.get(ev.turnId)
+      const isOptimistic = !!existingUserMsgId && !!existingAstMsgId
+
+      const userMsgId = existingUserMsgId ?? nextId("usr")
+      const astMsgId = existingAstMsgId ?? nextId("ast")
       const displayText = ev.finalPrompt || ev.userPrompt || ""
       turnIdToUserMsgId.current.set(ev.turnId, userMsgId)
       assistantMsgId.current.set(sid, astMsgId)
       turnIdToAssistantMsgId.current.set(ev.turnId, astMsgId)
       ownTurnIds.current.delete(ev.turnId)
 
-      // Use server timestamp for both messages to avoid clock skew between
-      // remote server and local client causing user message to sort after assistant.
-      setStore((draft) => {
-        const msgs = draft.messagesBySession[sid] ??= []
-        msgs.push({
+      if (isOptimistic) {
+        // Optimistic messages already in store — just ensure streaming state
+        setStore((draft) => {
+          draft.streaming = true
+          draft.streamingSession = sid
+        })
+      } else {
+        // Use server timestamp for both messages to avoid clock skew between
+        // remote server and local client causing user message to sort after assistant.
+        setStore((draft) => {
+          const msgs = draft.messagesBySession[sid] ??= []
+          msgs.push({
+            id: userMsgId,
+            role: "user",
+            sessionID: sid,
+            turnId: ev.turnId,
+            parts: [{ id: nextPartId(), type: "text", content: displayText }],
+            blocks: [{ type: "text", id: nextPartId(), content: displayText }],
+            createdAt: processingStartedAt,
+          })
+          msgs.push({
+            id: astMsgId,
+            role: "assistant",
+            sessionID: sid,
+            turnId: ev.turnId,
+            parentID: userMsgId,
+            parts: [],
+            blocks: [],
+            createdAt: processingStartedAt + 1,
+          })
+          msgs.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+          draft.streaming = true
+          draft.streamingSession = sid
+          draft.scrollTrigger++
+        })
+        const refMsgs = messagesRef.current[sid] ??= []
+        refMsgs.push({
           id: userMsgId,
           role: "user",
           sessionID: sid,
+          turnId: ev.turnId,
           parts: [{ id: nextPartId(), type: "text", content: displayText }],
           blocks: [{ type: "text", id: nextPartId(), content: displayText }],
           createdAt: processingStartedAt,
         })
-        msgs.push({
+        refMsgs.push({
           id: astMsgId,
           role: "assistant",
           sessionID: sid,
+          turnId: ev.turnId,
           parentID: userMsgId,
           parts: [],
           blocks: [],
           createdAt: processingStartedAt + 1,
         })
-        msgs.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
-        draft.streaming = true
-        draft.streamingSession = sid
-        draft.scrollTrigger++
-      })
-      const refMsgs = messagesRef.current[sid] ??= []
-      refMsgs.push({
-        id: userMsgId,
-        role: "user",
-        sessionID: sid,
-        parts: [{ id: nextPartId(), type: "text", content: displayText }],
-        blocks: [{ type: "text", id: nextPartId(), content: displayText }],
-        createdAt: processingStartedAt,
-      })
-      refMsgs.push({
-        id: astMsgId,
-        role: "assistant",
-        sessionID: sid,
-        parentID: userMsgId,
-        parts: [],
-        blocks: [],
-        createdAt: processingStartedAt + 1,
-      })
-      refMsgs.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+        refMsgs.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      }
       window.dispatchEvent(new CustomEvent("workspace-activity"))
       return
     }
@@ -931,6 +965,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           id: userMsgId,
           role: "user",
           sessionID: sid,
+          turnId: ev.turnId,
           parts: [{ id: nextPartId(), type: "text", content: displayText }],
           blocks: [{ type: "text", id: nextPartId(), content: displayText }],
           createdAt: new Date(ev.timestamp).getTime(),
@@ -942,6 +977,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         id: astMsgId,
         role: "assistant",
         sessionID: sid,
+        turnId: ev.turnId,
         parentID: userMsgId ?? turnIdToUserMsgId.current.get(ev.turnId),
         parts: [],
         blocks: [],
@@ -959,14 +995,14 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     if (userMsgId && ev.userPrompt) {
       const displayText = ev.finalPrompt || ev.userPrompt
       refMsgs.push({
-        id: userMsgId, role: "user", sessionID: sid,
+        id: userMsgId, role: "user", sessionID: sid, turnId: ev.turnId,
         parts: [{ id: nextPartId(), type: "text", content: displayText }],
         blocks: [{ type: "text", id: nextPartId(), content: displayText }],
         createdAt: new Date(ev.timestamp).getTime(), sourceAdapterId: ev.sourceAdapterId,
       })
     }
     refMsgs.push({
-      id: astMsgId, role: "assistant", sessionID: sid,
+      id: astMsgId, role: "assistant", sessionID: sid, turnId: ev.turnId,
       parentID: userMsgId ?? turnIdToUserMsgId.current.get(ev.turnId),
       parts: [], blocks: [], createdAt: processingStartedAt + 1,
     })
@@ -1056,29 +1092,111 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       }
     }
 
+    // Instant mode: interrupt current turn before sending new message.
+    // Uses cached ref (no async) so abort happens synchronously before any events slip through.
+    if (store.streaming && store.activeSession && messageModeRef.current === "instant") {
+      abort()
+      // Do NOT clear the abort guard here — handleMessageProcessing
+      // clears it when the NEW turn's message:processing event arrives.
+    }
+
+    const needsSession = !store.activeSession
     let sessionID = store.activeSession
-    if (!sessionID) {
+
+    const turnId = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+    ownTurnIds.current.add(turnId)
+
+    if (needsSession) {
+      // Show optimistic UI IMMEDIATELY under a placeholder session key,
+      // then create the real session in background and migrate.
+      const placeholder = `__pending_${turnId}`
+      const optUserMsgId = nextId("usr")
+      const optAstMsgId = nextId("ast")
+      turnIdToUserMsgId.current.set(turnId, optUserMsgId)
+      assistantMsgId.current.set(placeholder, optAstMsgId)
+      turnIdToAssistantMsgId.current.set(turnId, optAstMsgId)
+
+      const userMsg: Message = {
+        id: optUserMsgId, role: "user", sessionID: placeholder,
+        parts: [{ id: nextPartId(), type: "text", content: text }],
+        blocks: [{ type: "text", id: nextPartId(), content: text }],
+        createdAt: Date.now(),
+      }
+      const astMsg: Message = {
+        id: optAstMsgId, role: "assistant", sessionID: placeholder,
+        parentID: optUserMsgId, parts: [], blocks: [], createdAt: Date.now(),
+      }
+      // Instant render: user sees their message + thinking skeleton
+      setStore((draft) => {
+        draft.activeSession = placeholder
+        draft.messagesBySession[placeholder] = [userMsg, astMsg]
+        draft.streaming = true
+        draft.streamingSession = placeholder
+        draft.scrollTrigger++
+      })
+      messagesRef.current[placeholder] = [userMsg, astMsg]
+
+      // Create session in background, then migrate state
       const session = await sessions.create()
-      if (!session) return false
+      if (!session) {
+        // Rollback
+        ownTurnIds.current.delete(turnId)
+        assistantMsgId.current.delete(placeholder)
+        turnIdToAssistantMsgId.current.delete(turnId)
+        turnIdToUserMsgId.current.delete(turnId)
+        setStore((draft) => {
+          draft.activeSession = undefined
+          delete draft.messagesBySession[placeholder]
+          draft.streaming = false
+          draft.streamingSession = undefined
+        })
+        delete messagesRef.current[placeholder]
+        return false
+      }
       sessionID = session.id
-      setActiveSession(sessionID)
+
+      // Migrate from placeholder to real session ID
+      const migrateMsg = (m: Message): Message => ({ ...m, sessionID: sessionID! })
+      assistantMsgId.current.delete(placeholder)
+      assistantMsgId.current.set(sessionID, optAstMsgId)
+      setStore((draft) => {
+        const msgs = draft.messagesBySession[placeholder]
+        if (msgs) {
+          draft.messagesBySession[sessionID!] = msgs.map((m) => { m.sessionID = sessionID!; return m })
+          delete draft.messagesBySession[placeholder]
+        }
+        draft.activeSession = sessionID!
+        draft.streamingSession = sessionID
+      })
+      messagesRef.current[sessionID] = (messagesRef.current[placeholder] ?? []).map(migrateMsg)
+      delete messagesRef.current[placeholder]
     }
 
     connect()
 
     // Generate turnId client-side and register it BEFORE the API call.
-    // No optimistic user message here — the message appears in the pending list
-    // via message:queued, then moves to the conversation on message:processing.
-    // This prevents multiple turns from appearing in the conversation before their
-    // predecessors finish, which happened with optimistic UI under rapid sends.
-    const turnId = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
-    ownTurnIds.current.add(turnId)
+    // For existing sessions: no optimistic user message — the message appears
+    // in the pending list via message:queued, then moves to the conversation
+    // on message:processing. This prevents multiple turns from appearing in
+    // the conversation before their predecessors finish.
 
     try {
-      await workspace.client.sendPrompt(sessionID, text, attachments, turnId)
+      await workspace.client.sendPrompt(sessionID!, text, attachments, turnId)
       return true
     } catch {
       ownTurnIds.current.delete(turnId)
+      if (needsSession) {
+        // Rollback optimistic messages on send failure
+        assistantMsgId.current.delete(sessionID!)
+        turnIdToAssistantMsgId.current.delete(turnId)
+        turnIdToUserMsgId.current.delete(turnId)
+        setStore((draft) => {
+          delete draft.messagesBySession[sessionID!]
+          draft.streaming = false
+          draft.streamingSession = undefined
+        })
+        messagesRef.current[sessionID!] = []
+      }
       return false
     }
   }
@@ -1107,30 +1225,64 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const abort = useCallback(() => {
     const sessionID = store.activeSession
     if (!sessionID) return
+
+    // Find the turnId of the currently streaming turn so we can block only its events
+    const currentMsgId = assistantMsgId.current.get(sessionID)
+    let currentTurnId: string | undefined
+    if (currentMsgId) {
+      for (const [tid, mid] of turnIdToAssistantMsgId.current) {
+        if (mid === currentMsgId) { currentTurnId = tid; break }
+      }
+    }
+
     abortedSessions.current.add(sessionID)
-    flushBuffers()
-    charStream.flush(`${sessionID}:text`)
-    charStream.flush(`${sessionID}:thought`)
+    abortedTurnId.current = currentTurnId
+
+    // Discard unrevealed content — do NOT flush buffers to the UI.
+    // Text already rendered (up to charStream cursor) stays; everything
+    // still in the buffer or in textBuffer/thoughtBuffer is dropped.
+    textBuffer.current.delete(sessionID)
+    thoughtBuffer.current.delete(sessionID)
     charStream.clearStream(`${sessionID}:text`)
     charStream.clearStream(`${sessionID}:thought`)
     // Mark the assistant message as interrupted
-    const msgId = assistantMsgId.current.get(sessionID)
-    if (msgId) {
+    if (currentMsgId) {
       setStore((draft) => {
         const msgs = draft.messagesBySession[sessionID]
         if (msgs) {
-          const msg = msgs.find((m) => m.id === msgId)
+          const msg = msgs.find((m) => m.id === currentMsgId)
           if (msg) msg.interrupted = true
         }
         syncRef(sessionID, draft)
       })
+      // Cache immediately with truncated content + interrupted flag
+      const msgs = messagesRef.current[sessionID]
+      if (msgs) void cacheMessages(sessionID, [...msgs])
     }
     assistantMsgId.current.delete(sessionID)
     setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
-    // Tell server to actually cancel the agent's prompt
+    // Tell server to cancel only the current prompt (queue preserved).
+    // Guard stays active until:
+    //  - handleMessageProcessing receives a NEW turn (queue drained)
+    //  - user sends a new message (doSendPrompt clears it)
+    //  - 30s fallback timeout
     workspace.client.cancelPrompt(sessionID).catch(() => {})
-    setTimeout(() => abortedSessions.current.delete(sessionID), 5000)
+    // Fallback: clear guard after 30s even if server never responds
+    setTimeout(() => {
+      abortedSessions.current.delete(sessionID)
+      abortedTurnId.current = undefined
+    }, 30_000)
   }, [store.activeSession, workspace.client])
+
+  // Load messageMode setting on mount
+  useEffect(() => {
+    getSetting("messageMode").then((m) => { messageModeRef.current = m })
+    function onSettingsChanged() {
+      getSetting("messageMode").then((m) => { messageModeRef.current = m })
+    }
+    window.addEventListener("settings-changed", onSettingsChanged)
+    return () => window.removeEventListener("settings-changed", onSettingsChanged)
+  }, [])
 
   // Connect on mount, disconnect on cleanup
   useEffect(() => {

@@ -79,7 +79,7 @@ function EmptyState() {
   }, [remoteUrl]);
 
   return (
-    <div className="h-full flex flex-col items-center justify-center">
+    <div className="h-full flex flex-col items-center justify-center pb-24">
       <div className="flex flex-col items-center gap-5 max-w-2xl px-6">
         <div className="w-16 h-16 bg-fg-base rounded-xl flex justify-center items-center">
           <BrandIcon className="w-12 h-auto text-bg-base" />
@@ -107,6 +107,9 @@ function EmptyState() {
             )}
           </div>
         </div>
+        <p className="text-xs text-fg-weak/60">
+          Type a message below to start a new session
+        </p>
       </div>
     </div>
   );
@@ -311,7 +314,7 @@ export function ChatView() {
   const sessions = useSessions();
   const sessionTitle = useMemo(() => {
     if (!activeSessionId) return "";
-    return sessions.list().find((s) => s.id === activeSessionId)?.name || "";
+    return sessions.list().find((s) => s.id === activeSessionId)?.name || "Untitled";
   }, [activeSessionId, sessions.list()]);
 
   const hasMessages = activeSessionId && messages.length > 0;
@@ -356,7 +359,7 @@ export function ChatView() {
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
+              <Button variant="ghost" size="icon-sm" disabled={activeSessionId?.startsWith("__pending_")}>
                 <DotsThree size={16} weight="bold" />
               </Button>
             </DropdownMenuTrigger>
@@ -448,6 +451,7 @@ export function ChatView() {
                       streaming={
                         streaming && item.isLastMsg && item.isLastBlock
                       }
+                      messageStreaming={streaming && item.isLastMsg}
                     />
                   )}
                 </div>

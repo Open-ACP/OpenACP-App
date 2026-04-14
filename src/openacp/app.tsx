@@ -17,6 +17,7 @@ import { ChatView } from "./components/chat";
 import { Composer } from "./components/composer";
 import { WelcomeScreen } from "./components/welcome";
 import { AddWorkspaceModal } from "./components/add-workspace/index";
+import { ReconnectDialog } from "./components/reconnect-dialog";
 import {
   loadWorkspaces,
   saveWorkspaces,
@@ -430,6 +431,7 @@ function OpenACPAppInner() {
   const [addWorkspaceDefaultTab, setAddWorkspaceDefaultTab] = useState<
     "local" | "remote"
   >("local");
+  const [reconnectWorkspaceId, setReconnectWorkspaceId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("general");
   const [pluginsOpen, setPluginsOpen] = useState(false);
@@ -924,6 +926,7 @@ function OpenACPAppInner() {
             directory: w.directory,
             name: w.name,
             type: w.type,
+            host: w.host,
             pinned: w.pinned,
             customName: w.customName,
           }))}
@@ -975,7 +978,12 @@ function OpenACPAppInner() {
           }}
           sharingIds={sharingWorkspaceIds}
           onReconnect={(id) => {
-            switchInstance(id);
+            const ws = workspaces.find((w) => w.id === id);
+            if (ws?.type === "remote") {
+              setReconnectWorkspaceId(id);
+            } else {
+              switchInstance(id);
+            }
           }}
           onOpenFolder={() => openAddWorkspaceModal("local")}
           onOpenPlugins={() => setPluginsOpen(true)}
@@ -1085,6 +1093,39 @@ function OpenACPAppInner() {
           defaultTab={addWorkspaceDefaultTab}
         />
       )}
+      {reconnectWorkspaceId && (() => {
+        const ws = workspaces.find((w) => w.id === reconnectWorkspaceId)
+        if (!ws) return null
+        return (
+          <ReconnectDialog
+            open
+            workspace={ws}
+            onReconnect={async (newHost) => {
+              // Try health check with existing token at new URL
+              const { getKeychainToken } = await import("./api/keychain")
+              const token = await getKeychainToken(ws.id)
+              if (!token) throw new Error("No token found — use a share link to re-authenticate")
+              const res = await fetch(`${newHost}/api/v1/system/health`, {
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(8000),
+              })
+              if (res.status === 401) throw new Error("401")
+              if (!res.ok) throw new Error(`Server returned ${res.status}`)
+              // Health check passed — update host and reconnect
+              setWorkspaces((prev) =>
+                prev.map((w) => w.id === reconnectWorkspaceId ? { ...w, host: newHost } : w),
+              )
+              setReconnectWorkspaceId(null)
+              switchInstance(reconnectWorkspaceId)
+            }}
+            onFallbackToAdd={() => {
+              setReconnectWorkspaceId(null)
+              openAddWorkspaceModal("remote")
+            }}
+            onClose={() => setReconnectWorkspaceId(null)}
+          />
+        )
+      })()}
       {setupInfo && (
         <SetupModal
           open
