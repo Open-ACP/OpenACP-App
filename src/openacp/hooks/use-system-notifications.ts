@@ -13,6 +13,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
  * Currently notifies on:
  * - Agent response complete (session goes idle after streaming)
  * - Permission request waiting for user action
+ * - User mentioned by agent in a teamwork session
  */
 export function useSystemNotifications() {
   const permittedRef = useRef<boolean | null>(null)
