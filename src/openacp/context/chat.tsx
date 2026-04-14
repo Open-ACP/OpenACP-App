@@ -312,46 +312,53 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       const history = await workspace.client.getSessionHistory(sessionID)
       if (history && history.turns.length > 0) {
         const serverMessages = historyToMessages(history)
+        const serverAstBlocks = serverMessages.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
         const local = messagesRef.current[sessionID] ?? []
+        const localAstBlocks = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
 
-        // Build turnId index from cache/local for interrupted message preservation
-        const cachedInterrupted = new Map<string, Message>()
-        const cachedSrc = local.length > 0 ? local : (await loadCachedMessages(sessionID).catch(() => null)) ?? []
-        for (const m of cachedSrc) {
-          if (m.turnId && m.interrupted) cachedInterrupted.set(m.turnId, m)
-        }
-
-        // Merge: prefer cached version for interrupted messages, server for everything else
-        const merged: Message[] = []
-        for (const serverMsg of serverMessages) {
-          const cached = serverMsg.turnId ? cachedInterrupted.get(serverMsg.turnId) : undefined
-          if (cached) {
-            merged.push(cached) // truncated text + interrupted flag preserved
-          } else {
-            merged.push(serverMsg)
+        if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
+          // Build index of cached interrupted messages for preservation
+          const cachedInterrupted = new Map<string, Message>()
+          const cachedSrc = local.length > 0 ? local : (await loadCachedMessages(sessionID).catch(() => null)) ?? []
+          for (const m of cachedSrc) {
+            if (m.turnId && m.interrupted) cachedInterrupted.set(m.turnId, m)
           }
+
+          // Merge: prefer cached version for interrupted messages, server for everything else
+          const merged: Message[] = []
+          for (const serverMsg of serverMessages) {
+            const cached = serverMsg.turnId ? cachedInterrupted.get(serverMsg.turnId) : undefined
+            if (cached) {
+              merged.push(cached)
+            } else {
+              merged.push(serverMsg)
+            }
+          }
+
+          if (assistantMsgId.current.get(sessionID) === streamingPlaceholderAtStart) {
+            assistantMsgId.current.delete(sessionID)
+            setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
+          }
+
+          // Keep user inFlight messages not yet on server
+          const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
+          const serverUserTexts = new Set(
+            serverMessages
+              .filter((m) => m.role === "user")
+              .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as { content: string }).content))
+          )
+          const inFlight = local.filter((m) => {
+            if (m.createdAt <= lastServerTime || m.role !== "user") return false
+            const text = m.parts.find((p) => p.type === "text") as { content: string } | undefined
+            return !text || !serverUserTexts.has(text.content)
+          })
+
+          setMessages(sessionID, [...merged, ...inFlight])
+          void cacheMessages(sessionID, merged)
+        } else if (local.length === 0) {
+          setMessages(sessionID, serverMessages)
         }
-
-        if (assistantMsgId.current.get(sessionID) === streamingPlaceholderAtStart) {
-          assistantMsgId.current.delete(sessionID)
-          setStore((draft) => { draft.streaming = false; draft.streamingSession = undefined })
-        }
-
-        // Keep user inFlight messages not yet on server
-        const lastServerTime = new Date(history.turns[history.turns.length - 1].timestamp).getTime()
-        const serverUserTexts = new Set(
-          serverMessages
-            .filter((m) => m.role === "user")
-            .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as { content: string }).content))
-        )
-        const inFlight = local.filter((m) => {
-          if (m.createdAt <= lastServerTime || m.role !== "user") return false
-          const text = m.parts.find((p) => p.type === "text") as { content: string } | undefined
-          return !text || !serverUserTexts.has(text.content)
-        })
-
-        setMessages(sessionID, [...merged, ...inFlight])
-        void cacheMessages(sessionID, merged)
+        // else: local data is richer (active streaming), keep it
       }
     } catch {
       // Server unavailable — local cache/in-memory used as fallback
