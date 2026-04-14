@@ -824,6 +824,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       return
     }
 
+    // Instant mode: skip pending UI — message will be processed immediately
+    if (messageModeRef.current === "instant" && ownTurnIds.current.has(ev.turnId)) return
+
     // New path: add to pending list, NOT to conversation
     const currentPending = store.pendingBySession[ev.sessionId] || []
     console.log('[PendingQueue] message:queued', {
