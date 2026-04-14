@@ -319,19 +319,27 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
         const localAstBlocks = local.filter((m) => m.role === "assistant").reduce((n, m) => n + m.blocks.length, 0)
 
         if (serverAstBlocks > 0 && serverAstBlocks >= localAstBlocks) {
-          // Build index of cached interrupted messages for preservation
-          const cachedInterrupted = new Map<string, Message>()
+          // Build position-based index of cached interrupted assistant messages.
+          // turnId formats differ between SSE (random hex) and server history (turn index),
+          // so we match by sequential assistant position instead.
           const cachedSrc = local.length > 0 ? local : (await loadCachedMessages(sessionID).catch(() => null)) ?? []
+          const interruptedByPos = new Map<number, Message>()
+          let cachedAstPos = 0
           for (const m of cachedSrc) {
-            if (m.turnId && m.interrupted) cachedInterrupted.set(m.turnId, m)
+            if (m.role === "assistant") {
+              if (m.interrupted) interruptedByPos.set(cachedAstPos, m)
+              cachedAstPos++
+            }
           }
 
-          // Merge: prefer cached version for interrupted messages, server for everything else
+          // Merge: prefer cached version for interrupted assistant messages at matching positions
           const merged: Message[] = []
+          let serverAstPos = 0
           for (const serverMsg of serverMessages) {
-            const cached = serverMsg.turnId ? cachedInterrupted.get(serverMsg.turnId) : undefined
-            if (cached) {
-              merged.push(cached)
+            if (serverMsg.role === "assistant") {
+              const cached = interruptedByPos.get(serverAstPos)
+              merged.push(cached ?? serverMsg)
+              serverAstPos++
             } else {
               merged.push(serverMsg)
             }
