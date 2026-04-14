@@ -289,7 +289,7 @@ export function RemoteTab(props: {
 
       <div className="flex gap-2">
         <button
-          onClick={() => { setPreview(null); setError(null); setDisplayName(''); setUsername('') }}
+          onClick={() => { setPreview(null); setError(null); setDisplayName(''); setUsername(''); setUsernameError(null) }}
           className="h-9 px-4 rounded-lg border border-border-weak text-sm font-medium text-fg-weak hover:bg-accent transition-colors"
         >
           Back
