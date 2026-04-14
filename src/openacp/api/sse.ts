@@ -97,6 +97,13 @@ export function createSSEManager() {
       } catch { /* skip */ }
     })
 
+    es.addEventListener("notification:text", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        window.dispatchEvent(new CustomEvent("mention-notification", { detail: data }))
+      } catch { /* skip parse errors */ }
+    })
+
     es.onopen = () => {
       console.log('[sse] connected')
       callbacks.onConnected()
