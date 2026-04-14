@@ -22,12 +22,15 @@ import { CommandPalette } from "./command-palette";
 import { ConfigSelector } from "./config-selector";
 import { Spinner } from "./ui/spinner";
 import { showToast } from "../lib/toast";
+import { getSetting, setSetting } from "../lib/settings-store";
 import {
   Code,
   ListChecks,
   Circle,
   CheckCircle,
   CircleNotch,
+  Queue,
+  Lightning,
 } from "@phosphor-icons/react";
 import type { FileAttachment, UsageInfo, PlanEntry } from "../types";
 
@@ -280,6 +283,11 @@ export function Composer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const paletteNavigateRef = useRef<((dir: 'up' | 'down' | 'enter') => void) | null>(null);
   const dragCounter = useRef(0);
+  const [messageMode, setMessageMode] = useState<"queue" | "instant">("queue");
+
+  useEffect(() => {
+    void getSetting("messageMode").then(setMessageMode);
+  }, []);
 
   // ── Attachment helpers ──────────────────────────────────────────────────
 
@@ -888,6 +896,23 @@ export function Composer() {
               />
               <BranchIndicator />
               <div className="flex-1" />
+              <button
+                type="button"
+                onClick={async () => {
+                  const next = messageMode === "queue" ? "instant" : "queue";
+                  setMessageMode(next);
+                  await setSetting("messageMode", next);
+                  window.dispatchEvent(new CustomEvent("settings-changed"));
+                }}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-fg-weak hover:text-fg-base hover:bg-accent transition-colors"
+                title={messageMode === "queue" ? "Queue mode — messages wait in line" : "Instant mode — interrupts current response"}
+              >
+                {messageMode === "queue"
+                  ? <Queue size={13} weight="bold" />
+                  : <Lightning size={13} weight="fill" />
+                }
+                <span className="capitalize">{messageMode}</span>
+              </button>
               <ConfigSelector
                 category="mode"
                 sessionID={chat.activeSession()}
