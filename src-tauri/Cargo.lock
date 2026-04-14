@@ -2927,7 +2927,7 @@ dependencies = [
 
 [[package]]
 name = "openacp-desktop"
-version = "2026.408.3"
+version = "2026.410.3"
 dependencies = [
  "base64 0.22.1",
  "dirs",

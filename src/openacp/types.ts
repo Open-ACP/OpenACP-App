@@ -218,6 +218,7 @@ export type HistoryStep =
 
 export interface AgentEvent {
   sessionId: string
+  turnId?: string
   event: AgentEventPayload
 }
 
@@ -262,6 +263,13 @@ export type AgentEventPayload =
 
 // ── Cross-Adapter Input Events ───────────────────────────────────────────────
 
+export interface TurnSender {
+  userId: string
+  identityId: string
+  displayName?: string
+  username?: string
+}
+
 export interface MessageQueuedEvent {
   sessionId: string
   turnId: string
@@ -270,6 +278,7 @@ export interface MessageQueuedEvent {
   attachments?: unknown[]
   timestamp: string
   queueDepth: number
+  sender?: TurnSender | null
 }
 
 export interface MessageProcessingEvent {
@@ -277,6 +286,17 @@ export interface MessageProcessingEvent {
   turnId: string
   sourceAdapterId: string
   timestamp: string
+  // Optional for backward compat with older Core versions that don't emit these fields
+  userPrompt?: string
+  finalPrompt?: string
+  attachments?: unknown[]
+  sender?: TurnSender | null
+}
+
+export interface MessageFailedEvent {
+  sessionId: string
+  turnId: string
+  reason: string
 }
 
 // ── Permission Request ──────────────────────────────────────────────────────

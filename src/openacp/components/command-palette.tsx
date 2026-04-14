@@ -33,6 +33,10 @@ interface SubPickerState {
 export function CommandPalette(props: {
   sessionID: string | undefined; onClose: () => void
   onConfigChanged?: () => void; initialFilter?: string
+  /** Fill composer with command text instead of executing immediately */
+  onFill?: (text: string) => void
+  /** Ref to imperative navigation so parent can forward arrow keys */
+  navigateRef?: React.RefObject<((dir: 'up' | 'down' | 'enter') => void) | null>
 }) {
   const chat = useChat()
   const sessions = useSessions()
@@ -73,15 +77,30 @@ export function CommandPalette(props: {
 
   const hasSession = !!props.sessionID
 
-  async function execCmd(name: string) {
+  async function execCmd(name: string, usage?: string) {
+    // Commands with arguments: fill composer so user can type args before sending.
+    // onFill handles closing the palette itself — do not call onClose here.
+    if (usage && props.onFill) {
+      props.onFill(`/${name} `)
+      return
+    }
+
     const sid = props.sessionID
     props.onClose()
     if (!sid) return
     chat.addCommandResponse(sid, `/${name}`, "user")
     try {
       const res = await workspace.client.executeCommand(`/${name}`, sid)
-      if (res.error) chat.addCommandResponse(sid, `**Error:** ${res.error}`, "assistant")
-      else if (res.result?.text) chat.addCommandResponse(sid, res.result.text, "assistant")
+      if (res.error) {
+        chat.addCommandResponse(sid, `**Error:** ${res.error}`, "assistant")
+      } else if (res.result?.type === 'adaptive') {
+        const variant = res.result.variants?.['sse'] as { text?: string } | undefined
+        chat.addCommandResponse(sid, variant?.text ?? res.result.fallback, "assistant")
+      } else if (res.result?.type === 'error') {
+        chat.addCommandResponse(sid, `⚠️ ${res.result.message}`, "assistant")
+      } else if (res.result?.text) {
+        chat.addCommandResponse(sid, res.result.text, "assistant")
+      }
     } catch (e: any) {
       chat.addCommandResponse(sid, `**Error:** ${e?.message || "Command failed"}`, "assistant")
     }
@@ -151,7 +170,7 @@ export function CommandPalette(props: {
     list.push({ id: "cfg-model", label: "Model", group: "Configuration", type: "sub-picker", rightLabel: currentConfigValue("model"), enabled: hasSession, action: () => openConfigPicker("model", "Model") })
     for (const cmd of serverCommands) {
       if (HIDDEN_COMMANDS.has(cmd.name) || DEDICATED_COMMANDS.has(cmd.name)) continue
-      list.push({ id: `cmd-${cmd.name}`, label: `/${cmd.name}`, description: cmd.description, group: "Commands", type: "action", enabled: hasSession || cmd.category === "system", action: () => execCmd(cmd.name) })
+      list.push({ id: `cmd-${cmd.name}`, label: `/${cmd.name}`, description: cmd.description, group: "Commands", type: "action", enabled: hasSession || cmd.category === "system", action: () => execCmd(cmd.name, cmd.usage) })
     }
     return list
   }, [hasSession, serverCommands, sessionConfig, currentConfigValue])
@@ -176,17 +195,30 @@ export function CommandPalette(props: {
     requestAnimationFrame(() => { rootRef.current?.querySelector("[data-highlighted]")?.scrollIntoView({ block: "nearest" }) })
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") { e.preventDefault(); if (subPicker) { setSubPicker(null); return }; props.onClose(); return }
+  function navigate(dir: 'up' | 'down' | 'enter') {
     const list = subPicker ? subPicker.choices : filtered
     const len = list.length
-    if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted((h) => (h + 1) % len); scrollHighlightedIntoView() }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted((h) => (h - 1 + len) % len); scrollHighlightedIntoView() }
-    else if (e.key === "Enter") {
-      e.preventDefault()
+    if (dir === 'down') { setHighlighted((h) => (h + 1) % len); scrollHighlightedIntoView() }
+    else if (dir === 'up') { setHighlighted((h) => (h - 1 + len) % len); scrollHighlightedIntoView() }
+    else if (dir === 'enter') {
       if (subPicker) { const c = subPicker.choices[highlighted]; if (c) selectConfigValue(subPicker.configId, c.value) }
       else { const item = filtered[highlighted]; if (item && item.enabled !== false) item.action() }
     }
+  }
+
+  // Set ref synchronously during render so parent can forward keys immediately on mount
+  if (props.navigateRef) {
+    (props.navigateRef as React.MutableRefObject<typeof navigate>).current = navigate
+  }
+  useEffect(() => () => {
+    if (props.navigateRef) (props.navigateRef as React.MutableRefObject<typeof navigate | null>).current = null
+  }, [])
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") { e.preventDefault(); if (subPicker) { setSubPicker(null); return }; props.onClose(); return }
+    if (e.key === "ArrowDown") { e.preventDefault(); navigate('down') }
+    else if (e.key === "ArrowUp") { e.preventDefault(); navigate('up') }
+    else if (e.key === "Enter") { e.preventDefault(); navigate('enter') }
   }
 
   return (
