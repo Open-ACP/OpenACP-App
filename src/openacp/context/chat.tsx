@@ -197,6 +197,8 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   const abortedSessions = useRef(new Set<string>())
   /** turnId of the turn that was aborted — used to allow next queued turn to proceed */
   const abortedTurnId = useRef<string | undefined>(undefined)
+  /** Cached messageMode setting — read on mount + settings change, avoids async in critical path */
+  const messageModeRef = useRef<"queue" | "instant">("queue")
   const assistantMsgId = useRef(new Map<string, string>())
   const thinkingStartTime = useRef(new Map<string, number>())
   // Maps turnId → userMsgId for cross-adapter messages (message:queued → message:processing pairing)
@@ -1093,22 +1095,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       }
     }
 
-    // Instant mode: interrupt current turn before sending new message
-    if (store.streaming && store.activeSession) {
-      const mode = await getSetting("messageMode")
-      if (mode === "instant") {
-        abort()
-      }
+    // Instant mode: interrupt current turn before sending new message.
+    // Uses cached ref (no async) so abort happens synchronously before any events slip through.
+    if (store.streaming && store.activeSession && messageModeRef.current === "instant") {
+      abort()
+      // Do NOT clear the abort guard here — handleMessageProcessing
+      // clears it when the NEW turn's message:processing event arrives.
     }
 
     const needsSession = !store.activeSession
     let sessionID = store.activeSession
-
-    // Clear abort guard when user explicitly sends a new message
-    if (sessionID && abortedSessions.current.has(sessionID)) {
-      abortedSessions.current.delete(sessionID)
-      abortedTurnId.current = undefined
-    }
 
     const turnId = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
     ownTurnIds.current.add(turnId)
@@ -1280,6 +1276,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       abortedTurnId.current = undefined
     }, 30_000)
   }, [store.activeSession, workspace.client])
+
+  // Load messageMode setting on mount
+  useEffect(() => {
+    getSetting("messageMode").then((m) => { messageModeRef.current = m })
+    function onSettingsChanged() {
+      getSetting("messageMode").then((m) => { messageModeRef.current = m })
+    }
+    window.addEventListener("settings-changed", onSettingsChanged)
+    return () => window.removeEventListener("settings-changed", onSettingsChanged)
+  }, [])
 
   // Connect on mount, disconnect on cleanup
   useEffect(() => {

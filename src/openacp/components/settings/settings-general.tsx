@@ -75,6 +75,7 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
               const next = e.target.value as "queue" | "instant"
               setMessageMode(next)
               await setSetting("messageMode", next)
+              window.dispatchEvent(new CustomEvent("settings-changed"))
             }}
           >
             <option value="queue">Queue</option>
