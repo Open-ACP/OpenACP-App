@@ -17,6 +17,10 @@ export interface WorkspaceEntry {
    * because it does not grant API access on its own.
    */
   identitySecret?: string
+  /**
+   * Display name of the linked user. Set at connect/reconnect time.
+   */
+  displayName?: string
   // Enhanced rail fields (all optional for backwards compat):
   lastActiveAt?: string    // ISO 8601, updated on workspace switch
   pinned?: boolean         // pinned to top of rail

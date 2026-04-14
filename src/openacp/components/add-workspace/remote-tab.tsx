@@ -67,20 +67,31 @@ async function connectWithCode(
   const ws = await wsRes.json()
 
   let role = 'user'; let scopes: string[] = []
+  let isReconnect = false
+  let existingDisplayName: string | undefined
   try {
     const meRes = await fetch(`${host}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } })
-    if (meRes.ok) { const me = await meRes.json(); role = me.role ?? 'user'; scopes = me.scopes ?? [] }
+    if (meRes.ok) {
+      const me = await meRes.json()
+      role = me.role ?? 'user'
+      scopes = me.scopes ?? []
+      // If token already linked (e.g. still valid after re-generating link on same server),
+      // treat as reconnect so we skip the identity form
+      if (me.claimed && me.displayName) {
+        isReconnect = true
+        existingDisplayName = me.displayName
+      }
+    }
   } catch {}
 
   // Step 3: detect reconnect — workspaceId already in store with a stored identitySecret
   const existingEntry = existingWorkspaces.find(e => e.id === ws.id)
-  let isReconnect = false
-  let existingDisplayName: string | undefined
 
   if (existingEntry?.identitySecret) {
     // Attempt silent re-link using the old token's identitySecret.
     // On 401 the secret is no longer valid — fall through to first-time form.
     // On 404/5xx identity plugin is not installed — proceed without re-linking.
+    // This block can override the isReconnect set from /auth/me above.
     try {
       const tempClient = createApiClient({ url: host, token: accessToken })
       const user = await tempClient.setupIdentity({ identitySecret: existingEntry.identitySecret })
@@ -141,6 +152,8 @@ export function RemoteTab(props: {
     const p = preview; if (!p) return
     setSaving(true); setUsernameError(null)
 
+    let confirmedDisplayName: string | undefined
+
     try {
       if (!p.isReconnect) {
         // First-time connect: claim identity before saving workspace.
@@ -157,6 +170,13 @@ export function RemoteTab(props: {
           setUsernameError('Username already taken')
           setSaving(false)
           return
+        }
+        // Read returned identity data on success to store displayName
+        if (res.ok) {
+          try {
+            const identityData = await res.json()
+            confirmedDisplayName = identityData?.displayName
+          } catch {}
         }
         // 404 (identity plugin not installed) or 5xx — proceed silently
       }
@@ -176,6 +196,7 @@ export function RemoteTab(props: {
         expiresAt: p.expiresAt,
         refreshDeadline: p.refreshDeadline,
         identitySecret: p.identitySecret,
+        displayName: p.isReconnect ? p.existingDisplayName : confirmedDisplayName,
       })
     } catch (e: any) {
       setError(e.message ?? 'Failed to save')
