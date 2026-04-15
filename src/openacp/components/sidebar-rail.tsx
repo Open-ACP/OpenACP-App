@@ -7,7 +7,6 @@ import {
   Trash,
   PushPin,
   PencilSimple,
-  Bell,
 } from "@phosphor-icons/react"
 import {
   DndContext,
@@ -31,7 +30,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip"
-import { NotificationPopover } from "./notification-popover"
 import { SortableWorkspaceItem } from "./sortable-workspace-item"
 import { RenameWorkspaceDialog } from "./rename-workspace-popover"
 import { showToast } from "../lib/toast"
@@ -206,9 +204,6 @@ export function SidebarRail(props: {
   onReorder: (activeId: string, overId: string) => void
   onRename: (id: string, name: string) => void
   hasUpdates?: boolean
-  notificationCount?: number
-  notificationOpen?: boolean
-  onNotificationOpenChange?: (open: boolean) => void
 }) {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
@@ -336,27 +331,6 @@ export function SidebarRail(props: {
       </div>
 
       <div className="shrink-0 w-full pb-5 pt-3 flex flex-col items-center gap-2">
-        <NotificationPopover
-          open={props.notificationOpen ?? false}
-          onOpenChange={props.onNotificationOpenChange ?? (() => {})}
-          onNavigateSession={(sessionId) => {
-            window.dispatchEvent(new CustomEvent("navigate-session", { detail: { sessionId } }))
-          }}
-        >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-md" className="relative">
-                <Bell className="text-fg-weak" />
-                {(props.notificationCount ?? 0) > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 size-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-medium">
-                    {props.notificationCount! > 99 ? "99+" : props.notificationCount}
-                  </span>
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Notifications</TooltipContent>
-          </Tooltip>
-        </NotificationPopover>
         {import.meta.env.DEV && (
           <Tooltip>
             <TooltipTrigger asChild>

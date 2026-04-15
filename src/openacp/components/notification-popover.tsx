@@ -102,9 +102,9 @@ export function NotificationPopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent
-        side="right"
+        side="bottom"
         sideOffset={8}
-        align="end"
+        align="start"
         className="w-80 p-0"
       >
         {/* Header */}

@@ -948,6 +948,9 @@ function OpenACPAppInner() {
         hideBrowser={!browserPanelEnabled}
         hideTerminal={!hasInstance}
         disabled={!isConnected}
+        notificationCount={unreadCount}
+        notificationOpen={notifOpen}
+        onNotificationOpenChange={setNotifOpen}
       />
       <div className="flex flex-1 min-h-0">
         <SidebarRail
@@ -1022,9 +1025,6 @@ function OpenACPAppInner() {
             setShowSettings(true);
           }}
           hasUpdates={updateState.hasUpdates && !updatesSeen}
-          notificationCount={unreadCount}
-          notificationOpen={notifOpen}
-          onNotificationOpenChange={setNotifOpen}
         />
 
         {hasInstance ? (
