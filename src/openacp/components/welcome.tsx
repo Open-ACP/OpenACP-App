@@ -57,7 +57,7 @@ export function WelcomeScreen(props: {
                     <div className="text-xs text-muted-foreground truncate font-mono">{shortPath(instance.directory)}</div>
                   </div>
                   {instance.status === "running" && (
-                    <div className="size-2 rounded-full shrink-0" style={{ background: "var(--surface-success-strong)" }} />
+                    <div className="size-2 rounded-full shrink-0" style={{ background: "var(--color-success)" }} />
                   )}
                 </button>
               ))}

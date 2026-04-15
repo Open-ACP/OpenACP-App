@@ -308,7 +308,7 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
                 <div className="text-sm leading-lg text-muted-foreground">
                   No file changes yet
                 </div>
-                <div className="text-sm leading-lg text-foreground-weaker mt-1">
+                <div className="text-sm leading-lg text-fg-weakest mt-1">
                   Changes will appear as the agent edits files
                 </div>
               </div>

@@ -39,6 +39,9 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
   const [changes, setChanges] = useState<FileChange[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Refresh when workspace, mode, or refreshKey changes
   useEffect(() => {
     if (!workspacePath) return
     setLoading(true)
@@ -53,7 +56,37 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
         .catch(() => setChanges([]))
         .finally(() => setLoading(false))
     }
-  }, [workspacePath, mode])
+  }, [workspacePath, mode, refreshKey])
+
+  // Auto-refresh when agent modifies files (tool_call completed for file-related tools)
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout>
+    function handleAgentEvent(e: Event) {
+      const { event } = (e as CustomEvent).detail ?? {}
+      if (!event) return
+
+      // Refresh when a file-related tool starts (SSE only sends pending, not completed)
+      if (event.type === "tool_call") {
+        const fileTools = ["write", "edit", "bash", "terminal", "notebookedit"]
+        if (fileTools.includes(event.name?.toLowerCase())) {
+          clearTimeout(debounceTimer)
+          debounceTimer = setTimeout(() => setRefreshKey(k => k + 1), 1000)
+        }
+        return
+      }
+
+      // Also refresh when agent response finishes (catches all changes)
+      if (event.type === "usage") {
+        clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => setRefreshKey(k => k + 1), 300)
+      }
+    }
+    window.addEventListener("agent-event", handleAgentEvent)
+    return () => {
+      window.removeEventListener("agent-event", handleAgentEvent)
+      clearTimeout(debounceTimer)
+    }
+  }, [])
 
   const handleOpenFile = useCallback(async (path: string) => {
     try {
@@ -131,7 +164,7 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
                 <span className={`text-2xs font-mono shrink-0 w-3 ${STATUS_COLORS[change.status]}`}>
                   {STATUS_LABELS[change.status]}
                 </span>
-                <span className="truncate text-foreground-weak">{change.path}</span>
+                <span className="truncate text-fg-weak">{change.path}</span>
               </button>
             ))}
           </div>

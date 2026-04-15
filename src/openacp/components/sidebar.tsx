@@ -66,7 +66,7 @@ export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
               {workspaceName}
             </span>
             <span
-              className="text-sm leading-lg text-foreground-weak truncate"
+              className="text-sm leading-lg text-fg-weak truncate"
               title={workspace.directory}
             >
               {workspacePath}
@@ -175,7 +175,7 @@ function SessionItem({
   return (
     <div
       data-session-id={session.id}
-      className={`group/session relative w-full min-w-0 rounded-md cursor-default pl-2 pr-1 transition-colors ${active ? "bg-accent" : "hover:bg-accent"}`}
+      className={`group/session relative w-full min-w-0 rounded-md cursor-default pl-2 pr-1 transition-colors ${active ? "bg-bg-weaker" : "hover:bg-bg-weak"}`}
     >
       <div className="flex min-w-0 items-center gap-1">
         <div className="min-w-0 flex-1">
@@ -198,7 +198,7 @@ function SessionItem({
                 </svg>
               )}
             </div>
-            <span className="text-base leading-xl text-foreground min-w-0 flex-1 truncate">
+            <span className="text-sm leading-xl text-foreground min-w-0 flex-1 truncate">
               {session.name
                 .replace(
                   /\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu,

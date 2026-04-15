@@ -12,7 +12,7 @@ export const TextBlockView = memo(function TextBlockView({ block, streaming, ses
   const text = block.content.replace(/^\n+/, "")
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 select-text">
       <Markdown
         text={text}
         cacheKey={block.id}

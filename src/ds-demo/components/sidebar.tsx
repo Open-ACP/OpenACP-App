@@ -40,7 +40,7 @@ export function Sidebar(props: {
                 className={`w-full text-left px-4 py-1.5 text-sm font-normal transition-colors ${
                   entry.id === props.activeId
                     ? "bg-accent text-foreground"
-                    : "text-foreground-weak hover:bg-accent/50 hover:text-foreground"
+                    : "text-fg-weak hover:bg-accent/50 hover:text-foreground"
                 }`}
                 onClick={() => props.onSelect(entry.id)}
               >

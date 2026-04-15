@@ -11,6 +11,16 @@ export interface WorkspaceEntry {
   role?: string            // token role
   expiresAt?: string       // JWT expiry ISO 8601
   refreshDeadline?: string // JWT refresh deadline ISO 8601
+  /**
+   * Per-token secret for identity re-linking on reconnect.
+   * Returned by the server at exchange time, stored here (not in keychain)
+   * because it does not grant API access on its own.
+   */
+  identitySecret?: string
+  /**
+   * Display name of the linked user. Set at connect/reconnect time.
+   */
+  displayName?: string
   // Enhanced rail fields (all optional for backwards compat):
   lastActiveAt?: string    // ISO 8601, updated on workspace switch
   pinned?: boolean         // pinned to top of rail

@@ -25,7 +25,7 @@ function PlanIcon({ status }: { status: PlanEntry["status"] }) {
         />
       )
     default:
-      return <span style={{ color: "var(--foreground-weaker)" }}>&#9675;</span>
+      return <span style={{ color: "var(--fg-weakest)" }}>&#9675;</span>
   }
 }
 

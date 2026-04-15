@@ -17,7 +17,7 @@ function ensureTheme() {
       name: THEME_NAME,
       colors: {
         "editor.background": "var(--card)",
-        "editor.foreground": "var(--foreground-weak)",
+        "editor.foreground": "var(--fg-weak)",
       },
       tokenColors: [
         { scope: ["comment", "punctuation.definition.comment", "string.comment"], settings: { foreground: "var(--syntax-comment)" } },

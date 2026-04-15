@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X } from '@phosphor-icons/react'
 import { type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
 import {
@@ -26,6 +26,13 @@ export function LocalTab(props: LocalTabProps) {
     | { type: 'new'; directory: string }
     | null
   >(null)
+  const browseResultRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (browseResult) {
+      browseResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [browseResult])
 
   useEffect(() => {
     listWorkspaces().then(setInstances).catch(() => {}).finally(() => setLoading(false))
@@ -71,7 +78,7 @@ export function LocalTab(props: LocalTabProps) {
                     <span className="text-xs text-muted-foreground truncate block font-mono">{inst.directory}</span>
                   </div>
                   {isRunning && (
-                    <div className="size-2 rounded-full shrink-0" style={{ background: 'var(--surface-success-strong)' }} />
+                    <div className="size-2 rounded-full shrink-0" style={{ background: 'var(--color-success)' }} />
                   )}
                   {!alreadyAdded && !isRunning && (
                     <button
@@ -112,13 +119,15 @@ export function LocalTab(props: LocalTabProps) {
       </div>
 
       {browseResult && (
-        <BrowseResultView
-          result={browseResult}
-          instances={instances}
-          onAdd={props.onAdd}
-          onSetup={props.onSetup}
-          onClose={() => setBrowseResult(null)}
-        />
+        <div ref={browseResultRef}>
+          <BrowseResultView
+            result={browseResult}
+            instances={instances}
+            onAdd={props.onAdd}
+            onSetup={props.onSetup}
+            onClose={() => setBrowseResult(null)}
+          />
+        </div>
       )}
     </div>
   )
@@ -139,7 +148,7 @@ function BrowseResultView(props: {
         <div>
           <p className="text-md-medium text-foreground mb-1">Workspace found</p>
           <p className="text-sm-regular text-muted-foreground">
-            This folder is already set up as <strong className="text-foreground-weak">{inst.name ?? inst.id}</strong>. Click Add to open it here.
+            This folder is already set up as <strong className="text-fg-weak">{inst.name ?? inst.id}</strong>. Click Add to open it here.
           </p>
         </div>
         <div className="flex items-center gap-2">

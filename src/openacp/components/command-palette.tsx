@@ -222,7 +222,7 @@ export function CommandPalette(props: {
   }
 
   return (
-    <div ref={rootRef} className="w-full rounded-lg border border-border bg-surface-raised-stronger-non-alpha shadow-lg overflow-hidden" onKeyDown={handleKeyDown}>
+    <div ref={rootRef} className="w-full rounded-lg border border-border bg-bg-strong shadow-lg overflow-hidden" onKeyDown={handleKeyDown}>
       {subPicker ? (
         <>
           <div className="px-3 py-2 border-b border-border-weak/50 flex items-center gap-2">
@@ -239,7 +239,7 @@ export function CommandPalette(props: {
                 onClick={() => selectConfigValue(subPicker.configId, choice.value)}
               >
                 <span className="w-4 shrink-0 text-center">{choice.current && <span className="text-primary" style={{ fontSize: "12px" }}>&#10003;</span>}</span>
-                <span style={{ fontSize: "12px", fontWeight: "500" }} className={choice.current ? "text-foreground" : "text-foreground-weak"}>{choice.label}</span>
+                <span style={{ fontSize: "12px", fontWeight: "500" }} className={choice.current ? "text-foreground" : "text-fg-weak"}>{choice.label}</span>
                 {choice.description && <span className="text-muted-foreground truncate flex-1 min-w-0" style={{ fontSize: "10.5px" }}>{choice.description}</span>}
               </button>
             ))}
@@ -254,7 +254,7 @@ export function CommandPalette(props: {
             {filtered.length === 0 && <div className="px-3 py-3 text-sm leading-normal text-muted-foreground text-center">No actions found</div>}
             {groups.map(([group, groupItems]) => (
               <div key={group}>
-                <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--foreground-weaker)" }}>{group}</div>
+                <div className="px-3 py-1" style={{ fontSize: "11px", color: "var(--fg-weakest)" }}>{group}</div>
                 {groupItems.map((item) => {
                   const globalIdx = filtered.indexOf(item)
                   const disabled = item.enabled === false

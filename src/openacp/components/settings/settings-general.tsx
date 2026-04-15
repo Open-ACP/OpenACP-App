@@ -23,6 +23,7 @@ const LOCALE_LABELS: Record<string, string> = {
 
 export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
   const [language, setLanguage] = useState("en")
+  const [messageMode, setMessageMode] = useState<"queue" | "instant">("queue")
   const [devMode, setDevMode] = useState(false)
   const [browserPanel, setBrowserPanel] = useState(false)
   const [browserLastMode, setBrowserLastMode] = useState<"docked" | "floating" | "pip">("docked")
@@ -30,6 +31,7 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
 
   useEffect(() => {
     void getSetting("language").then(setLanguage)
+    void getSetting("messageMode").then(setMessageMode)
     void getSetting("devMode").then(setDevMode)
     void getSetting("browserPanel").then(setBrowserPanel)
     void getSetting("browserLastMode").then(setBrowserLastMode)
@@ -46,7 +48,7 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
       <SettingCard title="General">
         <SettingRow label="Language" description="Choose the display language for the app">
           <select
-            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px]"
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-fg-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px]"
             value={language}
             onChange={(e) => void handleLanguageChange(e.target.value)}
           >
@@ -58,9 +60,27 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
           </select>
         </SettingRow>
         <SettingRow label="Workspace folder" description="Current workspace data location">
-          <code className="text-sm text-foreground-weak font-mono bg-secondary px-2 py-1 rounded-md max-w-[200px] truncate block">
+          <code className="text-sm text-fg-weak font-mono bg-secondary px-2 py-1 rounded-md max-w-[200px] truncate block">
             {workspacePath || "No workspace selected"}
           </code>
+        </SettingRow>
+      </SettingCard>
+
+      <SettingCard title="Chat">
+        <SettingRow label="Message mode" description="How new messages are handled when the agent is responding">
+          <select
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-fg-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px]"
+            value={messageMode}
+            onChange={async (e) => {
+              const next = e.target.value as "queue" | "instant"
+              setMessageMode(next)
+              await setSetting("messageMode", next)
+              window.dispatchEvent(new CustomEvent("settings-changed"))
+            }}
+          >
+            <option value="queue">Queue</option>
+            <option value="instant">Instant</option>
+          </select>
         </SettingRow>
       </SettingCard>
 
@@ -83,7 +103,7 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
         </SettingRow>
         <SettingRow label="Default mode" description="Which layout the in-app browser opens in by default">
           <select
-            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-fg-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
             value={browserLastMode}
             disabled={!browserPanel}
             onChange={async (e) => {
@@ -99,7 +119,7 @@ export function SettingsGeneral({ workspacePath }: { workspacePath: string }) {
         </SettingRow>
         <SettingRow label="Search engine" description="Default search engine for the in-app browser address bar">
           <select
-            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm text-fg-weak focus:outline-none focus:ring-1 focus:ring-border-selected min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
             value={browserSearchEngine}
             disabled={!browserPanel}
             onChange={async (e) => {

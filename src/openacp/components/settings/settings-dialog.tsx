@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { GearSix, Palette, Robot, Desktop, Info } from "@phosphor-icons/react";
+import { GearSix, Palette, Robot, Desktop, Info, Bell } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { VisuallyHidden } from "radix-ui";
 import { SettingsGeneral } from "./settings-general";
 import { SettingsAppearance } from "./settings-appearance";
+import { SettingsNotifications } from "./settings-notifications";
 import { SettingsAgents } from "./settings-agents";
 import { SettingsServer } from "./settings-server";
 import { SettingsAbout } from "./settings-about";
@@ -11,6 +12,7 @@ import { SettingsAbout } from "./settings-about";
 export type SettingsPage =
   | "general"
   | "appearance"
+  | "notifications"
   | "agents"
   | "server"
   | "about";
@@ -29,6 +31,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "general", label: "General", icon: GearSix },
       { id: "appearance", label: "Appearance", icon: Palette },
+      { id: "notifications", label: "Notifications", icon: Bell },
     ],
   },
   {
@@ -51,10 +54,12 @@ export function SettingsDialog({
   serverUrl,
   serverConnected,
   initialPage = "general",
+  onAboutViewed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspacePath: string;
+  onAboutViewed?: () => void;
   serverUrl: string | null;
   serverConnected: boolean;
   initialPage?: SettingsPage;
@@ -77,7 +82,7 @@ export function SettingsDialog({
         </VisuallyHidden.Root>
 
         {/* Sidebar */}
-        <div className="w-50 shrink-0 bg-background-base border-r border-border-weak flex flex-col px-3 py-4">
+        <div className="w-50 shrink-0 bg-bg-base border-r border-border-weak flex flex-col px-3 py-4">
           <nav className="flex flex-col gap-1 flex-1">
             {NAV_GROUPS.map((group, gi) => (
               <div key={group.label} className={gi > 0 ? "mt-4" : ""}>
@@ -111,12 +116,13 @@ export function SettingsDialog({
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="flex-1 min-w-0 overflow-y-auto bg-bg-strong">
           <div className="mx-auto px-8 py-6">
             {page === "general" && (
               <SettingsGeneral workspacePath={workspacePath} />
             )}
             {page === "appearance" && <SettingsAppearance />}
+            {page === "notifications" && <SettingsNotifications />}
             {page === "agents" && (
               <SettingsAgents workspacePath={workspacePath} />
             )}
@@ -126,7 +132,7 @@ export function SettingsDialog({
                 connected={serverConnected}
               />
             )}
-            {page === "about" && <SettingsAbout />}
+            {page === "about" && <SettingsAbout onViewed={onAboutViewed} />}
           </div>
         </div>
       </DialogContent>

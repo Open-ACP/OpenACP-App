@@ -93,9 +93,9 @@ export function PermissionRequestCard({ sessionId }: Props) {
               className="w-full flex items-center gap-2 px-2.5 py-1.5 h-auto justify-start text-left"
               style={{
                 background: highlighted === idx
-                  ? "var(--surface-interactive-subtle, rgba(100,116,139,0.25))"
-                  : "var(--surface-inset-base)",
-                border: "1px solid var(--border-weaker-base)",
+                  ? "var(--color-interactive-weak)"
+                  : "var(--bg-weaker)",
+                border: "1px solid var(--border-weaker)",
               }}
             >
               <span
@@ -118,8 +118,8 @@ export function PermissionRequestCard({ sessionId }: Props) {
           placeholder="Tell agent what to do instead"
           className="w-full bg-transparent text-sm font-normal text-foreground placeholder:text-muted-foreground focus:outline-none rounded-md px-2.5 py-1.5"
           style={{
-            background: "var(--surface-inset-base)",
-            border: "1px solid var(--border-weaker-base)",
+            background: "var(--bg-weaker)",
+            border: "1px solid var(--border-weaker)",
           }}
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
@@ -137,7 +137,7 @@ export function PermissionRequestCard({ sessionId }: Props) {
 
       {/* Hint */}
       <div className="px-3.5 pb-2.5">
-        <span className="text-2xs font-normal" style={{ color: "var(--foreground-weaker)" }}>
+        <span className="text-2xs font-normal" style={{ color: "var(--fg-weakest)" }}>
           Esc to cancel
         </span>
         {isResolving && (

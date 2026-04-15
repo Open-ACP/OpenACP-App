@@ -51,7 +51,7 @@ export function BranchIndicator() {
         <Button
           variant="ghost"
           size="sm"
-          className="min-w-0 max-w-[160px] text-sm-regular text-foreground-weak gap-1 px-2"
+          className="min-w-0 max-w-[160px] text-sm-regular text-fg-weak gap-1 px-2"
           title={`Branch: ${branch}`}
         >
           <GitBranch size={14} weight="bold" className="shrink-0" />
@@ -59,7 +59,7 @@ export function BranchIndicator() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" sideOffset={4} className="w-64">
-        <DropdownMenuLabel className="text-foreground-weaker" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
+        <DropdownMenuLabel className="text-fg-weakest" style={{ fontSize: "10px", lineHeight: "1.4", letterSpacing: "0.02em" }}>
           Local Branches
         </DropdownMenuLabel>
         <div className="max-h-[260px] overflow-y-auto no-scrollbar">
@@ -70,7 +70,7 @@ export function BranchIndicator() {
             onSelect={(e) => e.preventDefault()}
           >
             <GitBranch size={12} weight={b === branch ? "bold" : "regular"} className="shrink-0" />
-            <span className={`flex-1 truncate ${b === branch ? "text-foreground font-medium" : "text-foreground-weak"}`}>
+            <span className={`flex-1 truncate ${b === branch ? "text-foreground font-medium" : "text-fg-weak"}`}>
               {b}
             </span>
             <button
@@ -82,7 +82,7 @@ export function BranchIndicator() {
               {copiedBranch === b ? (
                 <Check size={12} className="text-green-500" />
               ) : (
-                <Copy size={12} className="text-foreground-weaker" />
+                <Copy size={12} className="text-fg-weakest" />
               )}
             </button>
           </DropdownMenuItem>

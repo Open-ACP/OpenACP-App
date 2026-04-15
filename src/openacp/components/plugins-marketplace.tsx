@@ -63,7 +63,7 @@ export function MarketplaceTab({ workspace }: { workspace: WorkspaceCtx }) {
   return (
     <div className="p-4 flex flex-col gap-4">
       {installingPlugin && (
-        <div className="border border-border rounded-lg p-4 flex flex-col gap-3 bg-surface-base">
+        <div className="border border-border rounded-lg p-4 flex flex-col gap-3 bg-bg-weak">
           <div className="flex items-center justify-between">
             <span className="text-base font-medium leading-normal text-foreground">Installing {installingPlugin.displayName ?? installingPlugin.name}</span>
             <Button variant="ghost" size="xs" onClick={() => { stopPolling(); setInstallingPlugin(null) }}>Close</Button>

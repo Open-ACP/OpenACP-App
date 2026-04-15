@@ -1,5 +1,5 @@
 import React from "react"
-import { Plus, ArrowRight, ArrowLeft, Trash, GearSix, MagnifyingGlass, PencilSimple } from "@phosphor-icons/react"
+import { Plus, ArrowRight, ArrowLeft, Trash, GearSix, MagnifyingGlass, PencilSimple, FolderOpen, EnvelopeSimple, Lock, User } from "@phosphor-icons/react"
 import { Button } from "../openacp/components/ui/button"
 import { Badge } from "../openacp/components/ui/badge"
 import { Input } from "../openacp/components/ui/input"
@@ -37,15 +37,57 @@ export interface DemoEntry {
 // ── Helper ──────────────────────────────────────────────────────────────────
 
 function ColorSwatch({ name, variable }: { name: string; variable: string }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [value, setValue] = React.useState<string>("")
+
+  React.useEffect(() => {
+    if (!ref.current) return
+    const read = () => {
+      const v = getComputedStyle(ref.current!).backgroundColor
+      setValue(rgbToHex(v))
+    }
+    read()
+    const observer = new MutationObserver(read)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] })
+    return () => observer.disconnect()
+  }, [variable])
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2.5 min-w-0">
       <div
-        className="size-10 rounded-md border border-border-weak shrink-0"
+        ref={ref}
+        className="size-9 rounded-md border border-border-weak shrink-0"
         style={{ backgroundColor: `var(${variable})` }}
       />
-      <div>
-        <div className="text-sm font-normal text-foreground">{name}</div>
-        <div className="text-sm font-normal text-muted-foreground font-mono">{variable}</div>
+      <div className="min-w-0">
+        <div className="text-sm font-normal text-foreground truncate">{name}</div>
+        <div className="text-2xs font-normal text-muted-foreground font-mono truncate">{variable}</div>
+        <div className="text-2xs font-normal text-fg-weakest font-mono truncate">{value || "—"}</div>
+      </div>
+    </div>
+  )
+}
+
+function rgbToHex(rgb: string): string {
+  const m = rgb.match(/rgba?\(([^)]+)\)/)
+  if (!m) return rgb
+  const parts = m[1].split(",").map((s) => s.trim())
+  if (parts.length < 3) return rgb
+  const [r, g, b] = parts.slice(0, 3).map((n) => parseInt(n, 10))
+  const a = parts[3] !== undefined ? parseFloat(parts[3]) : 1
+  if ([r, g, b].some((n) => Number.isNaN(n))) return rgb
+  const hex = "#" + [r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("").toUpperCase()
+  return a < 1 ? `${hex} · ${Math.round(a * 100)}%` : hex
+}
+
+function ColorGroup({ title, tokens }: { title: string; tokens: [string, string][] }) {
+  return (
+    <div>
+      <h3 className="text-base font-medium text-foreground mb-3">{title}</h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {tokens.map(([name, variable]) => (
+          <ColorSwatch key={variable} name={name} variable={variable} />
+        ))}
       </div>
     </div>
   )
@@ -212,22 +254,103 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
     id: "input",
     name: "Input",
     group: "General",
-    description: "Text input field.",
+    description: "Text input field — thin border-weak default, border-strong on focus (no ring).",
     type: "component",
     render: () => (
-      <div className="space-y-3 max-w-sm">
-        <Input placeholder="Default input" />
-        <Input placeholder="Disabled" disabled />
-        <Input type="password" placeholder="Password" />
+      <div className="space-y-8 max-w-sm">
+        <div>
+          <div className="text-sm font-medium text-fg-weak mb-2">States</div>
+          <div className="space-y-2.5">
+            <Input placeholder="Default — click to focus" />
+            <Input defaultValue="With value" />
+            <Input placeholder="Disabled" disabled />
+            <Input placeholder="Invalid input" aria-invalid />
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-fg-weak mb-2">Types</div>
+          <div className="space-y-2.5">
+            <Input type="text" placeholder="Text" />
+            <Input type="email" placeholder="you@example.com" />
+            <Input type="password" placeholder="Password" />
+            <Input type="number" placeholder="0" />
+            <Input type="search" placeholder="Search" />
+            <Input type="url" placeholder="https://" />
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-fg-weak mb-2">With leading icon</div>
+          <div className="space-y-2.5">
+            <div className="relative flex items-center">
+              <MagnifyingGlass size={14} className="pointer-events-none absolute left-3 text-fg-weaker" />
+              <Input placeholder="Search workspaces..." className="pl-9" />
+            </div>
+            <div className="relative flex items-center">
+              <EnvelopeSimple size={14} className="pointer-events-none absolute left-3 text-fg-weaker" />
+              <Input type="email" placeholder="you@example.com" className="pl-9" />
+            </div>
+            <div className="relative flex items-center">
+              <Lock size={14} className="pointer-events-none absolute left-3 text-fg-weaker" />
+              <Input type="password" placeholder="Password" className="pl-9" />
+            </div>
+            <div className="relative flex items-center">
+              <User size={14} className="pointer-events-none absolute left-3 text-fg-weaker" />
+              <Input placeholder="Username" className="pl-9" />
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-fg-weak mb-2">With trailing action</div>
+          <div className="space-y-2.5">
+            <div className="relative flex items-center">
+              <FolderOpen size={14} className="pointer-events-none absolute left-3 text-fg-weaker" />
+              <Input defaultValue="~/openacp-workspace" className="pl-9 pr-20" />
+              <Button variant="ghost" size="xs" className="absolute right-1.5">Browse</Button>
+            </div>
+            <div className="relative flex items-center">
+              <Input defaultValue="secret-api-key-123" type="password" className="pr-16" />
+              <Button variant="ghost" size="xs" className="absolute right-1.5">Show</Button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-fg-weak mb-2">Labeled field</div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-fg-base">Workspace name</label>
+            <Input placeholder="my-project" />
+            <p className="text-xs text-fg-weaker">Use lowercase letters, numbers, and dashes.</p>
+          </div>
+        </div>
       </div>
     ),
     code: `import { Input } from "@/components/ui/input"
+import { MagnifyingGlass } from "@phosphor-icons/react"
 
-<Input placeholder="Enter text..." />`,
+// Basic
+<Input placeholder="Enter text..." />
+
+// Disabled
+<Input placeholder="Disabled" disabled />
+
+// Invalid (error border, no ring)
+<Input aria-invalid />
+
+// With leading icon
+<div className="relative flex items-center">
+  <MagnifyingGlass size={14} className="absolute left-3 text-fg-weaker" />
+  <Input placeholder="Search..." className="pl-9" />
+</div>
+
+// With trailing action button
+<div className="relative flex items-center">
+  <Input className="pr-16" />
+  <Button variant="ghost" size="xs" className="absolute right-1.5">Show</Button>
+</div>`,
     props: [
       { name: "type", type: "string", default: '"text"' },
       { name: "placeholder", type: "string", default: '""' },
       { name: "disabled", type: "boolean", default: "false" },
+      { name: "aria-invalid", type: "boolean", default: "false" },
     ],
   },
   {
@@ -298,7 +421,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
       <div className="space-y-10">
         <div>
           <div className="text-sm font-medium text-muted-foreground mb-2">Animation styles</div>
-          <p className="text-sm leading-relaxed text-foreground-weaker mb-4">Pick an animation for the octopus loader.</p>
+          <p className="text-sm leading-relaxed text-fg-weakest mb-4">Pick an animation for the octopus loader.</p>
           <div className="grid grid-cols-4 gap-5">
             <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
               <BrandIcon className="w-10 h-7 text-muted-foreground animate-wobble" />
@@ -354,23 +477,23 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           <div className="flex items-center gap-5">
             <div className="flex flex-col items-center gap-1">
               <BrandIcon className="size-3 text-muted-foreground animate-breathe" />
-              <span className="text-2xs font-normal text-foreground-weaker">12px</span>
+              <span className="text-2xs font-normal text-fg-weakest">12px</span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <BrandIcon className="size-4 text-muted-foreground animate-breathe" />
-              <span className="text-2xs font-normal text-foreground-weaker">16px</span>
+              <span className="text-2xs font-normal text-fg-weakest">16px</span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <BrandIcon className="size-6 text-muted-foreground animate-breathe" />
-              <span className="text-2xs font-normal text-foreground-weaker">24px</span>
+              <span className="text-2xs font-normal text-fg-weakest">24px</span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <BrandIcon className="size-8 text-muted-foreground animate-breathe" />
-              <span className="text-2xs font-normal text-foreground-weaker">32px</span>
+              <span className="text-2xs font-normal text-fg-weakest">32px</span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <BrandIcon className="w-12 h-8 text-muted-foreground animate-breathe" />
-              <span className="text-2xs font-normal text-foreground-weaker">48x32</span>
+              <span className="text-2xs font-normal text-fg-weakest">48x32</span>
             </div>
           </div>
         </div>
@@ -379,7 +502,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           <div className="flex items-center gap-4">
             <BrandIcon className="size-4 text-foreground" />
             <BrandIcon className="size-6 text-muted-foreground" />
-            <BrandIcon className="size-8 text-foreground-weaker" />
+            <BrandIcon className="size-8 text-fg-weakest" />
           </div>
         </div>
         <div>
@@ -436,7 +559,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
             <DialogTitle>Dialog Title</DialogTitle>
             <DialogDescription>This is a dialog description.</DialogDescription>
           </DialogHeader>
-          <div className="text-base font-normal text-foreground-weak py-4">Dialog body content goes here.</div>
+          <div className="text-base font-normal text-fg-weak py-4">Dialog body content goes here.</div>
         </DialogContent>
       </Dialog>
     ),
@@ -587,9 +710,9 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           <TabsTrigger value="tab2">Tab 2</TabsTrigger>
           <TabsTrigger value="tab3">Tab 3</TabsTrigger>
         </TabsList>
-        <TabsContent value="tab1" className="text-base font-normal text-foreground-weak p-4">Content for Tab 1</TabsContent>
-        <TabsContent value="tab2" className="text-base font-normal text-foreground-weak p-4">Content for Tab 2</TabsContent>
-        <TabsContent value="tab3" className="text-base font-normal text-foreground-weak p-4">Content for Tab 3</TabsContent>
+        <TabsContent value="tab1" className="text-base font-normal text-fg-weak p-4">Content for Tab 1</TabsContent>
+        <TabsContent value="tab2" className="text-base font-normal text-fg-weak p-4">Content for Tab 2</TabsContent>
+        <TabsContent value="tab3" className="text-base font-normal text-fg-weak p-4">Content for Tab 3</TabsContent>
       </Tabs>
     ),
     code: `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -635,68 +758,148 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
     id: "colors",
     name: "Colors",
     group: "Tokens",
-    description: "Design system color tokens — shadcn core + extensions.",
+    description: "Flat token catalog — 3 core families (bg/fg/border) × 4 levels + 10 semantic + shadcn aliases + syntax/markdown/avatar.",
     type: "token",
     render: () => (
-      <div className="space-y-8">
+      <div className="space-y-10">
+        <ColorGroup
+          title="Background — 4 levels + 1 elevated"
+          tokens={[
+            ["Base", "--bg-base"],
+            ["Weak", "--bg-weak"],
+            ["Weaker", "--bg-weaker"],
+            ["Weakest", "--bg-weakest"],
+            ["Strong (elevated)", "--bg-strong"],
+          ]}
+        />
+        <ColorGroup
+          title="Foreground — 4 levels"
+          tokens={[
+            ["Base", "--fg-base"],
+            ["Weak", "--fg-weak"],
+            ["Weaker", "--fg-weaker"],
+            ["Weakest", "--fg-weakest"],
+          ]}
+        />
+        <ColorGroup
+          title="Border — 4 levels + 1 strong"
+          tokens={[
+            ["Base", "--border-base"],
+            ["Weak", "--border-weak"],
+            ["Weaker", "--border-weaker"],
+            ["Weakest", "--border-weakest"],
+            ["Strong (focus/active)", "--border-strong"],
+          ]}
+        />
+        <ColorGroup
+          title="Semantic — flat palette"
+          tokens={[
+            ["Success", "--color-success"],
+            ["Success Weak", "--color-success-weak"],
+            ["Warning", "--color-warning"],
+            ["Warning Weak", "--color-warning-weak"],
+            ["Critical", "--color-critical"],
+            ["Critical Weak", "--color-critical-weak"],
+            ["Info", "--color-info"],
+            ["Info Weak", "--color-info-weak"],
+            ["Interactive", "--color-interactive"],
+            ["Interactive Weak", "--color-interactive-weak"],
+          ]}
+        />
+        <ColorGroup
+          title="shadcn/ui aliases (compat layer)"
+          tokens={[
+            ["Background", "--background"],
+            ["Foreground", "--foreground"],
+            ["Card", "--card"],
+            ["Card Foreground", "--card-foreground"],
+            ["Popover", "--popover"],
+            ["Popover Foreground", "--popover-foreground"],
+            ["Primary", "--primary"],
+            ["Primary Foreground", "--primary-foreground"],
+            ["Secondary", "--secondary"],
+            ["Secondary Foreground", "--secondary-foreground"],
+            ["Muted", "--muted"],
+            ["Muted Foreground", "--muted-foreground"],
+            ["Accent", "--accent"],
+            ["Accent Foreground", "--accent-foreground"],
+            ["Destructive", "--destructive"],
+            ["Destructive Foreground", "--destructive-foreground"],
+            ["Border", "--border"],
+            ["Input", "--input"],
+            ["Ring", "--ring"],
+          ]}
+        />
+        <ColorGroup
+          title="Sidebar"
+          tokens={[
+            ["Background", "--sidebar-background"],
+            ["Foreground", "--sidebar-foreground"],
+            ["Primary", "--sidebar-primary"],
+            ["Primary Foreground", "--sidebar-primary-foreground"],
+            ["Accent", "--sidebar-accent"],
+            ["Accent Foreground", "--sidebar-accent-foreground"],
+            ["Border", "--sidebar-border"],
+            ["Ring", "--sidebar-ring"],
+          ]}
+        />
+        <ColorGroup
+          title="Syntax highlighting"
+          tokens={[
+            ["Comment", "--syntax-comment"],
+            ["Regexp", "--syntax-regexp"],
+            ["String", "--syntax-string"],
+            ["Keyword", "--syntax-keyword"],
+            ["Primitive", "--syntax-primitive"],
+            ["Operator", "--syntax-operator"],
+            ["Variable", "--syntax-variable"],
+            ["Property", "--syntax-property"],
+            ["Type", "--syntax-type"],
+            ["Constant", "--syntax-constant"],
+            ["Punctuation", "--syntax-punctuation"],
+            ["Object", "--syntax-object"],
+            ["Success", "--syntax-success"],
+            ["Warning", "--syntax-warning"],
+            ["Critical", "--syntax-critical"],
+            ["Info", "--syntax-info"],
+            ["Diff Add", "--syntax-diff-add"],
+            ["Diff Delete", "--syntax-diff-delete"],
+          ]}
+        />
+        <ColorGroup
+          title="Markdown"
+          tokens={[
+            ["Heading", "--markdown-heading"],
+            ["Text", "--markdown-text"],
+            ["Link", "--markdown-link"],
+            ["Link Text", "--markdown-link-text"],
+            ["Code", "--markdown-code"],
+            ["Block Quote", "--markdown-block-quote"],
+            ["Emph", "--markdown-emph"],
+            ["Strong", "--markdown-strong"],
+            ["Horizontal Rule", "--markdown-horizontal-rule"],
+            ["List Item", "--markdown-list-item"],
+            ["List Enumeration", "--markdown-list-enumeration"],
+            ["Image", "--markdown-image"],
+            ["Image Text", "--markdown-image-text"],
+            ["Code Block", "--markdown-code-block"],
+          ]}
+        />
         <div>
-          <h3 className="text-base font-medium text-foreground mb-3">Core</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <ColorSwatch name="Background" variable="--background" />
-            <ColorSwatch name="Foreground" variable="--foreground" />
-            <ColorSwatch name="Card" variable="--card" />
-            <ColorSwatch name="Card Foreground" variable="--card-foreground" />
-            <ColorSwatch name="Popover" variable="--popover" />
-            <ColorSwatch name="Popover Foreground" variable="--popover-foreground" />
-          </div>
-        </div>
-        <div>
-          <h3 className="text-base font-medium text-foreground mb-3">Semantic</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <ColorSwatch name="Primary" variable="--primary" />
-            <ColorSwatch name="Primary Foreground" variable="--primary-foreground" />
-            <ColorSwatch name="Secondary" variable="--secondary" />
-            <ColorSwatch name="Secondary Foreground" variable="--secondary-foreground" />
-            <ColorSwatch name="Muted" variable="--muted" />
-            <ColorSwatch name="Muted Foreground" variable="--muted-foreground" />
-            <ColorSwatch name="Accent" variable="--accent" />
-            <ColorSwatch name="Accent Foreground" variable="--accent-foreground" />
-            <ColorSwatch name="Destructive" variable="--destructive" />
-            <ColorSwatch name="Destructive Foreground" variable="--destructive-foreground" />
-          </div>
-        </div>
-        <div>
-          <h3 className="text-base font-medium text-foreground mb-3">Extensions</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <ColorSwatch name="Border" variable="--border" />
-            <ColorSwatch name="Border Weak" variable="--border-weak" />
-            <ColorSwatch name="Input" variable="--input" />
-            <ColorSwatch name="Ring" variable="--ring" />
-            <ColorSwatch name="Foreground Weak" variable="--foreground-weak" />
-            <ColorSwatch name="Foreground Weaker" variable="--foreground-weaker" />
-          </div>
-        </div>
-        <div>
-          <h3 className="text-base font-medium text-foreground mb-3">Sidebar</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <ColorSwatch name="Sidebar Background" variable="--sidebar-background" />
-            <ColorSwatch name="Sidebar Foreground" variable="--sidebar-foreground" />
-            <ColorSwatch name="Sidebar Accent" variable="--sidebar-accent" />
-            <ColorSwatch name="Sidebar Border" variable="--sidebar-border" />
-          </div>
-        </div>
-        <div>
-          <h3 className="text-base font-medium text-foreground mb-3">Avatar</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <h3 className="text-base font-medium text-fg-base mb-3">Avatar — paired bg + text</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {["pink", "mint", "orange", "purple", "cyan", "lime"].map((c) => (
-              <div key={c} className="flex items-center gap-2">
+              <div key={c} className="flex items-center gap-3 min-w-0">
                 <div
-                  className="size-8 rounded-full flex items-center justify-center text-sm font-medium"
+                  className="size-9 rounded-full flex items-center justify-center text-sm font-medium shrink-0"
                   style={{ background: `var(--avatar-background-${c})`, color: `var(--avatar-text-${c})` }}
                 >
                   {c[0].toUpperCase()}
                 </div>
-                <span className="text-sm font-normal text-muted-foreground capitalize">{c}</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-normal text-fg-base capitalize truncate">{c}</div>
+                  <div className="text-2xs font-normal text-muted-foreground font-mono truncate">--avatar-*-{c}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -734,9 +937,9 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           <h3 className="text-base font-medium text-foreground mb-3">Foreground Scale</h3>
           <div className="space-y-2">
             <p className="text-base font-normal text-foreground">Foreground — primary text</p>
-            <p className="text-base font-normal text-foreground-weak">Foreground Weak — secondary text</p>
+            <p className="text-base font-normal text-fg-weak">Foreground Weak — secondary text</p>
             <p className="text-base font-normal text-muted-foreground">Muted Foreground — muted text</p>
-            <p className="text-base font-normal text-foreground-weaker">Foreground Weaker — weakest text</p>
+            <p className="text-base font-normal text-fg-weakest">Foreground Weaker — weakest text</p>
           </div>
         </div>
       </div>
@@ -754,7 +957,7 @@ import { Plus, ArrowRight, Trash } from "@phosphor-icons/react"
           <div key={n} className="flex items-center gap-4">
             <span className="text-sm font-normal text-muted-foreground font-mono w-8 text-right">{n}</span>
             <div className="bg-primary rounded-sm" style={{ width: `${n * 4}px`, height: "16px" }} />
-            <span className="text-sm font-normal text-foreground-weaker">{n * 4}px / {n * 0.25}rem</span>
+            <span className="text-sm font-normal text-fg-weakest">{n * 4}px / {n * 0.25}rem</span>
           </div>
         ))}
       </div>

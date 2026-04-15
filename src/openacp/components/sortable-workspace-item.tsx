@@ -72,7 +72,7 @@ export function SortableWorkspaceItem(props: SortableWorkspaceItemProps) {
       <button
         type="button"
         className={`flex items-center justify-center size-9 rounded-lg overflow-hidden transition-all cursor-default ${
-          props.isActive ? "ring-2 ring-foreground-weak ring-offset-1 ring-offset-background" : "opacity-60 hover:opacity-100"
+          props.isActive ? "ring-2 ring-fg-weak ring-offset-1 ring-offset-background" : "opacity-60 hover:opacity-100"
         }`}
         onClick={() => props.hasError && props.onReconnect ? props.onReconnect() : props.onSwitch()}
       >
@@ -89,9 +89,9 @@ export function SortableWorkspaceItem(props: SortableWorkspaceItemProps) {
         className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-background pointer-events-none"
         style={{
           background: props.hasError
-            ? "var(--surface-critical-strong)"
+            ? "var(--color-critical)"
             : props.isConnected
-              ? "var(--surface-success-strong)"
+              ? "var(--color-success)"
               : "var(--text-weaker)",
         }}
       />

@@ -91,7 +91,7 @@ export function ConfigSelector(props: {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} side="top" sideOffset={4} className="w-72">
-        <DropdownMenuLabel className="text-xs font-normal text-foreground-weaker uppercase tracking-wider">
+        <DropdownMenuLabel className="text-xs font-normal text-fg-weakest uppercase tracking-wider">
           {props.category === "mode" ? "Modes" : (config?.name || props.category)}
         </DropdownMenuLabel>
         {(config?.choices || []).map((choice) => {
@@ -106,7 +106,7 @@ export function ConfigSelector(props: {
                 {isCurrent && <span className="text-primary">&#10003;</span>}
               </span>
               <div className="flex flex-col min-w-0 flex-1">
-                <span className={`text-sm font-medium ${isCurrent ? "" : "text-foreground-weak"}`}>
+                <span className={`text-sm font-medium ${isCurrent ? "" : "text-fg-weak"}`}>
                   {choice.label}
                 </span>
                 {choice.description && (

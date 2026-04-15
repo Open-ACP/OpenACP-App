@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { getSetting, setSetting, applyTheme, applyFontSize, type AppSettings } from "../../lib/settings-store"
-import { useToolDisplay, TOOL_EXPAND_PRESETS, detectPreset, ALL_KINDS } from "../../context/tool-display"
+import { useToolDisplay, TOOL_EXPAND_PRESETS, detectPreset } from "../../context/tool-display"
 import { SettingCard } from "./setting-card"
 import { SettingRow } from "./setting-row"
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs"
@@ -17,6 +17,8 @@ const TOOL_KIND_LABELS: Record<string, string> = {
   skill: "Skill",
   other: "Other",
 }
+
+const TOOL_KINDS = Object.keys(TOOL_KIND_LABELS)
 
 export function SettingsAppearance() {
   const [theme, setTheme] = useState<AppSettings["theme"]>("dark")
@@ -81,7 +83,6 @@ export function SettingsAppearance() {
           label="Auto-expand detail"
           description="Controls which tool calls show IN/OUT details by default"
         >
-          {/* activePreset is null when a custom mix is set — Tabs renders no active tab in that case */}
           <Tabs
             value={activePreset ?? ""}
             onValueChange={(v) => void handlePresetChange(v as "all" | "important" | "none")}
@@ -93,7 +94,7 @@ export function SettingsAppearance() {
             </TabsList>
           </Tabs>
         </SettingRow>
-        {ALL_KINDS.map((kind) => (
+        {TOOL_KINDS.map((kind) => (
           <SettingRow key={kind} label={TOOL_KIND_LABELS[kind]}>
             <Switch
               checked={toolAutoExpand[kind] ?? false}

@@ -136,9 +136,9 @@ function MessageFooter({ usage, textContent }: { usage?: import("../../types").U
           onClick={handleCopy}
         >
           {copied ? (
-            <Check size={12} style={{ color: 'var(--icon-weak)' }} />
+            <Check size={12} style={{ color: 'var(--fg-weaker)' }} />
           ) : (
-            <Copy size={12} style={{ color: 'var(--icon-weak)' }} />
+            <Copy size={12} style={{ color: 'var(--fg-weaker)' }} />
           )}
         </button>
       )}

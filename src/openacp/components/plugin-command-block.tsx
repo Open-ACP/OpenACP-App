@@ -18,7 +18,7 @@ export function CommandBlock({ label, command }: { label: string; command: strin
       <span className="text-sm font-normal text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2 bg-card rounded px-3 py-2">
         <code className="text-sm font-normal text-foreground flex-1 font-mono">{command}</code>
-        <button className="text-sm font-normal text-muted-foreground hover:text-foreground-weak transition-colors shrink-0" onClick={copy}>{copied ? "Copied!" : "Copy"}</button>
+        <button className="text-sm font-normal text-muted-foreground hover:text-fg-weak transition-colors shrink-0" onClick={copy}>{copied ? "Copied!" : "Copy"}</button>
       </div>
     </div>
   )

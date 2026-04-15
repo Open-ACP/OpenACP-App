@@ -5,6 +5,9 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities) source("../../../");
 
+/* Bind Tailwind's `dark:` variant to our explicit data-theme attribute */
+@custom-variant dark ([data-theme="dark"] &);
+
 /* ── Theme tokens (colors, shadows — light/dark) ─────────────────────────── */
 @import "./theme.css" layer(theme);
 @import "katex/dist/katex.min.css" layer(base);
@@ -85,6 +88,9 @@
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.625rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-full: 9999px;
 
   /* Blur (Tailwind defaults — needed for backdrop-blur) */
   --blur-xs: 4px;
@@ -114,12 +120,48 @@
 
   --animate-spin: spin 1s linear infinite;
   --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-float: float 3s ease-in-out infinite;
 }
 
 /* ── Color token registrations ───────────────────────────────────────────── */
 /* Maps CSS custom properties from theme.css to Tailwind --color-* utilities  */
 
 @theme {
+  /* Absolute neutrals — theme-independent, for overlay/hover contrast */
+  --color-black: #000;
+  --color-white: #fff;
+
+  /* Background — 4 levels + 1 elevated */
+  --color-bg-base: var(--bg-base);
+  --color-bg-weak: var(--bg-weak);
+  --color-bg-weaker: var(--bg-weaker);
+  --color-bg-weakest: var(--bg-weakest);
+  --color-bg-strong: var(--bg-strong);
+
+  /* Foreground — 4 levels */
+  --color-fg-base: var(--fg-base);
+  --color-fg-weak: var(--fg-weak);
+  --color-fg-weaker: var(--fg-weaker);
+  --color-fg-weakest: var(--fg-weakest);
+
+  /* Border — 4 levels + 1 strong */
+  --color-border-base: var(--border-base);
+  --color-border-weak: var(--border-weak);
+  --color-border-weaker: var(--border-weaker);
+  --color-border-weakest: var(--border-weakest);
+  --color-border-strong: var(--border-strong);
+
+  /* Semantic — flat palette */
+  --color-success: var(--color-success);
+  --color-success-weak: var(--color-success-weak);
+  --color-warning: var(--color-warning);
+  --color-warning-weak: var(--color-warning-weak);
+  --color-critical: var(--color-critical);
+  --color-critical-weak: var(--color-critical-weak);
+  --color-info: var(--color-info);
+  --color-info-weak: var(--color-info-weak);
+  --color-interactive: var(--color-interactive);
+  --color-interactive-weak: var(--color-interactive-weak);
 
   /* shadcn/ui core */
   --color-background: var(--background);
@@ -142,11 +184,6 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Extensions */
-  --color-border-weak: var(--border-weak);
-  --color-foreground-weak: var(--foreground-weak);
-  --color-foreground-weaker: var(--foreground-weaker);
-
   /* Sidebar */
   --color-sidebar-background: var(--sidebar-background);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -157,202 +194,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Legacy surface/border/icon/text tokens (specialized, no shadcn equivalent) */
-  --color-background-base: var(--background);
-  --color-background-weak: var(--background-weak);
-  --color-background-strong: var(--background-strong);
-  --color-background-stronger: var(--card);
-  --color-surface-base: var(--surface-base);
-  --color-base: var(--base);
-  --color-surface-base-hover: var(--surface-base-hover);
-  --color-surface-base-active: var(--surface-base-active);
-  --color-surface-base-interactive-active: var(--surface-base-interactive-active);
-  --color-base2: var(--base2);
-  --color-base3: var(--base3);
-  --color-surface-inset-base: var(--surface-inset-base);
-  --color-surface-inset-base-hover: var(--surface-inset-base-hover);
-  --color-surface-inset-strong: var(--surface-inset-strong);
-  --color-surface-inset-strong-hover: var(--surface-inset-strong-hover);
-  --color-surface-raised-base: var(--secondary);
-  --color-surface-float-base: var(--surface-float-base);
-  --color-surface-float-base-hover: var(--surface-float-base-hover);
-  --color-surface-raised-base-hover: var(--accent);
-  --color-surface-raised-base-active: var(--surface-raised-base-active);
-  --color-surface-raised-strong: var(--surface-raised-strong);
-  --color-surface-raised-strong-hover: var(--surface-raised-strong-hover);
-  --color-surface-raised-stronger: var(--surface-raised-stronger);
-  --color-surface-raised-stronger-hover: var(--surface-raised-stronger-hover);
-  --color-surface-weak: var(--muted);
-  --color-surface-weaker: var(--surface-weaker);
-  --color-surface-strong: var(--surface-strong);
-  --color-surface-raised-stronger-non-alpha: var(--surface-raised-stronger-non-alpha);
-  --color-surface-brand-base: var(--surface-brand-base);
-  --color-surface-brand-hover: var(--surface-brand-hover);
-  --color-surface-interactive-base: var(--surface-interactive-base);
-  --color-surface-interactive-hover: var(--surface-interactive-hover);
-  --color-surface-interactive-weak: var(--surface-interactive-weak);
-  --color-surface-interactive-weak-hover: var(--surface-interactive-weak-hover);
-  --color-surface-success-base: var(--surface-success-base);
-  --color-surface-success-weak: var(--surface-success-weak);
-  --color-surface-success-strong: var(--surface-success-strong);
-  --color-surface-warning-base: var(--surface-warning-base);
-  --color-surface-warning-weak: var(--surface-warning-weak);
-  --color-surface-warning-strong: var(--surface-warning-strong);
-  --color-surface-critical-base: var(--surface-critical-base);
-  --color-surface-critical-weak: var(--surface-critical-weak);
-  --color-surface-critical-strong: var(--destructive);
-  --color-surface-info-base: var(--surface-info-base);
-  --color-surface-info-weak: var(--surface-info-weak);
-  --color-surface-info-strong: var(--surface-info-strong);
-  --color-surface-diff-unchanged-base: var(--surface-diff-unchanged-base);
-  --color-surface-diff-skip-base: var(--surface-diff-skip-base);
-  --color-surface-diff-hidden-base: var(--surface-diff-hidden-base);
-  --color-surface-diff-hidden-weak: var(--surface-diff-hidden-weak);
-  --color-surface-diff-hidden-weaker: var(--surface-diff-hidden-weaker);
-  --color-surface-diff-hidden-strong: var(--surface-diff-hidden-strong);
-  --color-surface-diff-hidden-stronger: var(--surface-diff-hidden-stronger);
-  --color-surface-diff-add-base: var(--surface-diff-add-base);
-  --color-surface-diff-add-weak: var(--surface-diff-add-weak);
-  --color-surface-diff-add-weaker: var(--surface-diff-add-weaker);
-  --color-surface-diff-add-strong: var(--surface-diff-add-strong);
-  --color-surface-diff-add-stronger: var(--surface-diff-add-stronger);
-  --color-surface-diff-delete-base: var(--surface-diff-delete-base);
-  --color-surface-diff-delete-weak: var(--surface-diff-delete-weak);
-  --color-surface-diff-delete-weaker: var(--surface-diff-delete-weaker);
-  --color-surface-diff-delete-strong: var(--surface-diff-delete-strong);
-  --color-surface-diff-delete-stronger: var(--surface-diff-delete-stronger);
-  --color-input-base: var(--input-base);
-  --color-input-hover: var(--input-hover);
-  --color-input-active: var(--input-active);
-  --color-input-selected: var(--input-selected);
-  --color-input-focus: var(--input-focus);
-  --color-input-disabled: var(--input-disabled);
-  --color-text-weak: var(--muted-foreground);
-  --color-text-weaker: var(--foreground-weaker);
-  --color-text-strong: var(--foreground);
-  --color-text-interactive-base: var(--color-text-interactive-base);
-  --color-text-on-brand-base: var(--color-text-on-brand-base);
-  --color-text-on-interactive-base: var(--color-text-on-interactive-base);
-  --color-text-on-interactive-weak: var(--color-text-on-interactive-weak);
-  --color-text-on-success-base: var(--color-text-on-success-base);
-  --color-text-on-critical-base: var(--color-text-on-critical-base);
-  --color-text-on-critical-weak: var(--color-text-on-critical-weak);
-  --color-text-on-critical-strong: var(--color-text-on-critical-strong);
-  --color-text-on-warning-base: var(--color-text-on-warning-base);
-  --color-text-on-info-base: var(--color-text-on-info-base);
-  --color-text-diff-add-base: var(--color-text-diff-add-base);
-  --color-text-diff-delete-base: var(--color-text-diff-delete-base);
-  --color-text-diff-delete-strong: var(--color-text-diff-delete-strong);
-  --color-text-diff-add-strong: var(--color-text-diff-add-strong);
-  --color-text-on-info-weak: var(--color-text-on-info-weak);
-  --color-text-on-info-strong: var(--color-text-on-info-strong);
-  --color-text-on-warning-weak: var(--color-text-on-warning-weak);
-  --color-text-on-warning-strong: var(--color-text-on-warning-strong);
-  --color-text-on-success-weak: var(--color-text-on-success-weak);
-  --color-text-on-success-strong: var(--color-text-on-success-strong);
-  --color-text-on-brand-weak: var(--color-text-on-brand-weak);
-  --color-text-on-brand-weaker: var(--color-text-on-brand-weaker);
-  --color-text-on-brand-strong: var(--color-text-on-brand-strong);
-  --color-button-secondary-base: var(--button-secondary-base);
-  --color-button-secondary-hover: var(--button-secondary-hover);
-  --color-border-base: var(--border);
-  --color-border-hover: var(--border-hover);
-  --color-border-active: var(--border-active);
-  --color-border-selected: var(--ring);
-  --color-border-disabled: var(--border-disabled);
-  --color-border-focus: var(--border-focus);
-  --color-border-weak-base: var(--border-weak);
-  --color-border-strong-base: var(--border-strong-base);
-  --color-border-strong-hover: var(--border-strong-hover);
-  --color-border-strong-active: var(--border-strong-active);
-  --color-border-strong-selected: var(--border-strong-selected);
-  --color-border-strong-disabled: var(--border-strong-disabled);
-  --color-border-strong-focus: var(--border-strong-focus);
-  --color-border-weak-hover: var(--border-weak-hover);
-  --color-border-weak-active: var(--border-weak-active);
-  --color-border-weak-selected: var(--border-weak-selected);
-  --color-border-weak-disabled: var(--border-weak-disabled);
-  --color-border-weak-focus: var(--border-weak-focus);
-  --color-border-weaker-base: var(--border-weaker-base);
-  --color-border-interactive-base: var(--border-interactive-base);
-  --color-border-interactive-hover: var(--border-interactive-hover);
-  --color-border-interactive-active: var(--border-interactive-active);
-  --color-border-interactive-selected: var(--border-interactive-selected);
-  --color-border-interactive-disabled: var(--border-interactive-disabled);
-  --color-border-interactive-focus: var(--border-interactive-focus);
-  --color-border-success-base: var(--border-success-base);
-  --color-border-success-hover: var(--border-success-hover);
-  --color-border-success-selected: var(--border-success-selected);
-  --color-border-warning-base: var(--border-warning-base);
-  --color-border-warning-hover: var(--border-warning-hover);
-  --color-border-warning-selected: var(--border-warning-selected);
-  --color-border-critical-base: var(--border-critical-base);
-  --color-border-critical-hover: var(--border-critical-hover);
-  --color-border-critical-selected: var(--border-critical-selected);
-  --color-border-info-base: var(--border-info-base);
-  --color-border-info-hover: var(--border-info-hover);
-  --color-border-info-selected: var(--border-info-selected);
-  --color-border-color: var(--border-color);
-  --color-button-ghost-hover: var(--button-ghost-hover);
-  --color-button-ghost-hover2: var(--button-ghost-hover2);
-  --color-icon-base: var(--icon-base);
-  --color-icon-hover: var(--icon-hover);
-  --color-icon-active: var(--icon-active);
-  --color-icon-selected: var(--icon-selected);
-  --color-icon-disabled: var(--icon-disabled);
-  --color-icon-focus: var(--icon-focus);
-  --color-icon-invert-base: var(--icon-invert-base);
-  --color-icon-weak-base: var(--icon-weak-base);
-  --color-icon-weak-hover: var(--icon-weak-hover);
-  --color-icon-weak-active: var(--icon-weak-active);
-  --color-icon-weak-selected: var(--icon-weak-selected);
-  --color-icon-weak-disabled: var(--icon-weak-disabled);
-  --color-icon-weak-focus: var(--icon-weak-focus);
-  --color-icon-strong-base: var(--icon-strong-base);
-  --color-icon-strong-hover: var(--icon-strong-hover);
-  --color-icon-strong-active: var(--icon-strong-active);
-  --color-icon-strong-selected: var(--icon-strong-selected);
-  --color-icon-strong-disabled: var(--icon-strong-disabled);
-  --color-icon-strong-focus: var(--icon-strong-focus);
-  --color-icon-brand-base: var(--icon-brand-base);
-  --color-icon-interactive-base: var(--icon-interactive-base);
-  --color-icon-success-base: var(--icon-success-base);
-  --color-icon-success-hover: var(--icon-success-hover);
-  --color-icon-success-active: var(--icon-success-active);
-  --color-icon-warning-base: var(--icon-warning-base);
-  --color-icon-warning-hover: var(--icon-warning-hover);
-  --color-icon-warning-active: var(--icon-warning-active);
-  --color-icon-critical-base: var(--icon-critical-base);
-  --color-icon-critical-hover: var(--icon-critical-hover);
-  --color-icon-critical-active: var(--icon-critical-active);
-  --color-icon-info-base: var(--icon-info-base);
-  --color-icon-info-hover: var(--icon-info-hover);
-  --color-icon-info-active: var(--icon-info-active);
-  --color-icon-on-brand-base: var(--icon-on-brand-base);
-  --color-icon-on-brand-hover: var(--icon-on-brand-hover);
-  --color-icon-on-brand-selected: var(--icon-on-brand-selected);
-  --color-icon-on-interactive-base: var(--icon-on-interactive-base);
-  --color-icon-agent-plan-base: var(--icon-agent-plan-base);
-  --color-icon-agent-docs-base: var(--icon-agent-docs-base);
-  --color-icon-agent-ask-base: var(--icon-agent-ask-base);
-  --color-icon-agent-build-base: var(--icon-agent-build-base);
-  --color-icon-on-success-base: var(--icon-on-success-base);
-  --color-icon-on-success-hover: var(--icon-on-success-hover);
-  --color-icon-on-success-selected: var(--icon-on-success-selected);
-  --color-icon-on-warning-base: var(--icon-on-warning-base);
-  --color-icon-on-warning-hover: var(--icon-on-warning-hover);
-  --color-icon-on-warning-selected: var(--icon-on-warning-selected);
-  --color-icon-on-critical-base: var(--icon-on-critical-base);
-  --color-icon-on-critical-hover: var(--icon-on-critical-hover);
-  --color-icon-on-critical-selected: var(--icon-on-critical-selected);
-  --color-icon-on-info-base: var(--icon-on-info-base);
-  --color-icon-on-info-hover: var(--icon-on-info-hover);
-  --color-icon-on-info-selected: var(--icon-on-info-selected);
-  --color-icon-diff-add-base: var(--icon-diff-add-base);
-  --color-icon-diff-add-hover: var(--icon-diff-add-hover);
-  --color-icon-diff-add-active: var(--icon-diff-add-active);
-  --color-icon-diff-delete-base: var(--icon-diff-delete-base);
-  --color-icon-diff-delete-hover: var(--icon-diff-delete-hover);
+  /* Syntax highlighting */
   --color-syntax-comment: var(--syntax-comment);
   --color-syntax-regexp: var(--syntax-regexp);
   --color-syntax-string: var(--syntax-string);
@@ -396,6 +238,23 @@
 
 html, body {
   overscroll-behavior: none;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* shadcn-style default border color — elements using `border` without an
+   explicit color utility inherit the semantic border token instead of
+   Tailwind v4's `currentColor` fallback (which appears near-black in light). */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
+  }
 }
 
 *[data-tauri-drag-region] {

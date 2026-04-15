@@ -24,11 +24,14 @@ When building FE, read Pencil screens via MCP tools to match layout/spacing 1:1.
 
 ## Guidelines
 
-- **Never hardcode values** — always use Tailwind utility classes and design tokens. No inline `color:`, `font-size:`, `padding:` with raw values. Use `text-foreground`, `text-sm`, `p-2`, etc.
-- **Use component variants** — rely on `variant` and `size` props from Button/Badge/etc. Don't override colors with custom className unless layout requires it (e.g. `absolute`, `w-full`).
-- **Icons**: Use `@phosphor-icons/react` — never inline SVG for standard icons.
-- **Border levels**: `border-weaker` → `border-weak` → `border` → `border-strong` (lightest to darkest).
-- **Text levels**: `text-foreground-weaker` → `text-muted-foreground` → `text-foreground-weak` → `text-foreground` (lightest to darkest).
+- **Never hardcode values.** Always use Tailwind utility classes and design tokens. No inline `style={{ color: ..., padding: ... }}` with raw values. No `bg-[#...]`, `p-[13px]`, `text-[11px]`. No Tailwind built-in palette (`emerald-*`, `slate-*`, `zinc-*` etc.) — it doesn't follow light/dark theme.
+- **Font weight max 500** (`font-medium`). No `font-semibold` / `font-bold` / heavier — the brand wants a restrained typography feel. Use color contrast or size for emphasis, not weight.
+- **Font size min 11px** (`text-2xs`). Nothing smaller — fails accessibility.
+- **4px spacing grid** — only multiples of 4 via the spacing scale (`p-1` / `p-2` / `p-3` / ...). Half-steps (`p-0.5`, `p-1.5`) are the exception.
+- **Use component variants** — rely on `variant` / `size` props. Don't override colors via className unless strictly for layout (`absolute`, `w-full`).
+- **Icons**: `@phosphor-icons/react` only. Never inline SVG. **No emoji in UI.**
+- **Border scale** (strong → weak): `border-border-base` → `border-border-weak` → `border-border-weaker` → `border-border-weakest`.
+- **Foreground scale** (strong → weak): `text-fg-base` → `text-fg-weak` → `text-fg-weaker` → `text-fg-weakest`.
 
 ## Styling
 
@@ -37,7 +40,7 @@ When building FE, read Pencil screens via MCP tools to match layout/spacing 1:1.
 ```
 src/openacp/styles/
   index.css         Entry point: Tailwind imports + @theme config + color registrations
-  theme.css         Design tokens: colors, shadows, shadcn aliases (light/dark/dim)
+  theme.css         Design tokens: colors, shadows, shadcn aliases (light/dark)
   components.css    Component styles: markdown, .oac-* app styles
   utilities.css     Text presets, no-scrollbar, animations
 ```
@@ -50,66 +53,103 @@ No `tailwind/` subdirectory — all Tailwind `@theme` config and color registrat
 @layer theme → base → components → utilities
 ```
 
-- **Theme**: Design tokens via `theme.css` (colors, shadows — light/dark/dim)
+- **Theme**: Design tokens via `theme.css` (colors, shadows — light/dark)
 - **Base**: Tailwind preflight + KaTeX math rendering
 - **Components**: shadcn/ui + `.oac-*` app styles
 - **Utilities**: Text presets (`text-sm-regular`, `text-md-medium`), animations
 
 ### Design Tokens (CSS Variables)
 
-Defined in `theme.css`:
+Defined in `theme.css`. The system is **3 neutral families × 4 levels + 1 elevated + flat semantic palette**.
 
-**Colors** — Semantic tokens with light/dark/dim variants:
-- Background: `--background-base`, `--background-strong`, `--background-stronger`, `--background-weak`
-- Text: `--text-strong`, `--text-base`, `--text-weak`, `--text-weaker`
-- Surface: `--surface-raised-base`, `--surface-inset-base`, `--surface-float-base`, etc.
-- Border (4 levels, light→dark): `--border-weaker-base` → `--border-weak-base` → `--border-base` → `--border-strong-base`
-- Each border level has states: `hover`, `active`, `selected`, `disabled`, `focus`
-- Status: `--surface-critical-strong`, `--surface-success-base`, `--surface-warning-base`, etc.
-- Icons: `--icon-base`, `--icon-weak-base`, `--icon-strong-base`, semantic icon tokens
-- Syntax: `--syntax-comment`, `--syntax-keyword`, `--syntax-string`, etc.
-- Diff: `--surface-diff-add-*`, `--surface-diff-delete-*`
+**Background** (5 tokens — 4 levels + 1 elevated):
+- `--bg-base` — page background, sidebar, app shell
+- `--bg-weak` — hover row, alt panel, input bg
+- `--bg-weaker` — selected row, deeper alt
+- `--bg-weakest` — pressed / active state
+- `--bg-strong` — **elevated** surface (card / popover / dropdown / modal)
 
-**shadcn Token Aliases** (mapped to existing tokens):
-- `--foreground` → `var(--text-strong)`
-- `--background` → `var(--background-base)`
-- `--primary` → `var(--button-primary-base)`
-- `--border` → `var(--border-base)`
-- `--border-weak` → `var(--border-weak-base)`
-- `--muted` → `var(--surface-weak)`
-- `--muted-foreground` → `var(--text-weak)`
-- `--foreground-weak` → `var(--text-base)`
-- `--foreground-weaker` → `var(--text-weaker)`
-- `--destructive` → `var(--surface-critical-strong)`
-- `--card` → `var(--surface-raised-stronger)`
-- `--sidebar-*` → sidebar-specific tokens
+**Foreground** (4 tokens):
+- `--fg-base` — heading, strong text
+- `--fg-weak` — body text
+- `--fg-weaker` — caption, label, muted
+- `--fg-weakest` — disabled, placeholder, hint
+
+**Border** (4 levels + 1 strong):
+- `--border-base` — default visible border
+- `--border-weak` — card / section divider
+- `--border-weaker` — hairline
+- `--border-weakest` — faintest
+- `--border-strong` — **high contrast** (focus, active, attention) — brighter than base in dark, darker than base in light
+
+**Semantic** (5 colors × 2 weights — flat palette):
+- `--color-success` / `--color-success-weak`
+- `--color-warning` / `--color-warning-weak`
+- `--color-critical` / `--color-critical-weak` (= shadcn destructive)
+- `--color-info` / `--color-info-weak`
+- `--color-interactive` / `--color-interactive-weak` (= link / focus ring)
+
+**Other token families kept**:
+- `--syntax-*` — code highlighting (comment, keyword, string, type, etc.)
+- `--markdown-*` — markdown rendering (heading, link, code, emph, strong, etc.)
+- `--avatar-background-{color}` + `--avatar-text-{color}` for 6 avatar colors (pink / mint / orange / purple / cyan / lime)
+
+**shadcn/ui aliases** — compat layer, point at the new tokens:
+```
+--background          → var(--bg-base)
+--foreground          → var(--fg-base)
+--card / --popover    → var(--bg-strong)
+--primary             → var(--fg-base)
+--primary-foreground  → var(--bg-strong)
+--secondary, --muted,
+--accent              → var(--bg-weak)
+--muted-foreground    → var(--fg-weaker)
+--destructive         → var(--color-critical)
+--border, --input     → var(--border-base)
+--ring                → var(--color-interactive)
+--sidebar-*           → sidebar-specific (backed by --bg-/--fg-/--border-)
+```
+
+**Direct tokens vs shadcn aliases — use which, when:**
+
+- **App / domain code** (`src/onboarding/`, `src/openacp/components/**` except `ui/`): always use **direct tokens** — `text-fg-weaker`, `bg-bg-weak`, `border-border-base`, `text-critical`. Never `text-muted-foreground`, `bg-muted`, `text-destructive` in hand-written app code.
+- **shadcn primitives** (`src/openacp/components/ui/*.tsx`): keep the shadcn aliases (`bg-primary`, `text-muted-foreground`, `border-border`, etc.) — these files are meant to be drop-in compatible with shadcn/ui updates. Don't touch them unless adding a variant.
+- **Third-party components** (Radix primitives, headless UI libs): shadcn aliases also acceptable.
+
+The two sets resolve to the same pixel values — this rule is about consistency and making app code grep-friendly for the project's token vocabulary.
 
 **Typography** (in `index.css` `@theme`):
 - Fonts: `--font-sans` (SF Pro, system-ui), `--font-mono` (SFMono, Menlo)
-- Sizes: 2xs (11px), xs (12px), sm (14px), base/md (16px), lg (18px), xl (20px), 2xl (24px), 3xl (28px)
-- Weights: regular (400), medium (500)
-- Line heights: lg (150%), xl (180%), 2xl (200%)
-- Tracking: normal (0), tight (-0.16px), tightest (-0.32px)
+- Sizes: `text-2xs` (11px), `text-xs` (12px), `text-sm` (14px), `text-base` (16px), `text-lg` (18px), `text-xl` (20px), `text-2xl` (24px), `text-3xl` (28px)
+- **Weights (only two)**: `font-normal` (400), `font-medium` (500) — **nothing heavier**
+- Line heights: `leading-lg` (150%), `leading-xl` (180%), `leading-2xl` (200%)
+- Tracking: `tracking-normal` (0), `tracking-tight` (-0.16px), `tracking-tightest` (-0.32px)
 
 **Spacing & Layout** (in `index.css` `@theme`):
 - Base spacing: `--spacing: 0.25rem`
-- Radius: xs (0.125rem) → xl (0.625rem)
+- Radius: xs (0.125rem) → xl (0.625rem), 2xl (1rem), 3xl (1.5rem), full (9999px)
 - Shadows: xs, sm, md, lg, xl, 2xl + border shadows (`--shadow-xs-border`, etc.)
 
 ### Theming
 
-- Light/dark/dim via `data-theme="light|dark|dim"` on `<html>`
-- Falls back to `prefers-color-scheme` when no data-theme set
-- Dark mode tokens auto-resolve — shadcn aliases are just pointers
+- Light/dark via `data-theme="light|dark"` on `<html>` — the only theme selector in CSS (no `@media (prefers-color-scheme)` fallback block)
+- Pre-paint init: inline script in `index.html` sets `data-theme` before CSS paint using a `localStorage` hint (mirrored by `applyTheme`) or `prefers-color-scheme` on first launch — prevents flash-of-wrong-theme
+- Runtime: `applyTheme(theme)` in `lib/settings-store.ts` resolves `"system"` via `matchMedia`, sets the attribute, and mirrors the value to `localStorage.theme-hint`
+- Tailwind `dark:` variant: bound to `[data-theme="dark"]` via `@custom-variant dark` in `index.css` — follows the explicit attribute, not `prefers-color-scheme`
+- shadcn aliases (`--card`, `--primary`, …) are declared once in `:root`, pointing at `--bg-*` / `--fg-*` / `--color-*` — raw tokens get overridden per theme and aliases auto-resolve via `var()` at use-time
 
 ### Tailwind Integration
 
-Color registrations in `index.css` `@theme` block (no separate `tailwind/` directory):
-- shadcn core: `bg-background`, `text-foreground`, `bg-primary`, `border-border`, etc.
-- Extensions: `border-weak`, `text-foreground-weak`, `text-foreground-weaker`
-- Sidebar: `bg-sidebar-background`, `text-sidebar-foreground`, etc.
-- Legacy surface/border/icon tokens: `bg-surface-raised-base`, `text-text-strong`, `border-border-weak-base`, etc.
-- Full icon/syntax/diff/markdown token sets registered as color utilities
+Color registrations in `index.css` `@theme` block:
+
+- Background: `bg-bg-base`, `bg-bg-weak`, `bg-bg-weaker`, `bg-bg-weakest`, `bg-bg-strong`
+- Foreground: `text-fg-base`, `text-fg-weak`, `text-fg-weaker`, `text-fg-weakest`
+- Border: `border-border-base`, `border-border-weak`, `border-border-weaker`, `border-border-weakest`, `border-border-strong`
+- Semantic: `bg-success` / `text-success` / `border-success` / `bg-success-weak` (and same for `warning` / `critical` / `info` / `interactive`)
+- shadcn aliases: `bg-background`, `text-foreground`, `bg-card`, `text-muted-foreground`, `border-border`, `bg-primary`, `text-destructive`, etc.
+- Sidebar: `bg-sidebar-background`, `text-sidebar-foreground`, `bg-sidebar-accent`, etc.
+- Syntax: `text-syntax-keyword`, `text-syntax-string`, `text-syntax-comment`, etc.
+- Markdown: `text-markdown-heading`, `text-markdown-link`, etc.
 
 ## shadcn/ui Components (`src/openacp/components/ui/`)
 

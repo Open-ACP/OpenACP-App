@@ -167,6 +167,15 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
       return (res as { turnId?: string }) ?? {}
     },
 
+    /** Get the current queue state for a session (pending items + processing flag) */
+    async getQueue(sessionID: string): Promise<{
+      pending: Array<{ userPrompt: string; turnId?: string }>
+      processing: boolean
+      queueDepth: number
+    }> {
+      return api(`/sessions/${encodeURIComponent(sessionID)}/queue`)
+    },
+
     /** Cancel/abort the current prompt in a session */
     async cancelPrompt(sessionID: string): Promise<void> {
       await api(`/sessions/${encodeURIComponent(sessionID)}/cancel`, {
@@ -229,6 +238,30 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
     /** Get current auth info (role, scopes, expiry) */
     async me(): Promise<AuthInfo> {
       return api("/auth/me")
+    },
+
+    /**
+     * Claims or re-links an identity for the current JWT token.
+     *
+     * Three server-side paths (handled transparently):
+     * - identitySecret: re-links new token to existing user (silent reconnect).
+     * - displayName: creates new user (first-time setup).
+     * - linkCode: links to existing user via multi-device code (not used here).
+     *
+     * Throws on non-2xx responses. Callers should handle:
+     * - 401 — invalid identitySecret (fallback to first-time form)
+     * - 409 — username already taken (show inline error)
+     * - 404/5xx — identity plugin not available (proceed silently)
+     */
+    async setupIdentity(opts: {
+      displayName?: string
+      username?: string
+      identitySecret?: string
+    }): Promise<{ userId: string; displayName: string; username?: string }> {
+      return api('/identity/setup', {
+        method: 'POST',
+        body: JSON.stringify(opts),
+      })
     },
 
     /** List registered commands from server */

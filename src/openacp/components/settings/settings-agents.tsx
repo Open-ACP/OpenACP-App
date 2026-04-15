@@ -108,7 +108,7 @@ export function SettingsAgents({ workspacePath }: { workspacePath?: string }) {
       <input
         type="text"
         placeholder="Search agents..."
-        className="h-8 rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground-weak placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border-selected"
+        className="h-8 rounded-md border border-border bg-background px-3 text-sm font-normal text-fg-weak placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border-selected"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
@@ -202,7 +202,7 @@ function AgentRow(props: {
             {uninstalling ? "Removing..." : "Uninstall"}
           </Button>
         ) : (
-          <span className="text-2xs font-normal text-foreground-weaker shrink-0 px-2 py-0.5 rounded bg-secondary">
+          <span className="text-2xs font-normal text-fg-weakest shrink-0 px-2 py-0.5 rounded bg-secondary">
             installed
           </span>
         )

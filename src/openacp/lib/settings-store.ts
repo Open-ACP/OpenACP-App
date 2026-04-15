@@ -2,6 +2,17 @@ import { load } from "@tauri-apps/plugin-store"
 
 const STORE_NAME = "settings.json"
 
+export interface NotificationSettings {
+  /** Master toggle — disables all system notifications when false */
+  enabled: boolean
+  /** Notify when agent finishes responding (window unfocused) */
+  agentResponse: boolean
+  /** Notify when agent requests permission approval (window unfocused) */
+  permissionRequest: boolean
+  /** Notify when a message fails to process */
+  messageFailed: boolean
+}
+
 export interface AppSettings {
   theme: "dark" | "light" | "system"
   fontSize: "small" | "medium" | "large"
@@ -11,6 +22,8 @@ export interface AppSettings {
   browserLastMode: "docked" | "floating" | "pip"
   browserSearchEngine: "google" | "duckduckgo" | "bing"
   toolAutoExpand: Record<string, boolean>
+  messageMode: "queue" | "instant"
+  notifications: NotificationSettings
 }
 
 const defaults: AppSettings = {
@@ -31,6 +44,13 @@ const defaults: AppSettings = {
     web: false,
     skill: false,
     other: false,
+  },
+  messageMode: "queue",
+  notifications: {
+    enabled: true,
+    agentResponse: true,
+    permissionRequest: true,
+    messageFailed: true,
   },
 }
 
@@ -64,17 +84,29 @@ export async function getAllSettings(): Promise<AppSettings> {
     ((await s.get("browserSearchEngine")) as AppSettings["browserSearchEngine"]) ?? defaults.browserSearchEngine
   const toolAutoExpand =
     ((await s.get("toolAutoExpand")) as AppSettings["toolAutoExpand"]) ?? defaults.toolAutoExpand
-  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand }
+  const messageMode =
+    ((await s.get("messageMode")) as AppSettings["messageMode"]) ?? defaults.messageMode
+  const notifications =
+    ((await s.get("notifications")) as AppSettings["notifications"]) ?? defaults.notifications
+  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand, messageMode, notifications }
 }
 
-/** Apply theme to document element */
+/** Apply theme to document element. `system` resolves to the OS preference so that
+ *  both our `[data-theme]` tokens and Tailwind's `dark:` variant stay in sync.
+ *  Mirrors the resolved value into localStorage so the pre-paint script in
+ *  index.html can restore it on next launch without waiting for the Tauri store. */
 export function applyTheme(theme: AppSettings["theme"]) {
   const root = document.documentElement
-  if (theme === "system") {
-    root.removeAttribute("data-theme")
-  } else {
-    root.setAttribute("data-theme", theme)
-  }
+  const resolved =
+    theme === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : theme
+  root.setAttribute("data-theme", resolved)
+  try {
+    localStorage.setItem("theme-hint", resolved)
+  } catch {}
 }
 
 /** Apply font size scaling to html root — scales entire UI proportionally (text, icons, spacing).

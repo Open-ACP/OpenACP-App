@@ -2,6 +2,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "transparent": false,
         "decorations": true
       }

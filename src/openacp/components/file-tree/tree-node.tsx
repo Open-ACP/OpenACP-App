@@ -63,6 +63,40 @@ export function TreeNode({ node, depth, onOpenFile }: TreeNodeProps) {
     <>
       <button
         type="button"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          const el = e.currentTarget
+          const startX = e.clientX
+          const startY = e.clientY
+          let didDrag = false
+
+          function onMove(ev: PointerEvent) {
+            if (!didDrag && (Math.abs(ev.clientX - startX) > 5 || Math.abs(ev.clientY - startY) > 5)) {
+              didDrag = true
+              document.body.style.cursor = "copy"
+              window.dispatchEvent(new CustomEvent("file-tree-drag-start", { detail: { path: node.path } }))
+            }
+          }
+          function onUp(ev: PointerEvent) {
+            window.removeEventListener("pointermove", onMove)
+            window.removeEventListener("pointerup", onUp)
+            document.body.style.cursor = ""
+            if (didDrag) {
+              window.dispatchEvent(new CustomEvent("file-tree-drag-end"))
+              const target = document.elementFromPoint(ev.clientX, ev.clientY)
+              const composerInput = target?.closest('[data-component="prompt-input"]')
+                ?? target?.closest('[data-component="composer-area"]')
+              if (composerInput) {
+                window.dispatchEvent(new CustomEvent("file-tree-drop", { detail: { path: node.path } }))
+              }
+              // Prevent click from firing after drag
+              function blockClick(ce: MouseEvent) { ce.stopPropagation(); ce.preventDefault() }
+              el.addEventListener("click", blockClick, { capture: true, once: true })
+            }
+          }
+          window.addEventListener("pointermove", onMove)
+          window.addEventListener("pointerup", onUp)
+        }}
         className="flex items-center gap-1 w-full text-left py-[3px] pr-2 hover:bg-accent rounded-sm transition-colors text-sm"
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={handleClick}
@@ -87,7 +121,7 @@ export function TreeNode({ node, depth, onOpenFile }: TreeNodeProps) {
             {fileIcon(node.name)}
           </>
         )}
-        <span className="truncate text-foreground-weak">{node.name}</span>
+        <span className="truncate text-fg-weak">{node.name}</span>
         {loading && <span className="text-2xs text-muted-foreground ml-auto">...</span>}
       </button>
       {isDir && expanded && children && (

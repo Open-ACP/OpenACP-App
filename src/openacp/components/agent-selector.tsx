@@ -98,7 +98,7 @@ export function AgentSelector(props: {
           {filtered.map((agent: any) => (
             <DropdownMenuItem
               key={agent.name}
-              className={`text-sm font-normal capitalize ${agent.name === props.current ? "text-foreground" : "text-foreground-weak"}`}
+              className={`text-sm font-normal capitalize ${agent.name === props.current ? "text-foreground" : "text-fg-weak"}`}
               onClick={() => handleSelect(agent.name)}
             >
               <span className="truncate">{agent.displayName || agent.name}</span>

@@ -93,7 +93,7 @@ export function InstalledTab({ workspace }: { workspace: WorkspaceCtx }) {
             </div>
           </div>
           {configuringPlugin === plugin.name && (
-            <div className="mt-1 p-3 bg-surface-base rounded-md flex flex-col gap-2 border border-border">
+            <div className="mt-1 p-3 bg-bg-weak rounded-md flex flex-col gap-2 border border-border">
               <CommandBlock label="Run in your terminal:" command={getConfigureCommand(plugin.name)} />
               <CommandBlock label="Restart the server to apply changes:" command={getRestartCommand()} />
               <Button variant="ghost" size="xs" className="self-start px-0" onClick={() => setConfiguringPlugin(null)}>Close</Button>

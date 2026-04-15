@@ -18,11 +18,11 @@ export function SettingsServer({
         <SettingRow label="Status" description="Current server connection status">
           <div className="flex items-center gap-2">
             <div className={`size-2 rounded-full ${statusColor}`} />
-            <span className="text-sm text-foreground-weak">{statusText}</span>
+            <span className="text-sm text-fg-weak">{statusText}</span>
           </div>
         </SettingRow>
         <SettingRow label="Server address" description="The address of the connected OpenACP server">
-          <code className="text-sm text-foreground-weak font-mono bg-secondary px-2 py-1 rounded-md">
+          <code className="text-sm text-fg-weak font-mono bg-secondary px-2 py-1 rounded-md">
             {serverUrl ?? "N/A"}
           </code>
         </SettingRow>

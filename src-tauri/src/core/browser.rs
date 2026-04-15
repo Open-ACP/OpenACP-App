@@ -406,7 +406,13 @@ fn create_child_in_main(app: &AppHandle, url: &str, bounds: Bounds) -> Result<()
 /// causes close-time races.
 fn ensure_pip_window(app: &AppHandle) -> Result<tauri::Window, String> {
     if let Some(w) = app.get_window(PIP_LABEL) {
-        return Ok(w);
+        // Reuse if already visible; otherwise destroy and recreate.
+        // On macOS, calling show() on a previously-hidden WKWebView window
+        // can lose native decorations (title bar / traffic lights).
+        if w.is_visible().unwrap_or(false) {
+            return Ok(w);
+        }
+        let _ = w.close();
     }
     let pip = WindowBuilder::new(app, PIP_LABEL)
         .title("Browser (Pop-out)")

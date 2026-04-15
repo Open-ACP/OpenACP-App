@@ -1,12 +1,13 @@
-import type { AgentEvent, MessageProcessingEvent, MessageQueuedEvent, PermissionRequest, Session } from "../types"
+import type { AgentEvent, MessageFailedEvent, MessageProcessingEvent, MessageQueuedEvent, PermissionRequest, Session } from "../types"
 
 export interface SSECallbacks {
   onAgentEvent: (event: AgentEvent) => void
   onSessionCreated: (session: Session) => void
-  onSessionUpdated: (session: Session) => void
+  onSessionUpdated: (session: Partial<Session> & { id: string }) => void
   onSessionDeleted: (sessionId: string) => void
   onMessageQueued?: (event: MessageQueuedEvent) => void
   onMessageProcessing?: (event: MessageProcessingEvent) => void
+  onMessageFailed?: (event: MessageFailedEvent) => void
   onPermissionRequest?: (event: PermissionRequest) => void
   onPermissionResolved?: (event: { sessionId: string; requestId: string; decision: string }) => void
   onConnected: () => void
@@ -45,7 +46,9 @@ export function createSSEManager() {
     es.addEventListener("session:updated", (e) => {
       try {
         const data = JSON.parse((e as MessageEvent).data)
-        callbacks.onSessionUpdated(mapSessionFromSSE(data))
+        // session:updated may be a partial update (e.g. just { sessionId, name })
+        const id = data.id || data.sessionId
+        if (id) callbacks.onSessionUpdated({ ...data, id })
       } catch { /* skip */ }
     })
 
@@ -70,12 +73,21 @@ export function createSSEManager() {
       } catch { /* skip */ }
     })
 
+    es.addEventListener("message:failed", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        callbacks.onMessageFailed?.(data)
+      } catch { /* skip */ }
+    })
+
     es.addEventListener("permission:request", (e) => {
       try {
         const data = JSON.parse((e as MessageEvent).data)
         // Event bus format: { sessionId, permission: { id, description, options } }
         if (data.permission) {
-          callbacks.onPermissionRequest?.({ ...data.permission, sessionId: data.sessionId })
+          const req = { ...data.permission, sessionId: data.sessionId }
+          callbacks.onPermissionRequest?.(req)
+          window.dispatchEvent(new CustomEvent("permission-request", { detail: req }))
         }
       } catch { /* skip */ }
     })
@@ -85,6 +97,14 @@ export function createSSEManager() {
         const data = JSON.parse((e as MessageEvent).data)
         callbacks.onPermissionResolved?.(data)
       } catch { /* skip */ }
+    })
+
+    es.addEventListener("notification:text", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data)
+        console.log('[sse] mention-notification received', data)
+        window.dispatchEvent(new CustomEvent("mention-notification", { detail: data }))
+      } catch { /* skip parse errors */ }
     })
 
     es.onopen = () => {

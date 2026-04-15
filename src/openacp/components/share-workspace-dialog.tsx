@@ -85,7 +85,7 @@ export function ShareWorkspaceDialog({ open, onOpenChange, onShared }: ShareWork
           <>
             {/* Role selector */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm text-foreground-weak">Permission</label>
+              <label className="text-sm text-fg-weak">Permission</label>
               <div className="flex gap-2">
                 {(["admin", "operator", "viewer"] as const).map((r) => (
                   <button
@@ -101,7 +101,7 @@ export function ShareWorkspaceDialog({ open, onOpenChange, onShared }: ShareWork
 
             {/* Expiry selector */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm text-foreground-weak">Expires in</label>
+              <label className="text-sm text-fg-weak">Expires in</label>
               <div className="flex gap-2">
                 {["1h", "24h", "7d", "30d"].map((e) => (
                   <button

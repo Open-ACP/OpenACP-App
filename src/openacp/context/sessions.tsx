@@ -13,7 +13,7 @@ interface SessionsContext {
   rename: (id: string, name: string) => Promise<void>
   archive: (id: string) => Promise<void>
   refresh: () => Promise<void>
-  upsert: (session: Session) => void
+  upsert: (session: Partial<Session> & { id: string }) => void
   delete: (id: string) => void
 }
 
@@ -148,17 +148,21 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
     void clearCachedMessages(id).catch(() => {})
   }, [workspace.client])
 
-  const upsert = useCallback((session: Session) => {
+  const upsert = useCallback((session: Partial<Session> & { id: string }) => {
     // Ignore archived/cancelled sessions
     if (archivedIdsRef.current.has(session.id) || session.status === "cancelled") return
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === session.id)
       if (idx >= 0) {
         const next = [...prev]
-        next[idx] = session
+        next[idx] = { ...next[idx], ...session }
         return next
       }
-      return [session, ...prev]
+      // Only insert if we have a full session object (not a partial update)
+      if (session.createdAt) {
+        return [session as Session, ...prev]
+      }
+      return prev
     })
   }, [])
 

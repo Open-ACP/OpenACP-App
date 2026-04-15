@@ -53,16 +53,16 @@ export function CreateInstance(props: CreateInstanceProps) {
 
   return (
     <div className="space-y-4 p-3 bg-secondary rounded-lg">
-      <p className="text-md-regular text-foreground-weak">No OpenACP instance at <code className="text-sm-regular text-foreground">{folderName}</code></p>
+      <p className="text-md-regular text-fg-weak">No OpenACP instance at <code className="text-sm-regular text-foreground">{folderName}</code></p>
       {mode === 'choose' && (
         <div className="space-y-2">
           {props.existingInstances.length > 0 && (
-            <button type="button" onClick={() => setMode('clone')} className="w-full text-left px-3 py-2 rounded-lg border border-border text-md-regular text-foreground-weak hover:bg-accent transition-colors">
+            <button type="button" onClick={() => setMode('clone')} className="w-full text-left px-3 py-2 rounded-lg border border-border text-md-regular text-fg-weak hover:bg-accent transition-colors">
               <span className="text-md-medium text-foreground">Clone from existing</span>
               <span className="text-sm-regular text-muted-foreground block">Copy config from another instance</span>
             </button>
           )}
-          <button type="button" onClick={() => setMode('new')} className="w-full text-left px-3 py-2 rounded-lg border border-border text-md-regular text-foreground-weak hover:bg-accent transition-colors">
+          <button type="button" onClick={() => setMode('new')} className="w-full text-left px-3 py-2 rounded-lg border border-border text-md-regular text-fg-weak hover:bg-accent transition-colors">
             <span className="text-md-medium text-foreground">Create new</span>
             <span className="text-sm-regular text-muted-foreground block">Start with a fresh instance</span>
           </button>

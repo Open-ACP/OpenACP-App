@@ -1,10 +1,21 @@
 <!doctype html>
-<html lang="en" style="background-color: var(--background-base)">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OpenACP</title>
     <meta name="theme-color" content="#131010" />
+    <script>
+      // Pre-paint theme init — sets data-theme before CSS applies to prevent FOWT.
+      // Source of truth is Tauri store; localStorage holds a hint from last session.
+      try {
+        var t = localStorage.getItem("theme-hint");
+        document.documentElement.setAttribute(
+          "data-theme",
+          t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+        );
+      } catch (_) {}
+    </script>
   </head>
   <body class="antialiased overscroll-none">
     <div id="root" class="flex flex-col h-dvh overflow-hidden"></div>

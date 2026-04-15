@@ -115,10 +115,17 @@ export function SetupModal(props: SetupModalProps) {
                     } ${!agent.installed ? "opacity-60" : ""}`}
                     onClick={() => agent.installed && setSelectedAgent(agent.key)}
                   >
-                    <div className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${
-                      selectedAgent === agent.key ? "border-foreground bg-foreground" : "border-muted-foreground"
-                    }`}>
-                      {selectedAgent === agent.key && (
+                    <div
+                      aria-hidden={!agent.installed}
+                      className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${
+                        !agent.installed
+                          ? "opacity-0"
+                          : selectedAgent === agent.key
+                            ? "border-foreground bg-foreground"
+                            : "border-muted-foreground"
+                      }`}
+                    >
+                      {agent.installed && selectedAgent === agent.key && (
                         <div className="size-1.5 rounded-full bg-background" />
                       )}
                     </div>
