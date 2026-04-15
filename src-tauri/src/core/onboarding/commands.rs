@@ -90,6 +90,74 @@ pub async fn get_node_info() -> Result<Option<(String, String)>, String> {
     Ok(None)
 }
 
+/// Returns all debug/diagnostic info in one call for "Copy Debug Info".
+#[tauri::command]
+pub async fn get_debug_info(app: tauri::AppHandle) -> Result<std::collections::HashMap<String, String>, String> {
+    use crate::core::sidecar::binary::find_openacp_binary;
+    let mut info = std::collections::HashMap::new();
+
+    // App version from Tauri config
+    info.insert("app_version".into(), app.package_info().version.to_string());
+
+    // Core version + path
+    match setup::check_installed().await {
+        Ok(Some(v)) => { info.insert("core_version".into(), v); }
+        _ => { info.insert("core_version".into(), "Not installed".into()); }
+    }
+    if let Some((path, _)) = find_openacp_binary() {
+        info.insert("core_path".into(), path.to_string_lossy().to_string());
+    }
+
+    // Node version + path
+    for shell in ["zsh", "bash"] {
+        if let Ok(output) = tokio::process::Command::new(shell)
+            .args(["-l", "-c", "which node && node --version"])
+            .output()
+            .await
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut lines = stdout.trim().lines();
+                if let (Some(path), Some(version)) = (lines.next(), lines.next()) {
+                    info.insert("node_version".into(), version.trim().into());
+                    info.insert("node_path".into(), path.trim().into());
+                }
+                break;
+            }
+        }
+    }
+    if !info.contains_key("node_version") {
+        info.insert("node_version".into(), "Not found".into());
+    }
+
+    // OS
+    info.insert("os".into(), format!("{} {}", std::env::consts::OS, std::env::consts::ARCH));
+
+    // Config status
+    match setup::check_config() {
+        Ok(true) => {
+            // Count instances
+            if let Some(home) = dirs::home_dir() {
+                let path = home.join(".openacp").join("instances.json");
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                        let count = json.get("instances")
+                            .and_then(|v| v.as_object())
+                            .map_or(0, |m| m.len());
+                        info.insert("config".into(), format!("yes ({count} instances)"));
+                    } else {
+                        info.insert("config".into(), "yes (parse error)".into());
+                    }
+                }
+            }
+        }
+        Ok(false) => { info.insert("config".into(), "no".into()); }
+        Err(e) => { info.insert("config".into(), format!("error: {e}")); }
+    }
+
+    Ok(info)
+}
+
 /// Dev-only: removes ~/.openacp config dir and the openacp binary.
 /// Used to reset onboarding state during development.
 #[allow(dead_code)]

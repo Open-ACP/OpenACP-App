@@ -66,6 +66,7 @@ pub fn run() {
             core::onboarding::commands::check_openacp_installed,
             core::onboarding::commands::get_openacp_binary_path,
             core::onboarding::commands::get_node_info,
+            core::onboarding::commands::get_debug_info,
             core::onboarding::commands::check_openacp_config,
             core::onboarding::commands::check_core_update,
             core::onboarding::commands::run_install_script,
@@ -118,8 +119,12 @@ pub fn run() {
                 let about_item = MenuItemBuilder::new("About OpenACP")
                     .id("about-openacp")
                     .build(app)?;
+                let debug_item = MenuItemBuilder::new("Copy Debug Info")
+                    .id("copy-debug-info")
+                    .build(app)?;
                 let app_submenu = SubmenuBuilder::new(app, "OpenACP")
                     .item(&about_item)
+                    .item(&debug_item)
                     .separator()
                     .hide()
                     .hide_others()
@@ -150,14 +155,20 @@ pub fn run() {
                     .build()?;
                 app.set_menu(menu)?;
 
-                // Handle About menu click — emit event to frontend
+                // Handle menu clicks
                 let handle = app.handle().clone();
                 app.on_menu_event(move |_app, event| {
-                    if event.id().0 == "about-openacp" {
-                        if let Some(win) = handle.get_webview_window("main") {
-                            use tauri::Emitter;
-                            let _ = win.emit("open-settings-about", ());
-                            let _ = win.set_focus();
+                    if let Some(win) = handle.get_webview_window("main") {
+                        use tauri::Emitter;
+                        match event.id().0.as_ref() {
+                            "about-openacp" => {
+                                let _ = win.emit("open-settings-about", ());
+                                let _ = win.set_focus();
+                            }
+                            "copy-debug-info" => {
+                                let _ = win.emit("copy-debug-info", ());
+                            }
+                            _ => {}
                         }
                     }
                 });

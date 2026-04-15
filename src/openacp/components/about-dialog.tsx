@@ -1,59 +1,46 @@
 import React, { useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { type as osType, arch } from "@tauri-apps/plugin-os"
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog"
 import { Button } from "./ui/button"
 import { VisuallyHidden } from "radix-ui"
 import { BrandIcon } from "./brand-loader"
+import { showToast } from "../lib/toast"
+import { MIN_CORE_VERSION } from "../lib/version"
 
-const APP_VERSION = __APP_VERSION__
-declare const __APP_VERSION__: string
+type DebugInfo = Record<string, string>
 
-interface SystemInfo {
-  appVersion: string
-  coreVersion: string | null
-  corePath: string | null
-  nodeVersion: string | null
-  nodePath: string | null
-  os: string
-}
-
-async function gatherSystemInfo(): Promise<SystemInfo> {
-  const [coreVersion, corePath, nodeInfo] = await Promise.all([
-    invoke<string | null>("check_openacp_installed").catch(() => null),
-    invoke<string | null>("get_openacp_binary_path").catch(() => null),
-    invoke<[string, string] | null>("get_node_info").catch(() => null),
-  ])
-
-  let osInfo: string
+async function fetchDebugInfo(): Promise<DebugInfo> {
   try {
-    const osName = osType()
-    const osArch = arch()
-    osInfo = `${osName} ${osArch}`
+    return await invoke<DebugInfo>("get_debug_info")
   } catch {
-    osInfo = "Unknown"
-  }
-
-  return {
-    appVersion: APP_VERSION,
-    coreVersion,
-    corePath,
-    nodeVersion: nodeInfo?.[0] ?? null,
-    nodePath: nodeInfo?.[1] ?? null,
-    os: osInfo,
+    return { error: "Failed to collect debug info" }
   }
 }
 
-function formatInfoText(info: SystemInfo): string {
+function formatDebugText(info: DebugInfo): string {
   const lines = [
-    `Version: ${info.appVersion}`,
-    `Core: ${info.coreVersion ?? "Not installed"}`,
+    `OpenACP Desktop v${info.app_version ?? "unknown"}`,
+    `Core: ${info.core_version ?? "Not installed"}`,
   ]
-  if (info.corePath) lines.push(`Core path: ${info.corePath}`)
-  if (info.nodeVersion) lines.push(`Node.js: ${info.nodeVersion}`)
-  if (info.nodePath) lines.push(`Node path: ${info.nodePath}`)
-  lines.push(`OS: ${info.os}`)
+  if (info.core_path) lines.push(`Core path: ${info.core_path}`)
+  lines.push(`Node.js: ${info.node_version ?? "Not found"}`)
+  if (info.node_path) lines.push(`Node path: ${info.node_path}`)
+  lines.push(`OS: ${info.os ?? "unknown"}`)
+  lines.push(`Config: ${info.config ?? "unknown"}`)
+  if (MIN_CORE_VERSION) lines.push(`MIN_CORE_VERSION: ${MIN_CORE_VERSION}`)
   return lines.join("\n")
+}
+
+/** Copy debug info to clipboard — can be called from anywhere (menu event, button, etc.) */
+export async function copyDebugInfo(): Promise<void> {
+  const info = await fetchDebugInfo()
+  const text = formatDebugText(info)
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast({ description: "Debug info copied to clipboard" })
+  } catch {
+    showToast({ description: "Failed to copy debug info", variant: "error" })
+  }
 }
 
 export function AboutDialog({
@@ -63,20 +50,21 @@ export function AboutDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const [info, setInfo] = useState<SystemInfo | null>(null)
+  const [info, setInfo] = useState<DebugInfo | null>(null)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (open) {
-      void gatherSystemInfo().then(setInfo)
+      void fetchDebugInfo().then(setInfo)
       setCopied(false)
     }
   }, [open])
 
   async function handleCopy() {
     if (!info) return
+    const text = formatDebugText(info)
     try {
-      await navigator.clipboard.writeText(formatInfoText(info))
+      await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch { /* ignore */ }
@@ -97,12 +85,13 @@ export function AboutDialog({
 
           {info ? (
             <div className="w-full space-y-1.5 text-sm font-mono">
-              <InfoRow label="Version" value={info.appVersion} />
-              <InfoRow label="Core" value={info.coreVersion ?? "Not installed"} />
-              {info.corePath && <InfoRow label="Core path" value={info.corePath} />}
-              {info.nodeVersion && <InfoRow label="Node.js" value={info.nodeVersion} />}
-              {info.nodePath && <InfoRow label="Node path" value={info.nodePath} />}
-              <InfoRow label="OS" value={info.os} />
+              <InfoRow label="Version" value={info.app_version ?? "unknown"} />
+              <InfoRow label="Core" value={info.core_version ?? "Not installed"} />
+              {info.core_path && <InfoRow label="Core path" value={info.core_path} />}
+              <InfoRow label="Node.js" value={info.node_version ?? "Not found"} />
+              {info.node_path && <InfoRow label="Node path" value={info.node_path} />}
+              <InfoRow label="OS" value={info.os ?? "unknown"} />
+              <InfoRow label="Config" value={info.config ?? "unknown"} />
             </div>
           ) : (
             <div className="text-sm text-muted-foreground py-4">Loading...</div>

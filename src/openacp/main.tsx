@@ -16,6 +16,11 @@ import { restartWorkspaceServer } from "./api/workspace-service"
 import { WindowDragBar } from "../onboarding/window-drag-bar"
 import { compareVersions, parseVersionString, MIN_CORE_VERSION } from "./lib/version"
 import { ArrowLineDown } from "@phosphor-icons/react"
+import { listen } from "@tauri-apps/api/event"
+import { copyDebugInfo } from "./components/about-dialog"
+
+// Listen for native menu "Copy Debug Info" — works on ALL screens including onboard
+listen("copy-debug-info", () => { void copyDebugInfo() })
 
 // Intercept all external link clicks — open in browser panel or system browser
 document.addEventListener("click", (e) => {
