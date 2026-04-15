@@ -309,10 +309,37 @@ pub async fn agents_list(workspace_dir: Option<String>) -> Result<String, String
 }
 
 /// Runs `openacp agents install <agent_key>`, streaming output via "agent-install-output".
+///
+/// Uses `--dir` with a home-dir fallback if no workspace is provided, matching
+/// the pattern in `agents_list`. Some CLI versions/environments require
+/// `--dir` in non-interactive mode (piped stdout from Tauri) even for global
+/// commands. Missing this was the likely cause of the "exit 1" bug reported
+/// by multiple users during onboarding.
+///
+/// Also writes full stdout/stderr + diagnostic context to the desktop log
+/// file on failure, so future bug reports include the actual CLI error
+/// without needing to reproduce locally.
 pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_dir: Option<&str>) -> Result<(), String> {
     let (mut shell_cmd, shim) = build_openacp_shell_command(app)?;
-    tracing::info!("agent_install: shim={}", shim.display());
-    if let Some(dir) = workspace_dir {
+
+    // Same fallback as agents_list — pass --dir even if caller didn't,
+    // using home dir as the non-interactive-mode hint. Without this, the
+    // CLI errors out with "No OpenACP instances found. Run `openacp` in
+    // your workspace directory to set up." because it can't determine a
+    // workspace context from piped stdout. Confirmed by temporarily
+    // disabling this fallback and reproducing exit 1.
+    let fallback_dir = workspace_dir
+        .map(|s| s.to_string())
+        .or_else(|| dirs::home_dir().map(|h| h.to_string_lossy().to_string()));
+
+    tracing::info!(
+        "agent_install: shim={} --dir={:?} agent={}",
+        shim.display(),
+        fallback_dir.as_deref().unwrap_or("<none>"),
+        agent_key
+    );
+
+    if let Some(ref dir) = fallback_dir {
         shell_cmd = shell_cmd.args(["--dir", dir]);
     }
     let (mut rx, _child) = shell_cmd
@@ -342,9 +369,16 @@ pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_di
     match exit_code {
         Some(0) | None => Ok(()),
         Some(code) => {
-            tracing::error!(
-                "agent_install: exited with code {code}, output: {}",
-                &combined[..combined.len().min(300)]
+            // Full output to file logger — short prefix to tracing.
+            let head = &combined[..combined.len().min(300)];
+            tracing::error!("agent_install: exited with code {code}, output: {head}");
+            crate::core::logging::write_line(
+                "ERROR",
+                "be",
+                &format!(
+                    "agent_install {agent_key} exited code={code} --dir={dir:?}\n----\n{combined}\n----",
+                    dir = fallback_dir.as_deref().unwrap_or("<none>")
+                ),
             );
             Err(format!("Agent install exited with code {code}"))
         }
