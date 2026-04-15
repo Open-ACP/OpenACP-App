@@ -91,9 +91,12 @@ fn resolve_via_shell() -> Option<PathBuf> {
                         );
                     }
                     Ok(output) => {
-                        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        if path.is_empty() {
-                            tracing::info!("find_openacp_binary: {shell} {flag} returned empty path");
+                        // Take last line only — interactive shells may print welcome
+                        // messages or prompts that pollute stdout before the actual output
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let path = stdout.trim().lines().last().unwrap_or("").trim().to_string();
+                        if path.is_empty() || !path.starts_with('/') {
+                            tracing::info!("find_openacp_binary: {shell} {flag} returned invalid path: {path:?}");
                         } else {
                             tracing::info!("find_openacp_binary: found via {shell} {flag}: {path}");
                             return Some(PathBuf::from(path));
@@ -237,8 +240,10 @@ pub fn get_login_shell_path() -> Option<String> {
                     .output()
                 {
                     if output.status.success() {
-                        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        if !path.is_empty() {
+                        // Take last line — interactive shell may print extra output
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let path = stdout.trim().lines().last().unwrap_or("").trim().to_string();
+                        if !path.is_empty() && path.contains('/') {
                             tracing::debug!("get_login_shell_path: resolved via {shell} {flag}");
                             return Some(path);
                         }

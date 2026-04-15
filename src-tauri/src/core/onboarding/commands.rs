@@ -103,10 +103,16 @@ pub async fn get_node_info() -> Result<Option<(String, String)>, String> {
                 .await
             {
                 if output.status.success() {
+                    // Take last 2 lines — interactive shell may print extra output before
                     let stdout = String::from_utf8_lossy(&output.stdout);
-                    let mut lines = stdout.trim().lines();
-                    if let (Some(path), Some(version)) = (lines.next(), lines.next()) {
-                        return Ok(Some((version.trim().to_string(), path.trim().to_string())));
+                    let all_lines: Vec<&str> = stdout.trim().lines().collect();
+                    let len = all_lines.len();
+                    if len >= 2 {
+                        let path = all_lines[len - 2].trim();
+                        let version = all_lines[len - 1].trim();
+                        if path.starts_with('/') && version.starts_with('v') {
+                            return Ok(Some((version.to_string(), path.to_string())));
+                        }
                     }
                 }
             }
