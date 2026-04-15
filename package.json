@@ -1,7 +1,7 @@
 {
   "name": "@openacp/desktop",
   "private": true,
-  "version": "2026.415.2",
+  "version": "2026.415.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
