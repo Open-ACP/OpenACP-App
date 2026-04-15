@@ -1,16 +1,18 @@
 use std::path::PathBuf;
 
-/// Returns (binary_path, extra_PATH) -- the extra PATH is needed because
+/// Returns (binary_path, extra_PATH) — the extra PATH is needed because
 /// openacp is a Node.js script (`#!/usr/bin/env node`) and the `node` binary
 /// must be in PATH for it to execute. In release builds, PATH is minimal.
 pub fn find_openacp_binary() -> Option<(PathBuf, Option<String>)> {
-    // 1. Try resolving via system shell (handles PATH properly on each OS)
-    if let Some(path) = resolve_via_shell() {
+    // 1. Try `which openacp` using the cached shell env PATH. This replaces
+    //    the old interactive-shell spam that lived here — the expensive
+    //    shell resolution now happens once at startup in shell_env::prewarm.
+    if let Some(path) = which_openacp() {
         let extra = bin_dir_for_path(&path);
         return Some((path, extra));
     }
 
-    // 2. Check common install locations per platform
+    // 2. Platform-specific known locations (nvm, fnm, homebrew, etc.)
     if let Some(path) = check_known_locations() {
         let extra = bin_dir_for_path(&path);
         return Some((path, extra));
@@ -21,116 +23,74 @@ pub fn find_openacp_binary() -> Option<(PathBuf, Option<String>)> {
 }
 
 /// Given the openacp binary path, return its parent dir as extra PATH.
-/// This ensures `node` is findable when openacp is a `#!/usr/bin/env node` script
-/// (e.g. ~/.nvm/versions/node/v22/bin/openacp -> add ~/.nvm/versions/node/v22/bin to PATH).
+/// This ensures `node` is findable when openacp is a `#!/usr/bin/env node`
+/// script (e.g. ~/.nvm/versions/node/v22/bin/openacp).
 fn bin_dir_for_path(bin: &PathBuf) -> Option<String> {
     bin.parent().map(|p| p.to_string_lossy().to_string())
 }
 
-/// Use the system shell to resolve the binary from the user's full PATH.
-/// On macOS/Linux: login shell loads ~/.zshrc, ~/.bashrc etc.
-/// On Windows: `where` command searches PATH + App Paths registry.
-fn resolve_via_shell() -> Option<PathBuf> {
+/// Resolve `openacp` against the cached shell PATH. Runs `which` (Unix) or
+/// `where` (Windows) with `shell_env::path()` injected as `PATH` so the
+/// subprocess sees the user's full shell PATH even though our parent
+/// process may not.
+fn which_openacp() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
-        // `where openacp` searches PATH and App Paths
-        if let Ok(output) = std::process::Command::new("where")
+        let output = std::process::Command::new("where")
             .arg("openacp")
+            .env("PATH", crate::core::shell_env::path())
             .output()
-        {
-            if output.status.success() {
-                // `where` may return multiple lines, take the first
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                if let Some(first) = stdout.lines().next() {
-                    let path = first.trim().to_string();
-                    if !path.is_empty() {
-                        tracing::debug!("find_openacp_binary: found via `where`: {path}");
-                        return Some(PathBuf::from(path));
-                    }
-                }
+            .ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                tracing::info!("find_openacp_binary: found via `where`: {trimmed}");
+                return Some(PathBuf::from(trimmed));
             }
         }
-        // Also try cmd.exe /C which is how GUI apps can resolve PATH
-        if let Ok(output) = std::process::Command::new("cmd")
-            .args(["/C", "where", "openacp"])
-            .output()
-        {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                if let Some(first) = stdout.lines().next() {
-                    let path = first.trim().to_string();
-                    if !path.is_empty() {
-                        tracing::debug!("find_openacp_binary: found via cmd /C where: {path}");
-                        return Some(PathBuf::from(path));
-                    }
-                }
-            }
-        }
+        None
     }
-
     #[cfg(not(target_os = "windows"))]
     {
-        // Try interactive shell first (-i loads .zshrc/.bashrc where nvm/fnm init lives),
-        // then fall back to login shell (-l loads .zprofile/.bash_profile).
-        // GUI apps on macOS don't inherit the user's interactive shell PATH.
-        for shell in ["zsh", "bash"] {
-            for flag in ["-i", "-l"] {
-                match std::process::Command::new(shell)
-                    .args([flag, "-c", "which openacp"])
-                    .output()
-                {
-                    Err(e) => {
-                        tracing::debug!("find_openacp_binary: {shell} {flag} not available — {e}");
-                    }
-                    Ok(output) => {
-                        // Check stdout regardless of exit code — interactive shells (-i)
-                        // may exit non-zero if .zshrc has errors (broken completions, etc.)
-                        // but the command itself can still succeed and produce valid output.
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let path = stdout.trim().lines().last().unwrap_or("").trim().to_string();
-                        if !path.is_empty() && path.starts_with('/') {
-                            tracing::info!("find_openacp_binary: found via {shell} {flag}: {path}");
-                            return Some(PathBuf::from(path));
-                        }
-                        if !output.status.success() {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            let hint = stderr.trim().lines().last().unwrap_or("").trim();
-                            tracing::info!(
-                                "find_openacp_binary: `{shell} {flag}` exit {:?}{hint}",
-                                output.status.code(),
-                                hint = if hint.is_empty() { String::new() } else { format!(" — {hint}") }
-                            );
-                        }
-                    }
-                }
-            }
+        let output = std::process::Command::new("/usr/bin/which")
+            .arg("openacp")
+            .env("PATH", crate::core::shell_env::path())
+            .output()
+            .ok()?;
+        // Ignore exit code — stdout is authoritative (matches the
+        // 4aa7fa3 fix lesson).
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let path = stdout.trim().lines().last().unwrap_or("").trim();
+        if path.starts_with('/') {
+            tracing::info!("find_openacp_binary: found via which: {path}");
+            Some(PathBuf::from(path))
+        } else {
+            None
         }
     }
-
-    None
 }
 
-/// Check platform-specific well-known install locations.
+/// Check platform-specific well-known install locations. Still useful as a
+/// last-resort fallback when shell env resolution fails entirely.
 fn check_known_locations() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
     let mut candidates: Vec<PathBuf> = Vec::new();
 
     #[cfg(target_os = "windows")]
     {
-        // npm global (default on Windows)
         if let Ok(appdata) = std::env::var("APPDATA") {
             candidates.push(PathBuf::from(&appdata).join("npm").join("openacp.cmd"));
             candidates.push(PathBuf::from(&appdata).join("npm").join("openacp"));
         }
-        // Scoop
         candidates.push(home.join("scoop/shims/openacp.cmd"));
         candidates.push(home.join("scoop/shims/openacp.exe"));
-        // nvm-windows — sort versions descending
         if let Ok(nvm_home) = std::env::var("NVM_HOME") {
             let nvm_dir = PathBuf::from(nvm_home);
             if nvm_dir.exists() {
                 if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
-                    let mut versions: Vec<_> = entries.flatten()
+                    let mut versions: Vec<_> = entries
+                        .flatten()
                         .filter(|e| e.path().is_dir())
                         .map(|e| e.path())
                         .collect();
@@ -142,22 +102,18 @@ fn check_known_locations() -> Option<PathBuf> {
                 }
             }
         }
-        // Chocolatey
         candidates.push(PathBuf::from(r"C:\ProgramData\chocolatey\bin\openacp.exe"));
-        // Program Files
         candidates.push(PathBuf::from(r"C:\Program Files\nodejs\openacp.cmd"));
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        // Common Unix locations
         candidates.push(home.join(".npm-global/bin/openacp"));
         candidates.push(home.join(".local/bin/openacp"));
         candidates.push(home.join("bin/openacp"));
         candidates.push(PathBuf::from("/usr/local/bin/openacp"));
         candidates.push(PathBuf::from("/opt/homebrew/bin/openacp"));
 
-        // nvm — sort versions descending so newest is checked first
         let nvm_dir = home.join(".nvm/versions/node");
         if nvm_dir.exists() {
             if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
@@ -169,7 +125,6 @@ fn check_known_locations() -> Option<PathBuf> {
             }
         }
 
-        // fnm (macOS) — sort versions descending
         #[cfg(target_os = "macos")]
         {
             let fnm_dir = home.join("Library/Application Support/fnm/node-versions");
@@ -184,7 +139,6 @@ fn check_known_locations() -> Option<PathBuf> {
             }
         }
 
-        // fnm (Linux) — sort versions descending
         #[cfg(target_os = "linux")]
         {
             let fnm_dir = home.join(".local/share/fnm/node-versions");
@@ -208,61 +162,9 @@ fn check_known_locations() -> Option<PathBuf> {
         if candidate.exists() {
             tracing::info!("find_openacp_binary: found at {}", candidate.display());
             return Some(candidate.clone());
-        } else {
-            tracing::debug!("find_openacp_binary: not at {}", candidate.display());
         }
     }
 
     tracing::warn!("find_openacp_binary: exhausted all known locations, openacp not found");
     None
-}
-
-/// Resolve the full PATH from the user's interactive/login shell.
-///
-/// GUI apps on macOS/Linux inherit a minimal PATH (e.g. /usr/bin:/bin) that
-/// doesn't include tools installed via nvm, fnm, Homebrew, or npm global.
-/// Running an interactive shell sources ~/.zshrc / ~/.bashrc and returns the
-/// full PATH the user sees in their terminal.
-///
-/// Returns None on Windows (where PATH is managed differently) or if the shell
-/// invocation fails.
-pub fn get_login_shell_path() -> Option<String> {
-    #[cfg(target_os = "windows")]
-    return None;
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        for shell in ["zsh", "bash"] {
-            // Try interactive first (-i loads .zshrc with nvm init), then login (-l)
-            for flag in ["-i", "-l"] {
-                if let Ok(output) = std::process::Command::new(shell)
-                    .args([flag, "-c", "echo $PATH"])
-                    .output()
-                {
-                    // Check stdout regardless of exit code — .zshrc errors
-                    // may cause non-zero exit but PATH output is still valid
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    let path = stdout.trim().lines().last().unwrap_or("").trim().to_string();
-                    if !path.is_empty() && path.contains('/') {
-                        tracing::debug!("get_login_shell_path: resolved via {shell} {flag}");
-                        return Some(path);
-                    }
-                }
-            }
-        }
-        tracing::warn!("get_login_shell_path: could not resolve PATH from shell");
-        None
-    }
-}
-
-/// Helper: build PATH string with extra dir prepended (platform-aware separator).
-///
-/// Uses the login shell PATH as the base so that tools installed via nvm, fnm,
-/// npm global, or Homebrew are visible to all openacp subprocesses — not just
-/// the minimal PATH inherited by the GUI app.
-pub fn prepend_path(extra: &str) -> String {
-    let base = get_login_shell_path()
-        .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
-    let sep = if cfg!(windows) { ";" } else { ":" };
-    format!("{extra}{sep}{base}")
 }
