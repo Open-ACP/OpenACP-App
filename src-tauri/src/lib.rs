@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 
+
 #[tauri::command]
 fn toggle_devtools(app: tauri::AppHandle, open: bool) {
     if let Some(window) = app.get_webview_window("main") {
@@ -64,6 +65,7 @@ pub fn run() {
             // Onboarding commands
             core::onboarding::commands::check_openacp_installed,
             core::onboarding::commands::get_openacp_binary_path,
+            core::onboarding::commands::get_node_info,
             core::onboarding::commands::check_openacp_config,
             core::onboarding::commands::check_core_update,
             core::onboarding::commands::run_install_script,
@@ -107,6 +109,59 @@ pub fn run() {
                 pty: pty.clone(),
             });
             app.manage(core::browser::BrowserStore::new());
+
+            // Build native macOS menu — "About" opens Settings > About in the webview
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+
+                let about_item = MenuItemBuilder::new("About OpenACP")
+                    .id("about-openacp")
+                    .build(app)?;
+                let app_submenu = SubmenuBuilder::new(app, "OpenACP")
+                    .item(&about_item)
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()?;
+                let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                    .undo()
+                    .redo()
+                    .separator()
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
+                let window_submenu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .maximize()
+                    .close_window()
+                    .separator()
+                    .fullscreen()
+                    .build()?;
+                let menu = MenuBuilder::new(app)
+                    .item(&app_submenu)
+                    .item(&edit_submenu)
+                    .item(&window_submenu)
+                    .build()?;
+                app.set_menu(menu)?;
+
+                // Handle About menu click — emit event to frontend
+                let handle = app.handle().clone();
+                app.on_menu_event(move |_app, event| {
+                    if event.id().0 == "about-openacp" {
+                        if let Some(win) = handle.get_webview_window("main") {
+                            use tauri::Emitter;
+                            let _ = win.emit("open-settings-about", ());
+                            let _ = win.set_focus();
+                        }
+                    }
+                });
+            }
 
             // Auto-start: try to detect already-running OpenACP server
             let sidecar_clone = sidecar.clone();

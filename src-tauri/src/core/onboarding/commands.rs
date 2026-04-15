@@ -67,6 +67,29 @@ pub async fn run_openacp_agent_install(
     setup::agent_install(&app, &agent_key, workspace_dir.as_deref()).await
 }
 
+/// Returns Node.js version and path, or None if not found.
+/// Uses login shell to resolve the same PATH the user sees in their terminal.
+#[tauri::command]
+pub async fn get_node_info() -> Result<Option<(String, String)>, String> {
+    // Get node path via login shell (same approach as find_openacp_binary)
+    for shell in ["zsh", "bash"] {
+        if let Ok(output) = tokio::process::Command::new(shell)
+            .args(["-l", "-c", "which node && node --version"])
+            .output()
+            .await
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut lines = stdout.trim().lines();
+                if let (Some(path), Some(version)) = (lines.next(), lines.next()) {
+                    return Ok(Some((version.trim().to_string(), path.trim().to_string())));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// Dev-only: removes ~/.openacp config dir and the openacp binary.
 /// Used to reset onboarding state during development.
 #[allow(dead_code)]
