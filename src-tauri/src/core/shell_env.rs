@@ -90,8 +90,33 @@ pub fn dedupe_path(path: &str, sep: &str) -> String {
 
 // ─── Internals (implemented in later tasks) ─────────────────────────────
 
-fn parse_env_nul(_bytes: &[u8]) -> Option<HashMap<String, String>> {
-    todo!("implemented in later task")
+/// Parses a NUL-delimited env buffer (output of `env -0`) into a HashMap.
+/// Skips entries that lack `=`, entries with invalid UTF-8, and empty
+/// segments. Returns `None` only if the entire input is empty.
+fn parse_env_nul(bytes: &[u8]) -> Option<HashMap<String, String>> {
+    if bytes.is_empty() {
+        return None;
+    }
+    let mut map = HashMap::new();
+    for entry in bytes.split(|&b| b == 0) {
+        if entry.is_empty() {
+            continue;
+        }
+        let eq_pos = match entry.iter().position(|&b| b == b'=') {
+            Some(p) => p,
+            None => continue, // no '=', skip
+        };
+        let key = match std::str::from_utf8(&entry[..eq_pos]) {
+            Ok(k) => k.to_string(),
+            Err(_) => continue,
+        };
+        let value = match std::str::from_utf8(&entry[eq_pos + 1..]) {
+            Ok(v) => v.to_string(),
+            Err(_) => continue,
+        };
+        map.insert(key, value);
+    }
+    Some(map)
 }
 
 fn extract_marked_env(_stdout: &[u8], _marker: &str) -> Option<HashMap<String, String>> {
@@ -117,5 +142,65 @@ impl ShellEnv {
 
     fn build_path(_shell_path: &str) -> String {
         todo!("implemented in later task")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_env_nul_basic() {
+        let input = b"FOO=bar\0BAZ=qux\0";
+        let env = parse_env_nul(input).unwrap();
+        assert_eq!(env.get("FOO"), Some(&"bar".to_string()));
+        assert_eq!(env.get("BAZ"), Some(&"qux".to_string()));
+    }
+
+    #[test]
+    fn parse_env_nul_handles_multiline_values() {
+        let input = b"MULTI=line1\nline2\nline3\0FOO=bar\0";
+        let env = parse_env_nul(input).unwrap();
+        assert_eq!(env.get("MULTI"), Some(&"line1\nline2\nline3".to_string()));
+        assert_eq!(env.get("FOO"), Some(&"bar".to_string()));
+    }
+
+    #[test]
+    fn parse_env_nul_handles_empty_values() {
+        let input = b"EMPTY=\0HAS=value\0";
+        let env = parse_env_nul(input).unwrap();
+        assert_eq!(env.get("EMPTY"), Some(&String::new()));
+        assert_eq!(env.get("HAS"), Some(&"value".to_string()));
+    }
+
+    #[test]
+    fn parse_env_nul_skips_entries_without_equals() {
+        let input = b"GOOD=yes\0NOEQUALS\0ALSO=ok\0";
+        let env = parse_env_nul(input).unwrap();
+        assert_eq!(env.len(), 2);
+        assert!(env.contains_key("GOOD"));
+        assert!(env.contains_key("ALSO"));
+        assert!(!env.contains_key("NOEQUALS"));
+    }
+
+    #[test]
+    fn parse_env_nul_handles_trailing_data_without_nul() {
+        let input = b"FOO=bar\0BAZ=qux";
+        let env = parse_env_nul(input).unwrap();
+        assert_eq!(env.get("FOO"), Some(&"bar".to_string()));
+        assert_eq!(env.get("BAZ"), Some(&"qux".to_string()));
+    }
+
+    #[test]
+    fn parse_env_nul_ignores_invalid_utf8_entries() {
+        let input: &[u8] = &[
+            b'F', b'O', b'O', b'=', b'b', b'a', b'r', 0,
+            b'B', b'A', b'D', b'=', 0xFF, 0xFE, 0,
+            b'O', b'K', b'=', b'y', b'e', b's', 0,
+        ];
+        let env = parse_env_nul(input).unwrap();
+        assert_eq!(env.get("FOO"), Some(&"bar".to_string()));
+        assert_eq!(env.get("OK"), Some(&"yes".to_string()));
+        assert!(!env.contains_key("BAD"));
     }
 }
