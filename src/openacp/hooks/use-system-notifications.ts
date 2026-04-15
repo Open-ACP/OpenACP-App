@@ -86,7 +86,7 @@ export function useSystemNotifications() {
       const data = (e as CustomEvent).detail as { text?: string; sessionId?: string } | undefined
       if (!data?.text) return
 
-      if (!focusedRef.current && permittedRef.current) {
+if (!focusedRef.current && permittedRef.current) {
         sendNotification({ title: 'OpenACP', body: data.text })
       } else if (data.sessionId) {
         toast(data.text, {
