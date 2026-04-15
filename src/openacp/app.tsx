@@ -377,11 +377,11 @@ function OpenACPAppInner() {
   const browser = useBrowserPanel();
   const { append: appendNotification, unreadCount } = useNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
-  const activeWsName = workspaces.find((w) => w.id === active)?.name ?? workspaces.find((w) => w.id === active)?.directory?.split("/").pop();
-  useSystemNotifications(appendNotification, activeWsName);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const activeWsName = workspaces.find((w) => w.id === active)?.name ?? workspaces.find((w) => w.id === active)?.directory?.split("/").pop();
+  useSystemNotifications(appendNotification, activeWsName);
 
   // Unified update system
   const { state: updateState, updateCore, installAppUpdate } = useUpdateCheck();
