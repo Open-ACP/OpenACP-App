@@ -5,6 +5,7 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { showToast } from '../lib/toast'
 
 /**
  * System notifications for background events.
@@ -79,7 +80,7 @@ export function useSystemNotifications() {
     }
   }, [])
 
-  // Listen for mention notifications — show native notification when app is unfocused
+  // Listen for mention notifications — native notification when unfocused, toast when focused
   useEffect(() => {
     function handleMention(e: Event) {
       const data = (e as CustomEvent).detail as { text?: string; sessionId?: string } | undefined
@@ -87,6 +88,8 @@ export function useSystemNotifications() {
 
       if (!focusedRef.current && permittedRef.current) {
         sendNotification({ title: 'OpenACP', body: data.text })
+      } else {
+        showToast({ description: data.text })
       }
     }
 
