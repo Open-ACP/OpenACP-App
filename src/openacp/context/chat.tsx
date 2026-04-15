@@ -1347,5 +1347,16 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     addCommandResponse,
   }), [store, setActiveSession, sendPrompt, abort, connect, addCommandResponse])
 
+  // Handle navigate-to-session events dispatched by useSystemNotifications
+  // when a mention notification toast or native notification is clicked.
+  useEffect(() => {
+    function handleNavigate(e: Event) {
+      const sessionId = (e as CustomEvent<{ sessionId?: string }>).detail?.sessionId
+      if (sessionId) setActiveSession(sessionId)
+    }
+    window.addEventListener('navigate-to-session', handleNavigate)
+    return () => window.removeEventListener('navigate-to-session', handleNavigate)
+  }, [setActiveSession])
+
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

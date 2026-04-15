@@ -32,7 +32,10 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
       <DialogContent
         className="bg-card w-full sm:max-w-lg rounded-xl p-0 overflow-hidden gap-0 border-border-weak"
         showCloseButton={false}
+        aria-describedby={undefined}
       >
+        {/* Visually hidden title for screen reader accessibility */}
+        <DialogTitle className="sr-only">Add Workspace</DialogTitle>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border-weak">
           <span className="text-sm font-medium text-foreground">Add Workspace</span>

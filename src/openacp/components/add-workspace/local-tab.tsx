@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X } from '@phosphor-icons/react'
 import { type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
 import {
@@ -26,6 +26,13 @@ export function LocalTab(props: LocalTabProps) {
     | { type: 'new'; directory: string }
     | null
   >(null)
+  const browseResultRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (browseResult) {
+      browseResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [browseResult])
 
   useEffect(() => {
     listWorkspaces().then(setInstances).catch(() => {}).finally(() => setLoading(false))
@@ -112,13 +119,15 @@ export function LocalTab(props: LocalTabProps) {
       </div>
 
       {browseResult && (
-        <BrowseResultView
-          result={browseResult}
-          instances={instances}
-          onAdd={props.onAdd}
-          onSetup={props.onSetup}
-          onClose={() => setBrowseResult(null)}
-        />
+        <div ref={browseResultRef}>
+          <BrowseResultView
+            result={browseResult}
+            instances={instances}
+            onAdd={props.onAdd}
+            onSetup={props.onSetup}
+            onClose={() => setBrowseResult(null)}
+          />
+        </div>
       )}
     </div>
   )

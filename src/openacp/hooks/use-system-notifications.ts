@@ -5,6 +5,7 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { toast } from 'sonner'
 import { getSetting, type NotificationSettings } from '../lib/settings-store'
 import type { AppNotification } from '../api/notification-store'
 
@@ -19,6 +20,11 @@ const SETTING_DEFAULTS: NotificationSettings = {
  * System notifications for background events.
  * Shows native OS notifications only when the app window is not focused
  * and the corresponding notification setting is enabled.
+ *
+ * Currently notifies on:
+ * - Agent response complete (session goes idle after streaming)
+ * - Permission request waiting for user action
+ * - User mentioned by agent in a teamwork session (toast when focused, native when unfocused)
  */
 export function useSystemNotifications(
   appendNotification?: (n: Omit<AppNotification, "id" | "timestamp" | "read">) => void,
@@ -152,6 +158,34 @@ export function useSystemNotifications(
       window.removeEventListener('agent-event', handleAgentEvent)
       window.removeEventListener('permission-request', handlePermissionRequest)
       window.removeEventListener('message-failed', handleMessageFailed)
+    }
+  }, [])
+
+  // Listen for mention notifications — native notification when unfocused, toast when focused
+  useEffect(() => {
+    function handleMention(e: Event) {
+      const data = (e as CustomEvent).detail as { text?: string; sessionId?: string } | undefined
+      if (!data?.text) return
+
+      if (!focusedRef.current && !!permittedRef.current && settingsRef.current.enabled) {
+        sendNotification({ title: 'OpenACP', body: data.text })
+      } else if (data.sessionId) {
+        toast(data.text, {
+          action: {
+            label: 'View',
+            onClick: () => window.dispatchEvent(
+              new CustomEvent('navigate-to-session', { detail: { sessionId: data.sessionId } })
+            ),
+          },
+        })
+      } else {
+        toast(data.text)
+      }
+    }
+
+    window.addEventListener('mention-notification', handleMention)
+    return () => {
+      window.removeEventListener('mention-notification', handleMention)
     }
   }, [])
 }
