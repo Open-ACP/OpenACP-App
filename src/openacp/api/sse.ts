@@ -3,7 +3,7 @@ import type { AgentEvent, MessageFailedEvent, MessageProcessingEvent, MessageQue
 export interface SSECallbacks {
   onAgentEvent: (event: AgentEvent) => void
   onSessionCreated: (session: Session) => void
-  onSessionUpdated: (session: Session) => void
+  onSessionUpdated: (session: Partial<Session> & { id: string }) => void
   onSessionDeleted: (sessionId: string) => void
   onMessageQueued?: (event: MessageQueuedEvent) => void
   onMessageProcessing?: (event: MessageProcessingEvent) => void
@@ -46,7 +46,9 @@ export function createSSEManager() {
     es.addEventListener("session:updated", (e) => {
       try {
         const data = JSON.parse((e as MessageEvent).data)
-        callbacks.onSessionUpdated(mapSessionFromSSE(data))
+        // session:updated may be a partial update (e.g. just { sessionId, name })
+        const id = data.id || data.sessionId
+        if (id) callbacks.onSessionUpdated({ ...data, id })
       } catch { /* skip */ }
     })
 

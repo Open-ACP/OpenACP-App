@@ -1047,6 +1047,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     turnIdToUserMsgId.current.delete(ev.turnId)
     turnIdToAssistantMsgId.current.delete(ev.turnId)
     console.warn('[Chat] message:failed', ev.turnId, ev.reason)
+    window.dispatchEvent(new CustomEvent("message-failed", { detail: ev }))
   }
 
   const connect = useCallback(() => {

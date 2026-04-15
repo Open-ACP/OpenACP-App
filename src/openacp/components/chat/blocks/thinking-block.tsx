@@ -62,7 +62,7 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
         <span>{summaryText}</span>
         <span className="oac-thinking-chevron">&#9654;</span>
       </summary>
-      <div className="oac-thinking-content">
+      <div className="oac-thinking-content select-text">
         <Markdown
           text={block.content || ""}
           cacheKey={block.isStreaming ? undefined : block.id}
