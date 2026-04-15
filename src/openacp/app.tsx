@@ -380,8 +380,24 @@ function OpenACPAppInner() {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const activeWsName = workspaces.find((w) => w.id === active)?.name ?? workspaces.find((w) => w.id === active)?.directory?.split("/").pop();
-  useSystemNotifications(appendNotification, activeWsName);
+  const activeWs = workspaces.find((w) => w.id === active);
+  const activeWsName = activeWs?.directory?.split("/").pop() || activeWs?.name;
+  // Session name lookup — populated by SessionsProvider deeper in the tree
+  const sessionNamesRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    function handleSessionsUpdated(e: Event) {
+      const sessions = (e as CustomEvent).detail as Array<{ id: string; name: string }> | undefined;
+      if (sessions) {
+        const map = new Map<string, string>();
+        for (const s of sessions) map.set(s.id, s.name);
+        sessionNamesRef.current = map;
+      }
+    }
+    window.addEventListener("sessions-updated", handleSessionsUpdated);
+    return () => window.removeEventListener("sessions-updated", handleSessionsUpdated);
+  }, []);
+  const getSessionName = useCallback((id: string) => sessionNamesRef.current.get(id), []);
+  useSystemNotifications(appendNotification, activeWsName, getSessionName);
 
   // Unified update system
   const { state: updateState, updateCore, installAppUpdate } = useUpdateCheck();

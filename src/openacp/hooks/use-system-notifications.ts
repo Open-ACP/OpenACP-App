@@ -23,6 +23,7 @@ const SETTING_DEFAULTS: NotificationSettings = {
 export function useSystemNotifications(
   appendNotification?: (n: Omit<AppNotification, "id" | "timestamp" | "read">) => void,
   workspaceName?: string,
+  getSessionName?: (sessionId: string) => string | undefined,
 ) {
   const permittedRef = useRef<boolean | null>(null)
   const streamingRef = useRef(false)
@@ -32,6 +33,8 @@ export function useSystemNotifications(
   appendNotificationRef.current = appendNotification
   const workspaceNameRef = useRef(workspaceName)
   workspaceNameRef.current = workspaceName
+  const getSessionNameRef = useRef(getSessionName)
+  getSessionNameRef.current = getSessionName
 
   // Load notification settings + request OS permission + track window focus
   useEffect(() => {
@@ -97,10 +100,12 @@ export function useSystemNotifications(
         }
         streamingRef.current = false
         if (settingsRef.current.enabled && settingsRef.current.agentResponse) {
+          const sid = (e as CustomEvent).detail?.sessionId
           appendNotificationRef.current?.({
             type: "agent-response",
             title: "Agent response ready",
-            sessionId: (e as CustomEvent).detail?.sessionId,
+            sessionId: sid,
+            sessionName: sid ? getSessionNameRef.current?.(sid) : undefined,
             workspaceName: workspaceNameRef.current,
             action: { type: "navigate-session" },
           })
@@ -118,6 +123,7 @@ export function useSystemNotifications(
           type: "permission-request",
           title: "Permission approval needed",
           sessionId: detail?.sessionId,
+          sessionName: detail?.sessionId ? getSessionNameRef.current?.(detail.sessionId) : undefined,
           workspaceName: workspaceNameRef.current,
         })
       }
@@ -133,6 +139,7 @@ export function useSystemNotifications(
           type: "message-failed",
           title: "Message failed to process",
           sessionId: detail?.sessionId,
+          sessionName: detail?.sessionId ? getSessionNameRef.current?.(detail.sessionId) : undefined,
           workspaceName: workspaceNameRef.current,
         })
       }
