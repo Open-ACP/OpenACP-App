@@ -1,4 +1,4 @@
-use crate::core::sidecar::binary::{find_openacp_binary, prepend_path};
+use crate::core::sidecar::binary::{find_openacp_binary, get_login_shell_path, prepend_path};
 use tauri::Emitter;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
@@ -6,13 +6,79 @@ use tauri_plugin_shell::process::CommandEvent;
 /// Build a tokio Command for openacp with the right PATH set.
 /// openacp is a Node.js script (`#!/usr/bin/env node`), so we must ensure
 /// `node` is in PATH -- which it won't be in release builds.
+///
+/// Constructs PATH by combining:
+/// 1. The directory containing the openacp binary
+/// 2. The directory containing the node binary (may differ from openacp dir
+///    when node is installed via official installer at /usr/local/bin but
+///    openacp is at /opt/homebrew/bin)
+/// 3. The user's full shell PATH (from interactive/login shell)
 pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf), String> {
     let (bin, extra_path) = find_openacp_binary()
         .ok_or_else(|| "openacp not found — please install it first".to_string())?;
     let mut cmd = tokio::process::Command::new(&bin);
+
+    // Build PATH with both openacp dir and node dir
+    let shell_path = get_login_shell_path()
+        .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let mut parts: Vec<String> = Vec::new();
+
+    // Add openacp binary dir
     if let Some(ref extra) = extra_path {
-        cmd.env("PATH", prepend_path(extra));
+        parts.push(extra.clone());
     }
+
+    // Find and add node dir (may be different from openacp dir)
+    let openacp_dir = bin.parent().unwrap_or(std::path::Path::new(""));
+    let co_located_node = openacp_dir.join("node");
+    if !co_located_node.exists() {
+        // Node not in same dir as openacp — find it via:
+        // 1. Known locations (official installer, homebrew)
+        // 2. Shell resolution (nvm, fnm, etc.)
+        let mut node_found = false;
+        for candidate in ["/usr/local/bin/node", "/opt/homebrew/bin/node"] {
+            if std::path::Path::new(candidate).exists() {
+                if let Some(dir) = std::path::Path::new(candidate).parent() {
+                    let dir_str = dir.to_string_lossy().to_string();
+                    if !parts.contains(&dir_str) {
+                        parts.push(dir_str);
+                    }
+                }
+                node_found = true;
+                break;
+            }
+        }
+        // Shell resolution fallback (handles nvm/fnm)
+        if !node_found {
+            for shell in ["zsh", "bash"] {
+                for flag in ["-i", "-l"] {
+                    if let Ok(output) = std::process::Command::new(shell)
+                        .args([flag, "-c", "which node"])
+                        .output()
+                    {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let node_path = stdout.trim().lines().last().unwrap_or("").trim();
+                        if node_path.starts_with('/') {
+                            if let Some(dir) = std::path::Path::new(node_path).parent() {
+                                let dir_str = dir.to_string_lossy().to_string();
+                                if !parts.contains(&dir_str) {
+                                    parts.push(dir_str);
+                                }
+                            }
+                            node_found = true;
+                            break;
+                        }
+                    }
+                }
+                if node_found { break; }
+            }
+        }
+    }
+
+    parts.push(shell_path);
+    cmd.env("PATH", parts.join(sep));
+
     Ok((cmd, bin))
 }
 
