@@ -1,4 +1,5 @@
-use crate::core::sidecar::binary::{find_openacp_binary, prepend_path};
+use crate::core::sidecar::binary::find_openacp_binary;
+use crate::core::onboarding::setup::build_openacp_path;
 use std::path::Path;
 
 // ── File Tree Commands ──────────────────────────────────────────────────────
@@ -346,11 +347,10 @@ pub fn remove_directory(path: String) -> Result<(), String> {
 pub async fn invoke_cli(args: Vec<String>, _app: tauri::AppHandle) -> Result<String, String> {
     let (bin, extra_path) =
         find_openacp_binary().ok_or_else(|| "Could not find openacp binary".to_string())?;
+    let path_override = build_openacp_path(&bin, &extra_path);
+    let env = crate::core::shell_env::clean_env(Some(&path_override));
     let mut cmd = tokio::process::Command::new(&bin);
-    cmd.args(&args);
-    if let Some(ref extra) = extra_path {
-        cmd.env("PATH", prepend_path(extra));
-    }
+    cmd.args(&args).env_clear().envs(env);
     let output = cmd.output().await.map_err(|e| e.to_string())?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())

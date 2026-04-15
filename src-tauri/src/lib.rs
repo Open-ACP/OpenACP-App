@@ -29,6 +29,12 @@ pub struct ServerInfo {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // MUST be first: mutates std::env::PATH process-wide so subsequent
+    // code (tracing init, dirs::home_dir, async runtime, tauri internals)
+    // sees the user's real shell PATH. Errors are non-fatal — we still
+    // have the dedicated shell_env::prewarm as a second line of defense.
+    let _ = fix_path_env::fix();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -39,6 +45,12 @@ pub fn run() {
     // Initialize file logger for diagnostics
     core::logging::init();
     core::logging::write_line("INFO", "be", "OpenACP Desktop starting");
+
+    // Prewarm the shell env cache on a dedicated OS thread (not the tokio
+    // runtime) so a slow .zshrc never blocks Tauri async work. The first
+    // caller of shell_env::snapshot() will block on the OnceLock if this
+    // isn't done yet, bounded by TIMEOUT.
+    std::thread::spawn(|| core::shell_env::prewarm());
 
     let sidecar = Arc::new(Mutex::new(SidecarManager::new()));
     let pty = Arc::new(Mutex::new(PtyManager::new()));

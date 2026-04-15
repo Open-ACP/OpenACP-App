@@ -1,77 +1,50 @@
-use crate::core::sidecar::binary::{find_openacp_binary, get_login_shell_path, prepend_path};
+use crate::core::sidecar::binary::find_openacp_binary;
 use tauri::Emitter;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
 
 /// Build a complete PATH string for running openacp and its subprocesses.
-/// Combines openacp dir, node dir (if different), and the user's shell PATH.
-/// This is the single source of truth for PATH construction — used by both
-/// tokio::Command (openacp_command) and tauri::shell::Command (agent_install, run_setup).
+/// Thin wrapper over shell_env::path() — prepends openacp bin dir and
+/// co-located node dir (if any) to the cached shell PATH, then dedupes.
+///
+/// This replaces the old version that spawned interactive shells to find
+/// node. Shell resolution now happens exactly once in shell_env::prewarm.
 pub fn build_openacp_path(bin: &std::path::Path, extra_path: &Option<String>) -> String {
-    let shell_path = get_login_shell_path()
-        .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
+    let base = crate::core::shell_env::path();
     let sep = if cfg!(windows) { ";" } else { ":" };
     let mut parts: Vec<String> = Vec::new();
 
-    // 1. Add openacp binary dir
+    // 1. openacp binary dir (so `openacp` itself and any sibling tools resolve)
     if let Some(extra) = extra_path {
         parts.push(extra.clone());
     }
 
-    // 2. Find and add node dir (may be different from openacp dir)
+    // 2. Co-located node dir (e.g. ~/.nvm/versions/node/v22/bin/node sits
+    //    right next to openacp in that dir). Well-known dirs from
+    //    shell_env already cover /usr/local/bin and /opt/homebrew/bin.
     let openacp_dir = bin.parent().unwrap_or(std::path::Path::new(""));
     let co_located_node = openacp_dir.join("node");
-    if !co_located_node.exists() {
-        let mut node_found = false;
-        // Known locations (official installer, homebrew)
-        for candidate in ["/usr/local/bin/node", "/opt/homebrew/bin/node"] {
-            if std::path::Path::new(candidate).exists() {
-                if let Some(dir) = std::path::Path::new(candidate).parent() {
-                    let dir_str = dir.to_string_lossy().to_string();
-                    if !parts.contains(&dir_str) {
-                        parts.push(dir_str);
-                    }
-                }
-                node_found = true;
-                break;
-            }
-        }
-        // Shell resolution fallback (nvm, fnm)
-        if !node_found {
-            'outer: for shell in ["zsh", "bash"] {
-                for flag in ["-i", "-l"] {
-                    if let Ok(output) = std::process::Command::new(shell)
-                        .args([flag, "-c", "which node"])
-                        .output()
-                    {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let node_path = stdout.trim().lines().last().unwrap_or("").trim();
-                        if node_path.starts_with('/') {
-                            if let Some(dir) = std::path::Path::new(node_path).parent() {
-                                let dir_str = dir.to_string_lossy().to_string();
-                                if !parts.contains(&dir_str) {
-                                    parts.push(dir_str);
-                                }
-                            }
-                            break 'outer;
-                        }
-                    }
-                }
-            }
-        }
+    if co_located_node.exists() {
+        parts.push(openacp_dir.to_string_lossy().to_string());
     }
 
-    // 3. Append shell PATH
-    parts.push(shell_path);
-    parts.join(sep)
+    parts.push(base.to_string());
+    crate::core::shell_env::dedupe_path(&parts.join(sep), sep)
 }
 
-/// Build a tokio Command for openacp with the right PATH set.
+/// Build a tokio Command for openacp with the right env set.
 pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf), String> {
     let (bin, extra_path) = find_openacp_binary()
         .ok_or_else(|| "openacp not found — please install it first".to_string())?;
     let mut cmd = tokio::process::Command::new(&bin);
-    cmd.env("PATH", build_openacp_path(&bin, &extra_path));
+    // Build a complete PATH from shell_env, then use that as the extra prefix
+    // to clean_env so it becomes the final PATH. This ensures node is findable
+    // regardless of how openacp was installed. clean_env also strips DENYLIST
+    // vars (NODE_OPTIONS, BASH_ENV, etc.) for security hardening.
+    let path_override = build_openacp_path(&bin, &extra_path);
+    let env = crate::core::shell_env::clean_env(Some(&path_override));
+    cmd.env_clear();
+    cmd.envs(env);
     Ok((cmd, bin))
 }
 
@@ -192,8 +165,10 @@ pub async fn run_setup(
 ) -> Result<String, String> {
     let (bin, extra_path) = find_openacp_binary()
         .ok_or("openacp not found — please install it first")?;
+    let path_override = build_openacp_path(&bin, &extra_path);
+    let env = crate::core::shell_env::clean_env(Some(&path_override));
     let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
-    shell_cmd = shell_cmd.env("PATH", build_openacp_path(&bin, &extra_path));
+    shell_cmd = shell_cmd.envs(env);
     let (mut rx, _child) = shell_cmd
         .args([
             "setup",
@@ -287,11 +262,16 @@ pub async fn agents_list(workspace_dir: Option<String>) -> Result<String, String
 pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_dir: Option<&str>) -> Result<(), String> {
     let (bin, extra_path) = find_openacp_binary()
         .ok_or("openacp not found — please install it first")?;
-    let path = build_openacp_path(&bin, &extra_path);
-    tracing::info!("agent_install: bin={} PATH={}", bin.display(), &path[..path.len().min(200)]);
+    let path_override = build_openacp_path(&bin, &extra_path);
+    let env = crate::core::shell_env::clean_env(Some(&path_override));
+    tracing::info!(
+        "agent_install: bin={} PATH={}",
+        bin.display(),
+        &path_override[..path_override.len().min(200)]
+    );
 
     let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
-    shell_cmd = shell_cmd.env("PATH", &path);
+    shell_cmd = shell_cmd.envs(env);
     if let Some(dir) = workspace_dir {
         shell_cmd = shell_cmd.args(["--dir", dir]);
     }
@@ -318,15 +298,14 @@ pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_di
         }
     }
 
-    // Log output to file logger for diagnostics
     let combined = output_lines.join("\n");
-    crate::core::logging::write_line("INFO", "be", &format!("agent_install output: {}", &combined[..combined.len().min(500)]));
-
     match exit_code {
         Some(0) | None => Ok(()),
         Some(code) => {
-            tracing::error!("agent_install: exited with code {code}, output: {}", &combined[..combined.len().min(300)]);
-            crate::core::logging::write_line("ERROR", "be", &format!("agent_install failed (exit {code}): {}", &combined[..combined.len().min(1000)]));
+            tracing::error!(
+                "agent_install: exited with code {code}, output: {}",
+                &combined[..combined.len().min(300)]
+            );
             Err(format!("Agent install exited with code {code}"))
         }
     }
