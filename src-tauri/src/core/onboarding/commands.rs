@@ -134,7 +134,7 @@ pub async fn get_node_info() -> Result<Option<(String, String)>, String> {
 /// Returns all debug/diagnostic info in one call for "Copy Debug Info".
 #[tauri::command]
 pub async fn get_debug_info(app: tauri::AppHandle) -> Result<std::collections::HashMap<String, String>, String> {
-    use crate::core::sidecar::binary::find_openacp_binary;
+    use crate::core::sidecar::binary::{find_openacp_binary, resolve_openacp_launcher};
     let mut info = std::collections::HashMap::new();
 
     // App version from Tauri config
@@ -147,6 +147,25 @@ pub async fn get_debug_info(app: tauri::AppHandle) -> Result<std::collections::H
     }
     if let Some((path, _)) = find_openacp_binary() {
         info.insert("core_path".into(), path.to_string_lossy().to_string());
+    }
+
+    // Launcher info — shows whether we resolved an explicit node+entry for
+    // openacp or fell back to the shim. Critical for debugging multi-node
+    // install failures.
+    match resolve_openacp_launcher() {
+        Some(launcher) => {
+            info.insert(
+                "openacp_launcher".into(),
+                format!("explicit node ({})", launcher.node.display()),
+            );
+            info.insert(
+                "openacp_entry".into(),
+                launcher.entry.to_string_lossy().to_string(),
+            );
+        }
+        None => {
+            info.insert("openacp_launcher".into(), "shim + env node (fallback)".into());
+        }
     }
 
     // Node version + path (reuse get_node_info which prefers co-located node)

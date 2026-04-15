@@ -1,4 +1,4 @@
-use crate::core::sidecar::binary::find_openacp_binary;
+use crate::core::sidecar::binary::{find_openacp_binary, resolve_openacp_launcher};
 use tauri::Emitter;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
@@ -33,18 +33,73 @@ pub fn build_openacp_path(bin: &std::path::Path, extra_path: &Option<String>) ->
 }
 
 /// Build a tokio Command for openacp with the right env set.
+///
+/// Prefers the explicit-node launcher (`node cli.js …`) for determinism —
+/// this guarantees that regardless of user PATH state, openacp always runs
+/// under the node that owns its npm prefix. Falls back to spawning the shim
+/// directly if the launcher can't be resolved (non-node script, node
+/// binary missing, etc.).
+///
+/// Returns `(cmd, shim)` — `shim` is the user-visible binary path for
+/// logging and dev_reset.
 pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf), String> {
+    if let Some(launcher) = resolve_openacp_launcher() {
+        let mut cmd = tokio::process::Command::new(&launcher.node);
+        cmd.arg(&launcher.entry);
+        // Use the matching node's dir as the PATH prefix so any subprocess
+        // openacp spawns (e.g. `npm install` for agents) resolves node via
+        // the same install prefix — otherwise we're back to the multi-node
+        // hazard this function exists to eliminate.
+        let node_dir = launcher
+            .node
+            .parent()
+            .map(|p| p.to_string_lossy().to_string());
+        let path_override = build_openacp_path(&launcher.shim, &node_dir);
+        let env = crate::core::shell_env::clean_env(Some(&path_override));
+        cmd.env_clear();
+        cmd.envs(env);
+        return Ok((cmd, launcher.shim));
+    }
+
+    // Fallback: spawn the shim directly. clean_env still strips DENYLIST
+    // and ensures node is findable via shell_env PATH.
     let (bin, extra_path) = find_openacp_binary()
         .ok_or_else(|| "openacp not found — please install it first".to_string())?;
     let mut cmd = tokio::process::Command::new(&bin);
-    // Build a complete PATH from shell_env, then use that as the extra prefix
-    // to clean_env so it becomes the final PATH. This ensures node is findable
-    // regardless of how openacp was installed. clean_env also strips DENYLIST
-    // vars (NODE_OPTIONS, BASH_ENV, etc.) for security hardening.
     let path_override = build_openacp_path(&bin, &extra_path);
     let env = crate::core::shell_env::clean_env(Some(&path_override));
     cmd.env_clear();
     cmd.envs(env);
+    Ok((cmd, bin))
+}
+
+/// Build a tauri_plugin_shell Command for openacp (the streaming flavor
+/// used for `setup` and `agents install`). Same launcher-or-fallback
+/// semantics as `openacp_command`. Caller appends subcommand args.
+pub fn build_openacp_shell_command(
+    app: &tauri::AppHandle,
+) -> Result<(tauri_plugin_shell::process::Command, std::path::PathBuf), String> {
+    if let Some(launcher) = resolve_openacp_launcher() {
+        let node_dir = launcher
+            .node
+            .parent()
+            .map(|p| p.to_string_lossy().to_string());
+        let path_override = build_openacp_path(&launcher.shim, &node_dir);
+        let env = crate::core::shell_env::clean_env(Some(&path_override));
+        let mut cmd = app
+            .shell()
+            .command(launcher.node.to_string_lossy().to_string());
+        cmd = cmd.arg(launcher.entry.to_string_lossy().to_string());
+        cmd = cmd.envs(env);
+        return Ok((cmd, launcher.shim));
+    }
+
+    let (bin, extra_path) = find_openacp_binary()
+        .ok_or("openacp not found — please install it first".to_string())?;
+    let path_override = build_openacp_path(&bin, &extra_path);
+    let env = crate::core::shell_env::clean_env(Some(&path_override));
+    let mut cmd = app.shell().command(bin.to_string_lossy().to_string());
+    cmd = cmd.envs(env);
     Ok((cmd, bin))
 }
 
@@ -163,12 +218,7 @@ pub async fn run_setup(
     workspace: &str,
     agent: &str,
 ) -> Result<String, String> {
-    let (bin, extra_path) = find_openacp_binary()
-        .ok_or("openacp not found — please install it first")?;
-    let path_override = build_openacp_path(&bin, &extra_path);
-    let env = crate::core::shell_env::clean_env(Some(&path_override));
-    let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
-    shell_cmd = shell_cmd.envs(env);
+    let (mut shell_cmd, _shim) = build_openacp_shell_command(app)?;
     let (mut rx, _child) = shell_cmd
         .args([
             "setup",
@@ -260,18 +310,8 @@ pub async fn agents_list(workspace_dir: Option<String>) -> Result<String, String
 
 /// Runs `openacp agents install <agent_key>`, streaming output via "agent-install-output".
 pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_dir: Option<&str>) -> Result<(), String> {
-    let (bin, extra_path) = find_openacp_binary()
-        .ok_or("openacp not found — please install it first")?;
-    let path_override = build_openacp_path(&bin, &extra_path);
-    let env = crate::core::shell_env::clean_env(Some(&path_override));
-    tracing::info!(
-        "agent_install: bin={} PATH={}",
-        bin.display(),
-        &path_override[..path_override.len().min(200)]
-    );
-
-    let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
-    shell_cmd = shell_cmd.envs(env);
+    let (mut shell_cmd, shim) = build_openacp_shell_command(app)?;
+    tracing::info!("agent_install: shim={}", shim.display());
     if let Some(dir) = workspace_dir {
         shell_cmd = shell_cmd.args(["--dir", dir]);
     }

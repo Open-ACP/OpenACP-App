@@ -37,6 +37,12 @@ function formatDebugText(info: DebugInfo): string {
     lines.push(`Shell env vars: ${info.shell_env_vars_count}`)
   }
   if (info.shell_env_path) lines.push(`Shell env PATH: ${info.shell_env_path}`)
+  // Launcher info — how we spawn openacp. "explicit node (...)" means we
+  // bypass the shebang for determinism; "shim + env node" means fallback.
+  if (info.openacp_launcher) {
+    lines.push(`openacp launcher: ${info.openacp_launcher}`)
+  }
+  if (info.openacp_entry) lines.push(`openacp entry: ${info.openacp_entry}`)
   if (info.log_path) lines.push(`Log file: ${info.log_path}`)
   return lines.join("\n")
 }
@@ -119,6 +125,9 @@ export function AboutDialog({
                   label="Shell env"
                   value={`${info.shell_env_resolved_via} (${info.shell_env_vars_count ?? "?"} vars)`}
                 />
+              )}
+              {info.openacp_launcher && (
+                <InfoRow label="Launcher" value={info.openacp_launcher} />
               )}
             </div>
           ) : (
