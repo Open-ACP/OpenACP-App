@@ -70,30 +70,34 @@ fn resolve_via_shell() -> Option<PathBuf> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // Try zsh first (macOS default), then bash
+        // Try interactive shell first (-i loads .zshrc/.bashrc where nvm/fnm init lives),
+        // then fall back to login shell (-l loads .zprofile/.bash_profile).
+        // GUI apps on macOS don't inherit the user's interactive shell PATH.
         for shell in ["zsh", "bash"] {
-            match std::process::Command::new(shell)
-                .args(["-l", "-c", "which openacp"])
-                .output()
-            {
-                Err(e) => {
-                    tracing::debug!("find_openacp_binary: {shell} not available — {e}");
-                }
-                Ok(output) if !output.status.success() => {
-                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                    tracing::info!(
-                        "find_openacp_binary: `{shell} -l -c 'which openacp'` not found (exit {:?}){hint}",
-                        output.status.code(),
-                        hint = if stderr.is_empty() { String::new() } else { format!(" — {stderr}") }
-                    );
-                }
-                Ok(output) => {
-                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if path.is_empty() {
-                        tracing::info!("find_openacp_binary: {shell} returned empty path for `which openacp`");
-                    } else {
-                        tracing::info!("find_openacp_binary: found via {shell} login: {path}");
-                        return Some(PathBuf::from(path));
+            for flag in ["-i", "-l"] {
+                match std::process::Command::new(shell)
+                    .args([flag, "-c", "which openacp"])
+                    .output()
+                {
+                    Err(e) => {
+                        tracing::debug!("find_openacp_binary: {shell} {flag} not available — {e}");
+                    }
+                    Ok(output) if !output.status.success() => {
+                        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                        tracing::info!(
+                            "find_openacp_binary: `{shell} {flag} -c 'which openacp'` not found (exit {:?}){hint}",
+                            output.status.code(),
+                            hint = if stderr.is_empty() { String::new() } else { format!(" — {stderr}") }
+                        );
+                    }
+                    Ok(output) => {
+                        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        if path.is_empty() {
+                            tracing::info!("find_openacp_binary: {shell} {flag} returned empty path");
+                        } else {
+                            tracing::info!("find_openacp_binary: found via {shell} {flag}: {path}");
+                            return Some(PathBuf::from(path));
+                        }
                     }
                 }
             }
@@ -210,12 +214,12 @@ fn check_known_locations() -> Option<PathBuf> {
     None
 }
 
-/// Resolve the full PATH from the user's login shell.
+/// Resolve the full PATH from the user's interactive/login shell.
 ///
 /// GUI apps on macOS/Linux inherit a minimal PATH (e.g. /usr/bin:/bin) that
 /// doesn't include tools installed via nvm, fnm, Homebrew, or npm global.
-/// Running a login shell sources ~/.zshrc / ~/.bashrc and returns the full PATH
-/// the user sees in their terminal.
+/// Running an interactive shell sources ~/.zshrc / ~/.bashrc and returns the
+/// full PATH the user sees in their terminal.
 ///
 /// Returns None on Windows (where PATH is managed differently) or if the shell
 /// invocation fails.
@@ -226,20 +230,23 @@ pub fn get_login_shell_path() -> Option<String> {
     #[cfg(not(target_os = "windows"))]
     {
         for shell in ["zsh", "bash"] {
-            if let Ok(output) = std::process::Command::new(shell)
-                .args(["-l", "-c", "echo $PATH"])
-                .output()
-            {
-                if output.status.success() {
-                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !path.is_empty() {
-                        tracing::debug!("get_login_shell_path: resolved via {shell}");
-                        return Some(path);
+            // Try interactive first (-i loads .zshrc with nvm init), then login (-l)
+            for flag in ["-i", "-l"] {
+                if let Ok(output) = std::process::Command::new(shell)
+                    .args([flag, "-c", "echo $PATH"])
+                    .output()
+                {
+                    if output.status.success() {
+                        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        if !path.is_empty() {
+                            tracing::debug!("get_login_shell_path: resolved via {shell} {flag}");
+                            return Some(path);
+                        }
                     }
                 }
             }
         }
-        tracing::warn!("get_login_shell_path: could not resolve PATH from login shell");
+        tracing::warn!("get_login_shell_path: could not resolve PATH from shell");
         None
     }
 }
