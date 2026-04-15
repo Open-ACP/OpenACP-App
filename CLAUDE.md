@@ -37,6 +37,10 @@ For new screens, match the closest existing Pencil frame 1:1 before coding.
 
 See `docs/design/DESIGN.md` for the token list, class names, and examples.
 
+## Publishing / Release
+
+Before publishing a new app version, update `MIN_CORE_VERSION` in `src/openacp/lib/version.ts` to match the current core version being released. This ensures users are prompted to upgrade core if they're running an outdated version.
+
 ## Error handling
 
 - **Never silently ignore errors.** Every failed API call, network error, or unexpected status code must surface a visible message to the user. No empty `catch {}`, no "proceed silently" on failure.

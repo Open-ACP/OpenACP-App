@@ -12,7 +12,7 @@
  */
 
 /** Minimum core version required. Hard block below this at startup. */
-export const MIN_CORE_VERSION: string = '2026.414.3'
+export const MIN_CORE_VERSION: string = '2026.415.1'
 
 /**
  * Extract version number from CLI output (e.g. "openacp 2026.411.1" → "2026.411.1").
