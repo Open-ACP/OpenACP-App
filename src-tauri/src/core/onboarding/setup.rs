@@ -3,40 +3,27 @@ use tauri::Emitter;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
 
-/// Build a tokio Command for openacp with the right PATH set.
-/// openacp is a Node.js script (`#!/usr/bin/env node`), so we must ensure
-/// `node` is in PATH -- which it won't be in release builds.
-///
-/// Constructs PATH by combining:
-/// 1. The directory containing the openacp binary
-/// 2. The directory containing the node binary (may differ from openacp dir
-///    when node is installed via official installer at /usr/local/bin but
-///    openacp is at /opt/homebrew/bin)
-/// 3. The user's full shell PATH (from interactive/login shell)
-pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf), String> {
-    let (bin, extra_path) = find_openacp_binary()
-        .ok_or_else(|| "openacp not found — please install it first".to_string())?;
-    let mut cmd = tokio::process::Command::new(&bin);
-
-    // Build PATH with both openacp dir and node dir
+/// Build a complete PATH string for running openacp and its subprocesses.
+/// Combines openacp dir, node dir (if different), and the user's shell PATH.
+/// This is the single source of truth for PATH construction — used by both
+/// tokio::Command (openacp_command) and tauri::shell::Command (agent_install, run_setup).
+pub fn build_openacp_path(bin: &std::path::Path, extra_path: &Option<String>) -> String {
     let shell_path = get_login_shell_path()
         .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
     let sep = if cfg!(windows) { ";" } else { ":" };
     let mut parts: Vec<String> = Vec::new();
 
-    // Add openacp binary dir
-    if let Some(ref extra) = extra_path {
+    // 1. Add openacp binary dir
+    if let Some(extra) = extra_path {
         parts.push(extra.clone());
     }
 
-    // Find and add node dir (may be different from openacp dir)
+    // 2. Find and add node dir (may be different from openacp dir)
     let openacp_dir = bin.parent().unwrap_or(std::path::Path::new(""));
     let co_located_node = openacp_dir.join("node");
     if !co_located_node.exists() {
-        // Node not in same dir as openacp — find it via:
-        // 1. Known locations (official installer, homebrew)
-        // 2. Shell resolution (nvm, fnm, etc.)
         let mut node_found = false;
+        // Known locations (official installer, homebrew)
         for candidate in ["/usr/local/bin/node", "/opt/homebrew/bin/node"] {
             if std::path::Path::new(candidate).exists() {
                 if let Some(dir) = std::path::Path::new(candidate).parent() {
@@ -49,9 +36,9 @@ pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf)
                 break;
             }
         }
-        // Shell resolution fallback (handles nvm/fnm)
+        // Shell resolution fallback (nvm, fnm)
         if !node_found {
-            for shell in ["zsh", "bash"] {
+            'outer: for shell in ["zsh", "bash"] {
                 for flag in ["-i", "-l"] {
                     if let Ok(output) = std::process::Command::new(shell)
                         .args([flag, "-c", "which node"])
@@ -66,19 +53,25 @@ pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf)
                                     parts.push(dir_str);
                                 }
                             }
-                            node_found = true;
-                            break;
+                            break 'outer;
                         }
                     }
                 }
-                if node_found { break; }
             }
         }
     }
 
+    // 3. Append shell PATH
     parts.push(shell_path);
-    cmd.env("PATH", parts.join(sep));
+    parts.join(sep)
+}
 
+/// Build a tokio Command for openacp with the right PATH set.
+pub fn openacp_command() -> Result<(tokio::process::Command, std::path::PathBuf), String> {
+    let (bin, extra_path) = find_openacp_binary()
+        .ok_or_else(|| "openacp not found — please install it first".to_string())?;
+    let mut cmd = tokio::process::Command::new(&bin);
+    cmd.env("PATH", build_openacp_path(&bin, &extra_path));
     Ok((cmd, bin))
 }
 
@@ -200,9 +193,7 @@ pub async fn run_setup(
     let (bin, extra_path) = find_openacp_binary()
         .ok_or("openacp not found — please install it first")?;
     let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
-    if let Some(ref extra) = extra_path {
-        shell_cmd = shell_cmd.env("PATH", prepend_path(extra));
-    }
+    shell_cmd = shell_cmd.env("PATH", build_openacp_path(&bin, &extra_path));
     let (mut rx, _child) = shell_cmd
         .args([
             "setup",
@@ -297,14 +288,12 @@ pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_di
     let (bin, extra_path) = find_openacp_binary()
         .ok_or("openacp not found — please install it first")?;
     let mut shell_cmd = app.shell().command(bin.to_string_lossy().to_string());
-    if let Some(ref extra) = extra_path {
-        shell_cmd = shell_cmd.env("PATH", prepend_path(extra));
-    }
+    shell_cmd = shell_cmd.env("PATH", build_openacp_path(&bin, &extra_path));
     if let Some(dir) = workspace_dir {
         shell_cmd = shell_cmd.args(["--dir", dir]);
     }
     let (mut rx, _child) = shell_cmd
-        .args(["agents", "install", agent_key])
+        .args(["agents", "install", "--force", agent_key])
         .spawn()
         .map_err(|e| e.to_string())?;
 
