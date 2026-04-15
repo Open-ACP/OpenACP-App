@@ -109,7 +109,7 @@ export const UserMessage = memo(function UserMessage({
             ))}
           </div>
         ) : null}
-        <div className="text-sm font-normal text-fg-base whitespace-pre-wrap break-words leading-relaxed">
+        <div className="text-sm font-normal text-fg-base whitespace-pre-wrap break-words leading-relaxed select-text">
           {text}
         </div>
       </div>

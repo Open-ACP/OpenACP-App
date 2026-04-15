@@ -132,7 +132,7 @@ export const ToolBlockView = memo(function ToolBlockView({ block, feedbackReason
             transition={{ duration: 0.15, ease: "easeInOut" }}
             style={{ overflow: "hidden" }}
           >
-            <div className="oac-tool-card-body relative group/toolbody">
+            <div className="oac-tool-card-body relative group/toolbody select-text">
               {/* Diff view for edit/write tools */}
               {hasDiff ? (
                 <>
