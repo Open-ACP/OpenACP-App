@@ -163,6 +163,17 @@ pub async fn get_debug_info(app: tauri::AppHandle) -> Result<std::collections::H
     // OS
     info.insert("os".into(), format!("{} {}", std::env::consts::OS, std::env::consts::ARCH));
 
+    // Shell env snapshot — crucial for debugging future PATH issues
+    let snap = crate::core::shell_env::snapshot();
+    info.insert(
+        "shell_env_resolved_via".into(),
+        snap.resolved_via
+            .clone()
+            .unwrap_or_else(|| "fallback (std::env)".into()),
+    );
+    info.insert("shell_env_path".into(), snap.path.clone());
+    info.insert("shell_env_vars_count".into(), snap.vars.len().to_string());
+
     // Config status
     match setup::check_config() {
         Ok(true) => {

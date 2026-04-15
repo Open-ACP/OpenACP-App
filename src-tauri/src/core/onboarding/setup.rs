@@ -298,15 +298,14 @@ pub async fn agent_install(app: &tauri::AppHandle, agent_key: &str, workspace_di
         }
     }
 
-    // Log output to file logger for diagnostics
     let combined = output_lines.join("\n");
-    crate::core::logging::write_line("INFO", "be", &format!("agent_install output: {}", &combined[..combined.len().min(500)]));
-
     match exit_code {
         Some(0) | None => Ok(()),
         Some(code) => {
-            tracing::error!("agent_install: exited with code {code}, output: {}", &combined[..combined.len().min(300)]);
-            crate::core::logging::write_line("ERROR", "be", &format!("agent_install failed (exit {code}): {}", &combined[..combined.len().min(1000)]));
+            tracing::error!(
+                "agent_install: exited with code {code}, output: {}",
+                &combined[..combined.len().min(300)]
+            );
             Err(format!("Agent install exited with code {code}"))
         }
     }
