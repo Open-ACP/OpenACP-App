@@ -197,6 +197,7 @@ export function Composer() {
 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const paletteNavigateRef = useRef<((dir: 'up' | 'down' | 'enter') => void) | null>(null);
   const dragCounter = useRef(0);
   const space = "52px";
 
@@ -383,6 +384,12 @@ export function Composer() {
         e.preventDefault();
         return;
       }
+      // Forward arrow keys to palette navigation when palette is open
+      if (paletteOpen && paletteNavigateRef.current) {
+        if (e.key === "ArrowDown") { e.preventDefault(); paletteNavigateRef.current('down'); return }
+        if (e.key === "ArrowUp") { e.preventDefault(); paletteNavigateRef.current('up'); return }
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); paletteNavigateRef.current('enter'); return }
+      }
       if (e.key === "Enter" && e.shiftKey) return;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -423,6 +430,24 @@ export function Composer() {
     editorRef.current?.focus();
   }
 
+  function fillFromPalette(value: string) {
+    // Close palette first so closePalette() doesn't clear the text we're about to set
+    setPaletteOpen(false);
+    setPaletteFilter(undefined);
+    setText(value);
+    if (editorRef.current) {
+      editorRef.current.textContent = value;
+      // Move cursor to end
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+    editorRef.current?.focus();
+  }
+
   return (
     <div className="w-full pb-3 flex flex-col justify-center items-center pointer-events-none [&>*]:pointer-events-auto">
       <div className="w-full px-6 md:max-w-180 md:mx-auto 2xl:max-w-220 relative">
@@ -432,8 +457,10 @@ export function Composer() {
             <CommandPalette
               sessionID={chat.activeSession()}
               onClose={closePalette}
+              onFill={fillFromPalette}
               onConfigChanged={() => setConfigVersion((v) => v + 1)}
               initialFilter={paletteFilter?.replace("/", "")}
+              navigateRef={paletteNavigateRef}
             />
           </div>
         )}

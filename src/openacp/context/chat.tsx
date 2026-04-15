@@ -810,6 +810,31 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   }, [workspace.directory, workspace.client.eventsUrl])
 
   async function doSendPrompt(text: string, attachments?: import("../types").FileAttachment[]): Promise<boolean> {
+    // Intercept slash commands typed directly in the composer
+    const trimmed = text.trim()
+    if (trimmed.startsWith('/') && !attachments?.length) {
+      const sessionID = store.activeSession
+      if (sessionID) {
+        addCommandResponse(sessionID, trimmed, "user")
+        try {
+          const res = await workspace.client.executeCommand(trimmed, sessionID)
+          if (res.error) {
+            addCommandResponse(sessionID, `**Error:** ${res.error}`, "assistant")
+          } else if (res.result?.type === 'adaptive') {
+            const variant = res.result.variants?.['sse'] as { text?: string } | undefined
+            addCommandResponse(sessionID, variant?.text ?? res.result.fallback, "assistant")
+          } else if (res.result?.type === 'error') {
+            addCommandResponse(sessionID, `⚠️ ${res.result.message}`, "assistant")
+          } else if (res.result?.text) {
+            addCommandResponse(sessionID, res.result.text, "assistant")
+          }
+        } catch (e: any) {
+          addCommandResponse(sessionID, `**Error:** ${e?.message || "Command failed"}`, "assistant")
+        }
+        return true
+      }
+    }
+
     let sessionID = store.activeSession
     if (!sessionID) {
       const session = await sessions.create()
