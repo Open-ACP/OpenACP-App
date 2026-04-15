@@ -3,6 +3,7 @@ import {
   CheckCircle,
   ShieldWarning,
   XCircle,
+  At,
   BellSimple,
   X,
   Checks,
@@ -49,6 +50,8 @@ function typeIcon(type: AppNotification["type"]) {
       return <ShieldWarning size={16} className="text-warning shrink-0 mt-0.5" />
     case "message-failed":
       return <XCircle size={16} className="text-destructive shrink-0 mt-0.5" />
+    case "mention":
+      return <At size={16} className="text-primary shrink-0 mt-0.5" />
   }
 }
 

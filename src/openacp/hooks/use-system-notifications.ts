@@ -181,6 +181,18 @@ export function useSystemNotifications(
       } else {
         toast(data.text)
       }
+
+      // Push to in-app notification center
+      if (settingsRef.current.enabled) {
+        appendNotificationRef.current?.({
+          type: "mention",
+          title: data.text,
+          sessionId: data.sessionId,
+          sessionName: data.sessionId ? getSessionNameRef.current?.(data.sessionId) : undefined,
+          workspaceName: workspaceNameRef.current,
+          action: data.sessionId ? { type: "navigate-session" } : undefined,
+        })
+      }
     }
 
     window.addEventListener('mention-notification', handleMention)

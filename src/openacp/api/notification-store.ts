@@ -2,7 +2,7 @@ import { load } from "@tauri-apps/plugin-store"
 
 export interface AppNotification {
   id: string
-  type: "agent-response" | "permission-request" | "message-failed"
+  type: "agent-response" | "permission-request" | "message-failed" | "mention"
   sessionId?: string
   sessionName?: string
   workspaceName?: string
