@@ -5,7 +5,7 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { showToast } from '../lib/toast'
+import { toast } from 'sonner'
 
 /**
  * System notifications for background events.
@@ -88,8 +88,17 @@ export function useSystemNotifications() {
 
       if (!focusedRef.current && permittedRef.current) {
         sendNotification({ title: 'OpenACP', body: data.text })
+      } else if (data.sessionId) {
+        toast(data.text, {
+          action: {
+            label: 'View',
+            onClick: () => window.dispatchEvent(
+              new CustomEvent('navigate-to-session', { detail: { sessionId: data.sessionId } })
+            ),
+          },
+        })
       } else {
-        showToast({ description: data.text })
+        toast(data.text)
       }
     }
 
