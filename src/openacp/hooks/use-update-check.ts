@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, createContext, useContext } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { check as checkTauriUpdate, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -180,4 +180,36 @@ export function useUpdateCheck() {
   }, [checkAll])
 
   return { state, checkAll, updateCore, installAppUpdate }
+}
+
+// ─── Context ───────────────────────────────────────────────────────────
+//
+// The hook is lifted to the top-level App component (main.tsx) so that
+// update checks run once for the entire app lifecycle and the toast
+// notification works across ALL screens — including the onboarding
+// install screen and setup wizard, not just after the user has entered
+// the main app.
+
+export type UpdateCheckContextValue = ReturnType<typeof useUpdateCheck>
+
+const UpdateCheckContext = createContext<UpdateCheckContextValue | null>(null)
+
+export function UpdateCheckProvider({
+  value,
+  children,
+}: {
+  value: UpdateCheckContextValue
+  children: React.ReactNode
+}) {
+  return React.createElement(UpdateCheckContext.Provider, { value }, children)
+}
+
+export function useUpdateCheckContext(): UpdateCheckContextValue {
+  const ctx = useContext(UpdateCheckContext)
+  if (!ctx) {
+    throw new Error(
+      'useUpdateCheckContext must be used within an UpdateCheckProvider',
+    )
+  }
+  return ctx
 }

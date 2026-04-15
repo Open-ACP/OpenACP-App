@@ -34,15 +34,13 @@ import {
 } from "./components/settings/settings-dialog";
 import { SetupModal } from "./components/add-workspace/setup-modal";
 import { showToast } from "./lib/toast";
-import { toast } from "sonner";
-import { ArrowLineDown, Package, X } from "@phosphor-icons/react";
 import { Toaster } from "./components/ui/toaster";
 import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
 import {
   useWorkspaceConnection,
   type ConnectionStatus,
 } from "./hooks/use-workspace-connection";
-import { useUpdateCheck } from "./hooks/use-update-check";
+import { useUpdateCheckContext } from "./hooks/use-update-check";
 import { useSystemNotifications } from "./hooks/use-system-notifications";
 import { NotificationsProvider, useNotifications } from "./context/notifications";
 import {
@@ -62,7 +60,7 @@ import { TerminalPanel } from "./components/terminal-panel";
 import { ToolDisplayProvider } from "./context/tool-display";
 import type { ServerInfo } from "./types";
 
-function UpdateToastRow({
+export function UpdateToastRow({
   icon,
   title,
   actionLabel,
@@ -398,57 +396,11 @@ function OpenACPAppInner() {
   const getSessionName = useCallback((id: string) => sessionNamesRef.current.get(id), []);
   useSystemNotifications(appendNotification, activeWsName, getSessionName);
 
-  // Unified update system
-  const { state: updateState, updateCore, installAppUpdate } = useUpdateCheck();
+  // Unified update system — the hook and the toast effect now live in
+  // main.tsx App so they also cover the onboarding screens. Here we only
+  // read the shared state via context to drive the sidebar badge.
+  const { state: updateState } = useUpdateCheckContext();
   const [updatesSeen, setUpdatesSeen] = useState(false);
-  const updateToastShownRef = useRef(false);
-  useEffect(() => {
-    if (updateState.settled && updateState.hasUpdates && !updateToastShownRef.current) {
-      updateToastShownRef.current = true;
-
-      const openAbout = () => {
-        setSettingsPage("about");
-        setShowSettings(true);
-        setUpdatesSeen(true);
-      };
-
-      toast.custom((id) => (
-        <div className="w-[360px] rounded-lg border border-border bg-card shadow-lg relative overflow-hidden">
-          {updateState.appUpdateAvailable && (
-            <UpdateToastRow
-              icon={<ArrowLineDown size={18} weight="duotone" />}
-              title={`App v${updateState.appLatestVersion} available`}
-              actionLabel="Install and restart"
-              onAction={() => { toast.dismiss(id); void installAppUpdate(); }}
-            />
-          )}
-          {updateState.coreUpdateAvailable && (
-            <UpdateToastRow
-              icon={<Package size={18} weight="duotone" />}
-              title={`Core v${updateState.coreLatestVersion} available`}
-              actionLabel="Update"
-              onAction={() => { toast.dismiss(id); void updateCore(); }}
-            />
-          )}
-          <div className="flex items-center justify-between px-3.5 pb-2.5 pt-1">
-            <button
-              onClick={() => { toast.dismiss(id); openAbout(); }}
-              className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              View in Settings
-            </button>
-            <button
-              onClick={() => toast.dismiss(id)}
-              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
-              aria-label="Dismiss"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        </div>
-      ), { duration: 20000 });
-    }
-  }, [updateState.settled, updateState.hasUpdates, updateState.appUpdateAvailable, updateState.appLatestVersion, updateState.coreUpdateAvailable, updateState.coreLatestVersion, installAppUpdate, updateCore]);
 
   // Listen for macOS menu "Check for Updates"
   useEffect(() => {

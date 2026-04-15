@@ -1,12 +1,13 @@
 /**
  * OpenACP App — Entry Point (React)
  */
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { createRoot } from "react-dom/client"
 import { invoke } from "@tauri-apps/api/core"
+import { toast } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import "./styles/index.css"
-import { OpenACPApp } from "./app"
+import { OpenACPApp, UpdateToastRow } from "./app"
 import { SplashScreen } from "../onboarding/splash-screen"
 import { InstallScreen } from "../onboarding/install-screen"
 import { SetupWizard } from "../onboarding/setup-wizard"
@@ -15,10 +16,11 @@ import { saveWorkspaces, loadWorkspaces, type WorkspaceEntry } from "./api/works
 import { restartWorkspaceServer } from "./api/workspace-service"
 import { WindowDragBar } from "../onboarding/window-drag-bar"
 import { compareVersions, parseVersionString, MIN_CORE_VERSION } from "./lib/version"
-import { ArrowLineDown } from "@phosphor-icons/react"
+import { ArrowLineDown, Package, X } from "@phosphor-icons/react"
 import { copyDebugInfo, AboutDialog } from "./components/about-dialog"
 import { Toaster } from "./components/ui/toaster"
 import { initLogger } from "./lib/logger"
+import { useUpdateCheck, UpdateCheckProvider } from "./hooks/use-update-check"
 
 // Initialize frontend logger — intercepts console and writes to file
 initLogger()
@@ -39,6 +41,90 @@ function App() {
   const [screen, setScreen] = useState<StartupScreen>('splash')
   const [coreVersion, setCoreVersion] = useState<string | null>(null)
   const [showAbout, setShowAbout] = useState(false)
+
+  // Lifted from OpenACPApp so the update check runs once for the entire
+  // app lifecycle — including onboarding screens (install + setup wizard).
+  // The toast-firing effect below also runs from here so users see the
+  // "update available" notification before they finish onboarding, not
+  // only after they reach the main app.
+  const updateCheck = useUpdateCheck()
+  const updateToastShownRef = useRef(false)
+
+  useEffect(() => {
+    const { state: updateState, updateCore, installAppUpdate } = updateCheck
+    if (
+      !updateState.settled ||
+      !updateState.hasUpdates ||
+      updateToastShownRef.current
+    ) {
+      return
+    }
+    updateToastShownRef.current = true
+
+    // Onboarding vs main app: during onboarding the user can't dismiss
+    // the toast by navigating away to Settings, and "View details" has
+    // nowhere to navigate to (Settings dialog only exists in OpenACPApp).
+    // So during onboarding we (1) omit the "View details" footer row and
+    // (2) make the toast sticky (Infinity duration) so the user always
+    // has the Update button available until they act on it.
+    const isOnboarding = screen !== 'ready'
+
+    const openAboutFromToast = () => {
+      setShowAbout(true)
+    }
+
+    toast.custom(
+      (id) => (
+        <div className="w-[360px] rounded-lg border border-border bg-card shadow-lg relative overflow-hidden">
+          {updateState.appUpdateAvailable && (
+            <UpdateToastRow
+              icon={<ArrowLineDown size={18} weight="duotone" />}
+              title={`App v${updateState.appLatestVersion} available`}
+              actionLabel="Install and restart"
+              onAction={() => {
+                toast.dismiss(id)
+                void installAppUpdate()
+              }}
+            />
+          )}
+          {updateState.coreUpdateAvailable && (
+            <UpdateToastRow
+              icon={<Package size={18} weight="duotone" />}
+              title={`Core v${updateState.coreLatestVersion} available`}
+              actionLabel="Update"
+              onAction={() => {
+                toast.dismiss(id)
+                void updateCore()
+              }}
+            />
+          )}
+          <div className="flex items-center justify-between px-3.5 pb-2.5 pt-1">
+            {isOnboarding ? (
+              <span />
+            ) : (
+              <button
+                onClick={() => {
+                  toast.dismiss(id)
+                  openAboutFromToast()
+                }}
+                className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View details
+              </button>
+            )}
+            <button
+              onClick={() => toast.dismiss(id)}
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+              aria-label="Dismiss"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: isOnboarding ? Infinity : 20000 },
+    )
+  }, [updateCheck, screen])
 
   // Listen for native menu events — works on ALL screens including onboard.
   //
@@ -129,44 +215,46 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      {screen === 'splash' && <SplashScreen />}
-      {screen === 'install' && (
-        <InstallScreen onSuccess={async () => {
-          // After install, re-check state to determine correct next screen
-          // (user may already have config + workspaces if this was a core update, not first install)
-          const [installedResult, configResult, workspaces] = await Promise.all([
-            invoke<string | null>('check_openacp_installed').catch(() => null),
-            invoke<boolean>('check_openacp_config').catch(() => false),
-            loadWorkspaces().catch(() => []),
-          ])
-          if (installedResult) setCoreVersion(parseVersionString(installedResult))
-          const next = determineStartupScreen({
-            installed: installedResult !== null,
-            version: installedResult,
-            configExists: Boolean(configResult),
-            hasWorkspaces: workspaces.length > 0,
-          })
-          setScreen(next)
-        }} />
-      )}
-      {screen === 'setup' && (
-        <SetupWizard onSuccess={async (entry: WorkspaceEntry) => {
-          await saveWorkspaces([entry])
-          setScreen('ready')
-        }} />
-      )}
-      {screen === 'repair' && (
-        <RepairScreen onRepaired={() => setScreen('ready')} onReset={() => setScreen('setup')} />
-      )}
-      {screen === 'ready' && (
-        coreBelowMin ? (
-          <CoreUpdateRequired coreVersion={coreVersion!} onSkip={() => setCoreVersion(null)} />
-        ) : (
-          <OpenACPApp />
-        )
-      )}
-      <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
-      <Toaster />
+      <UpdateCheckProvider value={updateCheck}>
+        {screen === 'splash' && <SplashScreen />}
+        {screen === 'install' && (
+          <InstallScreen onSuccess={async () => {
+            // After install, re-check state to determine correct next screen
+            // (user may already have config + workspaces if this was a core update, not first install)
+            const [installedResult, configResult, workspaces] = await Promise.all([
+              invoke<string | null>('check_openacp_installed').catch(() => null),
+              invoke<boolean>('check_openacp_config').catch(() => false),
+              loadWorkspaces().catch(() => []),
+            ])
+            if (installedResult) setCoreVersion(parseVersionString(installedResult))
+            const next = determineStartupScreen({
+              installed: installedResult !== null,
+              version: installedResult,
+              configExists: Boolean(configResult),
+              hasWorkspaces: workspaces.length > 0,
+            })
+            setScreen(next)
+          }} />
+        )}
+        {screen === 'setup' && (
+          <SetupWizard onSuccess={async (entry: WorkspaceEntry) => {
+            await saveWorkspaces([entry])
+            setScreen('ready')
+          }} />
+        )}
+        {screen === 'repair' && (
+          <RepairScreen onRepaired={() => setScreen('ready')} onReset={() => setScreen('setup')} />
+        )}
+        {screen === 'ready' && (
+          coreBelowMin ? (
+            <CoreUpdateRequired coreVersion={coreVersion!} onSkip={() => setCoreVersion(null)} />
+          ) : (
+            <OpenACPApp />
+          )
+        )}
+        <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
+        <Toaster />
+      </UpdateCheckProvider>
     </TooltipProvider>
   )
 }
