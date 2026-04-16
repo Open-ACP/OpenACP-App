@@ -19,14 +19,7 @@ export const BUILTIN_DEFAULTS: Record<SoundEventKey, string> = {
 }
 
 /** Built-in assets — Vite glob, lazy by default */
-const BUILTIN_LOADERS = (
-  import.meta as ImportMeta & {
-    glob: (
-      pattern: string,
-      options?: { import?: string; eager?: boolean },
-    ) => Record<string, () => Promise<string>>
-  }
-).glob("../../assets/sounds/*.aac", {
+const BUILTIN_LOADERS = import.meta.glob("../../assets/sounds/*.aac", {
   import: "default",
 }) as Record<string, () => Promise<string>>
 
