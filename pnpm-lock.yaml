@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@exodus/bytes@1.15.0':
+    hash: e451e82292375dae3900c736824a5319da2eca34e925869c8b0d9fcf58d67757
+    path: patches/@exodus__bytes@1.15.0.patch
+
 importers:
 
   .:
@@ -2941,7 +2946,7 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@exodus/bytes@1.15.0': {}
+  '@exodus/bytes@1.15.0(patch_hash=e451e82292375dae3900c736824a5319da2eca34e925869c8b0d9fcf58d67757)': {}
 
   '@floating-ui/core@1.7.5':
     dependencies:
@@ -4442,7 +4447,7 @@ snapshots:
 
   html-encoding-sniffer@6.0.0:
     dependencies:
-      '@exodus/bytes': 1.15.0
+      '@exodus/bytes': 1.15.0(patch_hash=e451e82292375dae3900c736824a5319da2eca34e925869c8b0d9fcf58d67757)
     transitivePeerDependencies:
       - '@noble/hashes'
 
@@ -4464,7 +4469,7 @@ snapshots:
       '@asamuzakjp/dom-selector': 7.0.10
       '@bramus/specificity': 2.4.2
       '@csstools/css-syntax-patches-for-csstree': 1.1.3(css-tree@3.2.1)
-      '@exodus/bytes': 1.15.0
+      '@exodus/bytes': 1.15.0(patch_hash=e451e82292375dae3900c736824a5319da2eca34e925869c8b0d9fcf58d67757)
       css-tree: 3.2.1
       data-urls: 7.0.0
       decimal.js: 10.6.0
@@ -5032,7 +5037,7 @@ snapshots:
 
   whatwg-url@16.0.1:
     dependencies:
-      '@exodus/bytes': 1.15.0
+      '@exodus/bytes': 1.15.0(patch_hash=e451e82292375dae3900c736824a5319da2eca34e925869c8b0d9fcf58d67757)
       tr46: 6.0.0
       webidl-conversions: 8.0.1
     transitivePeerDependencies:

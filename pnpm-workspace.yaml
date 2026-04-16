@@ -1,0 +1,2 @@
+patchedDependencies:
+  '@exodus/bytes@1.15.0': patches/@exodus__bytes@1.15.0.patch
