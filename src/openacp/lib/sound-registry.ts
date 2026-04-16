@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { appDataDir } from "@tauri-apps/api/path"
-import type { ImportedSound, SoundEventKey } from "./settings-store"
+import { BaseDirectory, exists, mkdir, writeFile, remove } from "@tauri-apps/plugin-fs"
+import type { ImportedFormat, ImportedSound, SoundEventKey } from "./settings-store"
 
 export interface Sound {
   /** "builtin:<name>" or "imported:<uuid>" */
@@ -81,4 +82,102 @@ export async function getSoundSrc(
     }
   }
   return null
+}
+
+// ── Import / delete ─────────────────────────────────────────────────────────
+
+const ALLOWED_EXTS: ImportedFormat[] = ["mp3", "wav", "ogg"]
+const MAX_SIZE_BYTES = 5 * 1024 * 1024
+export const MAX_LIBRARY_SIZE = 50
+
+export class SoundImportError extends Error {
+  constructor(
+    public code: "library-full" | "too-large" | "unsupported-format" | "write-failed",
+    message: string,
+  ) {
+    super(message)
+    this.name = "SoundImportError"
+  }
+}
+
+function sanitizeDisplayName(raw: string): string {
+  // Strip extension, keep only word chars + space + dash + dot; cap 64 chars
+  const withoutExt = raw.replace(/\.[^./\\]+$/, "")
+  return withoutExt.replace(/[^\w\s\-.]/g, "").trim().slice(0, 64) || "Sound"
+}
+
+function extOf(filename: string): string | null {
+  const match = filename.toLowerCase().match(/\.([a-z0-9]+)$/)
+  return match ? match[1] : null
+}
+
+async function ensureSoundsDir(): Promise<void> {
+  const present = await exists("sounds", { baseDir: BaseDirectory.AppData })
+  if (!present) {
+    await mkdir("sounds", { baseDir: BaseDirectory.AppData, recursive: true })
+  }
+}
+
+/**
+ * Import a user-selected audio file.
+ *
+ * Validates size + format + library cap. Writes to appDataDir/sounds/<uuid>.<ext>.
+ * Returns metadata — caller MUST re-read `sounds` settings via `getSetting('sounds')`
+ * immediately before persisting the new library to avoid clobbering concurrent writes.
+ *
+ * The `currentLibrary` argument is for the library-size precheck only (may be
+ * stale). The authoritative atomicity step lives in the caller (see
+ * `settings-sounds.tsx` `handleImport`), which re-reads settings AFTER this
+ * function returns and BEFORE `setSetting`.
+ */
+export async function importSound(
+  file: File,
+  currentLibrary: ImportedSound[],
+): Promise<ImportedSound> {
+  if (currentLibrary.length >= MAX_LIBRARY_SIZE) {
+    throw new SoundImportError(
+      "library-full",
+      `Library full (max ${MAX_LIBRARY_SIZE} sounds) — delete unused sounds first`,
+    )
+  }
+  if (file.size > MAX_SIZE_BYTES) {
+    throw new SoundImportError("too-large", "File too large (max 5MB)")
+  }
+  const ext = extOf(file.name)
+  if (!ext || !ALLOWED_EXTS.includes(ext as ImportedFormat)) {
+    throw new SoundImportError("unsupported-format", "Use MP3, WAV, or OGG")
+  }
+
+  const id = crypto.randomUUID()
+  const bytes = new Uint8Array(await file.arrayBuffer())
+
+  try {
+    await ensureSoundsDir()
+    await writeFile(`sounds/${id}.${ext}`, bytes, { baseDir: BaseDirectory.AppData })
+  } catch (err) {
+    console.error("[sound-registry] write failed:", err)
+    throw new SoundImportError("write-failed", "Failed to save imported sound")
+  }
+
+  return {
+    id,
+    name: sanitizeDisplayName(file.name),
+    ext: ext as ImportedFormat,
+    importedAt: Date.now(),
+  }
+}
+
+/**
+ * Delete an imported sound's file from disk. Idempotent — missing file is OK.
+ */
+export async function deleteImportedSoundFile(id: string, ext: ImportedFormat): Promise<void> {
+  try {
+    const present = await exists(`sounds/${id}.${ext}`, { baseDir: BaseDirectory.AppData })
+    if (present) {
+      await remove(`sounds/${id}.${ext}`, { baseDir: BaseDirectory.AppData })
+    }
+  } catch (err) {
+    // Orphaned file is harmless — surface in logs but don't throw
+    console.warn("[sound-registry] remove failed (entry will still be dropped):", err)
+  }
 }
