@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react"
 import { CaretLeft } from "@phosphor-icons/react"
 import type { ClassifyDirectoryResult } from "../../api/workspace-service"
 import type { InstanceListEntry, WorkspaceEntry } from "../../api/workspace-store"
+import { invalidateInstancesCache } from "../../api/workspace-store"
 import {
   registerWorkspace,
   WorkspaceServiceError,
@@ -95,6 +96,7 @@ function RegisterExistingView(props: {
     setError(null)
     try {
       const entry = await registerWorkspace(props.path)
+      invalidateInstancesCache()
       props.onAdd(entry)
     } catch (e) {
       if (e instanceof WorkspaceServiceError) setError(e.message)

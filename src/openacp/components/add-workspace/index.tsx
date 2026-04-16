@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X as XIcon } from "@phosphor-icons/react";
 import { LocalTab } from "./local-tab";
 import { RemoteTab } from "./remote-tab";
 import type { WorkspaceEntry } from "../../api/workspace-store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
+import { prefetchAgentsList } from "./use-agents-list";
 
 interface AddWorkspaceModalProps {
   onAdd: (entry: WorkspaceEntry) => void;
@@ -17,6 +18,10 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
   const [tab, setTab] = useState<"local" | "remote">(
     props.defaultTab ?? "local",
   );
+
+  useEffect(() => {
+    prefetchAgentsList()
+  }, []);
 
   // Derive IDs for LocalTab; RemoteTab needs the full entries for silent re-linking
   const existingIds = props.existingWorkspaces.map((w) => w.id);

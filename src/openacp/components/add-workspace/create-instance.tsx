@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import type { InstanceListEntry, WorkspaceEntry } from '../../api/workspace-store'
+import { invalidateInstancesCache } from '../../api/workspace-store'
 import { createWorkspace, startWorkspaceServer, WorkspaceServiceError } from '../../api/workspace-service'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -29,6 +30,7 @@ export function CreateInstance(props: CreateInstanceProps) {
         name: name || folderName,
         fromPath: mode === 'clone' && cloneFrom ? cloneFrom : undefined,
       })
+      invalidateInstancesCache()
 
       if (mode === 'clone') {
         // Clone has config ready — start server and add workspace

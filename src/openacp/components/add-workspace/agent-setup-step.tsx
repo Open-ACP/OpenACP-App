@@ -5,15 +5,7 @@ import { CaretLeft } from "@phosphor-icons/react"
 import { Button } from "../ui/button"
 import { showToast } from "../../lib/toast"
 import type { WorkspaceEntry } from "../../api/workspace-store"
-
-interface AgentEntry {
-  key: string
-  name: string
-  version: string
-  installed: boolean
-  available: boolean
-  description: string
-}
+import { prefetchAgents, invalidateAgentsCache, type AgentEntry } from "../../api/agents-cache"
 
 interface AgentSetupStepProps {
   path: string
@@ -39,12 +31,7 @@ export function AgentSetupStep(props: AgentSetupStepProps) {
   }, [])
 
   useEffect(() => {
-    invoke<string>("run_openacp_agents_list").then((result) => {
-      const raw = typeof result === "string" ? JSON.parse(result) : result
-      let list: AgentEntry[]
-      if (Array.isArray(raw)) list = raw
-      else if (raw?.data?.agents) list = raw.data.agents
-      else list = []
+    prefetchAgents().then((list) => {
       const claude = list.find((a) => a.key === "claude" && a.installed)
       if (claude) setSelectedAgent("claude")
       setAgents(list)
@@ -57,6 +44,7 @@ export function AgentSetupStep(props: AgentSetupStepProps) {
     const unlisten = await listen<string>("agent-install-output", () => {})
     try {
       await invoke("run_openacp_agent_install", { agentKey: key })
+      invalidateAgentsCache()
       setSelectedAgent(key)
       setAgents((prev) => prev.map((a) => a.key === key ? { ...a, installed: true } : a))
     } catch (err) {

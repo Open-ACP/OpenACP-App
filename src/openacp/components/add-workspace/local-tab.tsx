@@ -5,6 +5,7 @@ import { X } from "@phosphor-icons/react"
 import {
   type InstanceListEntry,
   type WorkspaceEntry,
+  invalidateInstancesCache,
 } from "../../api/workspace-store"
 import {
   listWorkspaces,
@@ -101,6 +102,7 @@ export function LocalTab(props: LocalTabProps) {
               onRemoveInstance={async (id) => {
                 try {
                   await invoke("remove_instance_registration", { instanceId: id })
+                  invalidateInstancesCache()
                   setInstances((prev) => prev.filter((x) => x.id !== id))
                 } catch (err) {
                   console.error("[local-tab] remove instance failed:", err)
