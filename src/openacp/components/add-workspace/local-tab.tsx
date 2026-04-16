@@ -12,16 +12,17 @@ import {
   type ClassifyDirectoryResult,
 } from "../../api/workspace-service"
 import { FolderFlowStep } from "./folder-flow-step"
+import { AgentSetupStep } from "./agent-setup-step"
 
 interface LocalTabProps {
   onAdd: (entry: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string, instanceName: string) => void
   existingIds?: string[]
 }
 
 type View =
   | { step: "list" }
   | { step: "folder-flow"; result: ClassifyDirectoryResult }
+  | { step: "agent-setup"; path: string; instanceId: string; instanceName: string }
 
 // Slide spec matches the project convention used in sidebar.tsx:51 and terminal-panel.tsx:58.
 // Reduced-motion path is a quick crossfade.
@@ -50,7 +51,7 @@ export function LocalTab(props: LocalTabProps) {
   const prevStepRef = useRef<View["step"]>(view.step)
 
   useEffect(() => {
-    if (prevStepRef.current === "folder-flow" && view.step === "list") {
+    if (prevStepRef.current !== "list" && view.step === "list") {
       browseButtonRef.current?.focus()
     }
     prevStepRef.current = view.step
@@ -108,7 +109,7 @@ export function LocalTab(props: LocalTabProps) {
               onBrowse={handleBrowse}
             />
           </motion.div>
-        ) : (
+        ) : view.step === "folder-flow" ? (
           <motion.div
             key="folder-flow"
             initial={slide.flowInitial}
@@ -120,7 +121,25 @@ export function LocalTab(props: LocalTabProps) {
               result={view.result}
               instances={instances}
               onAdd={props.onAdd}
-              onSetup={props.onSetup}
+              onSetup={(path, instanceId, instanceName) =>
+                setView({ step: "agent-setup", path, instanceId, instanceName })
+              }
+              onBack={() => setView({ step: "list" })}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="agent-setup"
+            initial={slide.flowInitial}
+            animate={slide.flowAnimate}
+            exit={slide.flowExit}
+            transition={slide.transition}
+          >
+            <AgentSetupStep
+              path={view.path}
+              instanceId={view.instanceId}
+              instanceName={view.instanceName}
+              onComplete={(entry) => props.onAdd(entry)}
               onBack={() => setView({ step: "list" })}
             />
           </motion.div>

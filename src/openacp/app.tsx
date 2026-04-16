@@ -32,7 +32,6 @@ import {
   SettingsDialog,
   type SettingsPage,
 } from "./components/settings/settings-dialog";
-import { SetupModal } from "./components/add-workspace/setup-modal";
 import { showToast } from "./lib/toast";
 import { Toaster } from "./components/ui/toaster";
 import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
@@ -426,12 +425,6 @@ function OpenACPAppInner() {
     new Set(),
   );
   const [shareLinks, setShareLinks] = useState<Map<string, string>>(new Map());
-  const [setupInfo, setSetupInfo] = useState<{
-    path: string;
-    instanceId: string;
-    instanceName: string;
-  } | null>(null);
-
   // ── Helpers ────────────────────────────────────────────────────────────
 
   const {
@@ -1073,10 +1066,6 @@ function OpenACPAppInner() {
       {showAddWorkspace && (
         <AddWorkspaceModal
           onAdd={handleAddWorkspace}
-          onSetup={(path, instanceId, instanceName) => {
-            setShowAddWorkspace(false);
-            setSetupInfo({ path, instanceId, instanceName });
-          }}
           onClose={closeAddWorkspaceModal}
           existingWorkspaces={workspaces}
           defaultTab={addWorkspaceDefaultTab}
@@ -1115,23 +1104,6 @@ function OpenACPAppInner() {
           />
         )
       })()}
-      {setupInfo && (
-        <SetupModal
-          open
-          path={setupInfo.path}
-          instanceId={setupInfo.instanceId}
-          instanceName={setupInfo.instanceName}
-          onComplete={(entry) => {
-            setSetupInfo(null);
-            addWorkspace(entry);
-            showToast({
-              description: `Workspace "${entry.name}" ready.`,
-              variant: "success",
-            });
-          }}
-          onClose={() => setSetupInfo(null)}
-        />
-      )}
       <SettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}
