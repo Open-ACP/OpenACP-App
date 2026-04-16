@@ -2952,6 +2952,7 @@ dependencies = [
  "dirs",
  "fix-path-env",
  "ignore",
+ "libc",
  "portable-pty",
  "reqwest 0.12.28",
  "serde",

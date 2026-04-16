@@ -40,6 +40,9 @@ base64 = "0.22"
 wait-timeout = "0.2"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs", branch = "dev" }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [profile.release]
 opt-level = "z"          # Optimize for binary size
 lto = "fat"              # Full link-time optimization

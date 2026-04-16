@@ -70,6 +70,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             // Sidecar commands
+            core::sidecar::commands::list_local_instances,
             core::sidecar::commands::get_server_info,
             core::sidecar::commands::get_workspace_server_info,
             core::sidecar::commands::get_workspace_server_info_from_dir,

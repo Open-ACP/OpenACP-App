@@ -123,12 +123,7 @@ export async function patchWorkspace(
 
 export async function discoverLocalInstances(): Promise<InstanceListEntry[]> {
   try {
-    const stdout = await invoke<string>('invoke_cli', { args: ['instances', 'list', '--json'] })
-    const parsed = JSON.parse(stdout)
-    // parsed is { success: true, data: [...] } from jsonSuccess
-    const data = parsed?.data ?? parsed
-    const result = Array.isArray(data) ? data : []
-    console.log('[discoverLocalInstances] found', result.length, 'instances', result)
+    const result = await invoke<InstanceListEntry[]>('list_local_instances')
     return result
   } catch (err) {
     console.error('[discoverLocalInstances] failed:', err)
