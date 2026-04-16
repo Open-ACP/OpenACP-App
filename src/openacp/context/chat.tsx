@@ -1068,9 +1068,12 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
   }, [workspace.directory, workspace.client.eventsUrl])
 
   async function doSendPrompt(text: string, attachments?: import("../types").FileAttachment[]): Promise<boolean> {
-    // Intercept slash commands typed directly in the composer
+    // Intercept slash commands typed directly in the composer.
+    // Match only valid command syntax (/word, /word args) so pasted file paths
+    // like "/Users/..." aren't misinterpreted as commands.
+    const SLASH_COMMAND_RE = /^\/[a-zA-Z][\w-]*(\s|$)/
     const trimmed = text.trim()
-    if (trimmed.startsWith('/') && !attachments?.length) {
+    if (SLASH_COMMAND_RE.test(trimmed) && !attachments?.length) {
       const sessionID = store.activeSession
       if (sessionID) {
         addCommandResponse(sessionID, trimmed, "user")
