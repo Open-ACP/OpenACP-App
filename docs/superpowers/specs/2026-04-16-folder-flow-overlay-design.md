@@ -46,14 +46,23 @@ type LocalTabView =
   | { step: 'folder-flow'; result: ClassifyDirectoryResult }
 ```
 
-Where `ClassifyDirectoryResult` is the existing return type of `classifyDirectory()` (the `{ type: 'registered' | 'unregistered' | 'new'; ... }` union defined in `workspace-service.ts`).
+`classifyDirectory()` in `workspace-service.ts:107-110` currently returns an inline anonymous union with no exported name. As part of this change, **export a named type** from `workspace-service.ts`:
+
+```ts
+export type ClassifyDirectoryResult =
+  | { type: 'registered'; instance: InstanceListEntry }
+  | { type: 'unregistered'; directory: string }
+  | { type: 'new'; directory: string }
+```
+
+Update the `classifyDirectory()` return annotation to reference it. This is a zero-risk refactor (same structure, new name) and gives `FolderFlowStep` and the test file a real import to use.
 
 Transitions:
 - `handleBrowse()` on success: `setView({ step: 'folder-flow', result })`.
 - `FolderFlowStep.onBack`: `setView({ step: 'list' })`.
 - `onAdd` / `onSetup` success: bubbles up to `AddWorkspaceModal` which closes — no local transition needed.
 
-The existing `browseResultRef` and `scrollIntoView` effect are removed. The overlay obviates the need to scroll.
+The existing `browseResultRef` (declared at `local-tab.tsx:29`) and its `scrollIntoView` effect (`local-tab.tsx:31-35`) are **deleted**. The overlay obviates the need to scroll.
 
 ### 2. New component: `FolderFlowStep`
 
@@ -70,6 +79,8 @@ interface FolderFlowStepProps {
 }
 ```
 
+**`onSetup` signature note.** `CreateInstance.handleCreate()` already invokes `onSetup(path, instanceId, instanceName)` with 3 args (`create-instance.tsx:41`), but `LocalTabProps.onSetup` and `AddWorkspaceModalProps.onSetup` currently declare only 2 args (`local-tab.tsx:16`, `index.tsx:11`). This pre-existing inconsistency means the 3rd argument is silently dropped at the boundary today. As part of this change, **widen both** `LocalTabProps.onSetup` and `AddWorkspaceModalProps.onSetup` to the 3-arg form so `FolderFlowStep` can pass the name through cleanly. Whether the callers in `app.tsx` use the name is their choice; the type simply stops lying.
+
 **Layout:**
 - A header row at the top: `[← back button] {folderName}`.
   - Back button: `<button type="button" aria-label="Back to workspaces list">` with a `CaretLeft` phosphor icon (size 14).
@@ -79,7 +90,8 @@ interface FolderFlowStepProps {
   - `result.type === 'registered'` → the same "Workspace found" card the current code renders.
   - `result.type === 'unregistered'` → the same `RegisterExistingView` card.
   - `result.type === 'new'` → the existing `CreateInstance` component.
-- The existing inner "Back" button on each of those three sub-views is **removed** (it is redundant with the header back arrow). The sub-view components' `onClose` prop is still wired to `onBack` for the `CreateInstance` internal sub-step navigation (`clone` / `new` → back to `choose`). The outermost "Back" button on `registered` and `unregistered` cards is dropped.
+- The existing "Back" button on the `registered` inline card and on `RegisterExistingView` is **removed** — it is redundant with the header back arrow. Correspondingly, the `onClose` prop on `RegisterExistingView` itself is dropped (nothing else consumes it once the button is gone).
+- `CreateInstance.onClose` stays — it is still consumed internally (`create-instance.tsx:89,95`) for the `clone` / `new` → back to `choose` sub-step navigation — but in this new layout it's wired to `onBack` (returns the user to the list), matching the current behavior where the inner Back in `ActionButtons` already returns to the `choose` sub-step without calling `onClose`.
 
 ### 3. Animated container
 
