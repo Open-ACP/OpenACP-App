@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { FolderFlowStep } from "./folder-flow-step"
 import type { InstanceListEntry } from "../../api/workspace-store"
@@ -85,5 +85,21 @@ describe("FolderFlowStep", () => {
     )
     // CreateInstance shows the "Create new" option in its choose sub-step
     expect(screen.getByText(/create new/i)).toBeInTheDocument()
+  })
+
+  it("moves focus to the back button on mount", async () => {
+    render(
+      <FolderFlowStep
+        result={{ type: "unregistered", directory: "/tmp/demo" }}
+        instances={instances}
+        onAdd={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /back to workspaces list/i }),
+      ).toHaveFocus()
+    })
   })
 })

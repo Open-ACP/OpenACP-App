@@ -89,6 +89,21 @@ describe("LocalTab", () => {
     expect(screen.getByText(/choose a folder/i)).toBeInTheDocument()
   })
 
+  it("restores focus to 'Choose a folder' after back", async () => {
+    vi.mocked(openDialog).mockResolvedValue("/tmp/new-thing")
+    vi.mocked(classifyDirectory).mockResolvedValue({ type: "new", directory: "/tmp/new-thing" })
+
+    render(<LocalTab onAdd={vi.fn()} />)
+    await screen.findByText("project-alpha")
+    await userEvent.click(screen.getByText(/choose a folder/i))
+    await screen.findByRole("button", { name: /back to workspaces list/i })
+    await userEvent.click(screen.getByRole("button", { name: /back to workspaces list/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/choose a folder/i).closest("button")).toHaveFocus()
+    })
+  })
+
   it("propagates onAdd from the folder-flow step (registered path)", async () => {
     const inst: InstanceListEntry = EXISTING[0]!
     vi.mocked(openDialog).mockResolvedValue(inst.directory)

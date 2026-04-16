@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { invoke } from "@tauri-apps/api/core"
 import { X } from "@phosphor-icons/react"
@@ -46,6 +46,15 @@ export function LocalTab(props: LocalTabProps) {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>({ step: "list" })
   const reducedMotion = useReducedMotion()
+  const browseButtonRef = useRef<HTMLButtonElement>(null)
+  const prevStepRef = useRef<View["step"]>(view.step)
+
+  useEffect(() => {
+    if (prevStepRef.current === "folder-flow" && view.step === "list") {
+      browseButtonRef.current?.focus()
+    }
+    prevStepRef.current = view.step
+  }, [view.step])
 
   useEffect(() => {
     listWorkspaces()
@@ -79,6 +88,7 @@ export function LocalTab(props: LocalTabProps) {
               instances={instances}
               loading={loading}
               existingIds={props.existingIds}
+              browseButtonRef={browseButtonRef}
               onSelectInstance={(inst) =>
                 props.onAdd({
                   id: inst.id,
@@ -124,6 +134,7 @@ function ListView(props: {
   instances: InstanceListEntry[]
   loading: boolean
   existingIds?: string[]
+  browseButtonRef?: React.RefObject<HTMLButtonElement | null>
   onSelectInstance: (inst: InstanceListEntry) => void
   onRemoveInstance: (id: string) => void
   onBrowse: () => void
@@ -201,6 +212,7 @@ function ListView(props: {
       <div className="border-t border-border-weak pt-4">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Open a folder</p>
         <button
+          ref={props.browseButtonRef}
           type="button"
           onClick={props.onBrowse}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border-weak text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

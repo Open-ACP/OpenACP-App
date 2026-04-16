@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { CaretLeft } from "@phosphor-icons/react"
 import type { ClassifyDirectoryResult } from "../../api/workspace-service"
 import type { InstanceListEntry, WorkspaceEntry } from "../../api/workspace-store"
@@ -19,11 +19,16 @@ interface FolderFlowStepProps {
 
 export function FolderFlowStep(props: FolderFlowStepProps) {
   const folderName = directoryOf(props.result).split("/").pop() ?? directoryOf(props.result)
+  const backRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    backRef.current?.focus()
+  }, [])
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
         <button
+          ref={backRef}
           type="button"
           aria-label="Back to workspaces list"
           onClick={props.onBack}
