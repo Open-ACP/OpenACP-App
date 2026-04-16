@@ -23,6 +23,24 @@ type View =
   | { step: "list" }
   | { step: "folder-flow"; result: ClassifyDirectoryResult }
 
+// Slide spec matches the project convention used in sidebar.tsx:51 and terminal-panel.tsx:58.
+// Reduced-motion path is a quick crossfade.
+const SLIDE_FULL = {
+  listExit: { x: "-30%", opacity: 0 },
+  flowInitial: { x: "100%", opacity: 0 },
+  flowAnimate: { x: 0, opacity: 1 },
+  flowExit: { x: "100%", opacity: 0 },
+  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
+} as const
+
+const SLIDE_REDUCED = {
+  listExit: { opacity: 0 },
+  flowInitial: { opacity: 0 },
+  flowAnimate: { opacity: 1 },
+  flowExit: { opacity: 0 },
+  transition: { duration: 0.08 },
+} as const
+
 export function LocalTab(props: LocalTabProps) {
   const [instances, setInstances] = useState<InstanceListEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,21 +62,7 @@ export function LocalTab(props: LocalTabProps) {
     setView({ step: "folder-flow", result })
   }
 
-  const slide = reducedMotion
-    ? {
-        listExit: { opacity: 0 },
-        flowInitial: { opacity: 0 },
-        flowAnimate: { opacity: 1 },
-        flowExit: { opacity: 0 },
-        transition: { duration: 0.08 },
-      }
-    : {
-        listExit: { x: "-30%", opacity: 0 },
-        flowInitial: { x: "100%", opacity: 0 },
-        flowAnimate: { x: 0, opacity: 1 },
-        flowExit: { x: "100%", opacity: 0 },
-        transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-      }
+  const slide = reducedMotion ? SLIDE_REDUCED : SLIDE_FULL
 
   return (
     <div className="relative overflow-hidden">
