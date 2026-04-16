@@ -72,7 +72,7 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-5 max-h-[60vh] overflow-y-auto">
+        <div className="p-5 h-[28rem] overflow-y-auto">
           {tab === "local" ? (
             <LocalTab onAdd={props.onAdd} onSetup={props.onSetup} existingIds={existingIds} />
           ) : (

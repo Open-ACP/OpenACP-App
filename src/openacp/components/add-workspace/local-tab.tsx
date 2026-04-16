@@ -55,10 +55,27 @@ export function LocalTab(props: LocalTabProps) {
       {/* Workspaces on machine */}
       <div>
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Workspaces on this machine</p>
-        {loading && <p className="text-sm text-muted-foreground py-3">Looking for workspaces...</p>}
+        {loading && (
+          <div className="rounded-lg border border-border-weak overflow-hidden max-h-64 overflow-y-auto">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 px-3 py-2.5 ${i > 0 ? 'border-t border-border-weak' : ''}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium w-32 rounded bg-accent animate-pulse">&nbsp;</span>
+                  </div>
+                  <span className="text-xs font-mono truncate block w-56 rounded bg-accent animate-pulse">&nbsp;</span>
+                </div>
+                <div className="size-2 rounded-full shrink-0 bg-accent animate-pulse" />
+              </div>
+            ))}
+          </div>
+        )}
         {!loading && instances.length === 0 && <p className="text-sm text-muted-foreground py-3">No workspaces found.</p>}
         {!loading && instances.length > 0 && (
-          <div className="rounded-lg border border-border-weak overflow-hidden">
+          <div className="rounded-lg border border-border-weak overflow-hidden max-h-64 overflow-y-auto">
             {instances.map((inst, i) => {
               const alreadyAdded = props.existingIds?.includes(inst.id) ?? false
               const isRunning = inst.status === 'running'
