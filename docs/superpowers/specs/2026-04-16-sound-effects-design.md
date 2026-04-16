@@ -54,11 +54,12 @@ export type SoundEventKey =
   | "messageFailed"
   | "mentionNotification"
 
+export type ImportedFormat = "mp3" | "wav" | "ogg"
+
 export interface ImportedSound {
-  id: string              // uuid v4
-  name: string            // user-visible (default: filename without extension)
-  filename: string        // "<id>.<ext>" — lives in appDataDir/sounds/
-  format: "mp3" | "wav" | "ogg"
+  id: string              // uuid v4 — sole component of stored filename
+  name: string            // user-visible (default: filename without extension, sanitized)
+  ext: ImportedFormat     // lowercase; derives filename "<id>.<ext>" in appDataDir/sounds/
   importedAt: number      // epoch ms
 }
 
@@ -70,7 +71,7 @@ export interface SoundEventSettings {
 export interface SoundSettings {
   enabled: boolean                       // master toggle
   volume: number                         // 0..1, clamped
-  library: ImportedSound[]               // imported sound metadata
+  library: ImportedSound[]               // imported sound metadata (max 50 entries)
   events: Record<SoundEventKey, SoundEventSettings>
 }
 ```
@@ -145,9 +146,12 @@ export async function deleteImportedSound(id: string, library: ImportedSound[]):
 
 **Implementation notes:**
 - Built-in assets loaded via Vite: `const BUILTIN = import.meta.glob("../../assets/sounds/*.aac", { eager: false, import: "default" })`. Lazy + cached by Vite.
-- Imported file resolution: `convertFileSrc` from `@tauri-apps/api/core` on `${appDataDir}/sounds/<filename>`.
-- `importSound` performs validation → generates UUID → reads file bytes → writes via `@tauri-apps/plugin-fs` `writeFile` with `BaseDirectory.AppData` scoped to `sounds/` subdir → returns metadata. Caller adds to `sounds.library` and persists.
-- `deleteImportedSound` removes the file + returns updated library (caller persists).
+- Imported file resolution: `convertFileSrc` from `@tauri-apps/api/core` on `${appDataDir}/sounds/<id>.<ext>`.
+- **Filename sanitization contract:** the stored filename is `${uuidv4()}.${ext}` where `ext` is the lowercased last `.`-segment of the original filename, validated against the allowlist `["mp3", "wav", "ogg"]`. The user-supplied filename is NEVER used in the stored path — only for the human-visible `name` field (stripped of extension and sanitized via `.replace(/[^\w\s\-.]/g, "").trim().slice(0, 64)`). This prevents path traversal, directory escape, and double-extension attacks (e.g., `sound.mp3.exe`).
+- **Library size cap:** `importSound` rejects with "Library full (max 50 sounds)" if `library.length >= 50` before writing anything.
+- `importSound` validation order: (1) library size; (2) file size ≤5MB; (3) extension in allowlist. Then: generate UUID → read bytes → write via `@tauri-apps/plugin-fs` `writeFile` with `BaseDirectory.AppData` scoped to `sounds/` subdir → return metadata.
+- **Atomicity contract:** caller MUST re-read `sounds` via `getSetting('sounds')` immediately before calling `setSetting` to avoid clobbering concurrent writes (e.g., user toggling a setting mid-import). Caller adds the returned metadata to the fresh library snapshot and persists.
+- `deleteImportedSound` removes the file + returns updated library (caller persists under same atomicity contract). If the file is already missing, proceed silently (delete is idempotent).
 - If app-data subdir `sounds/` doesn't exist on first import, create it (`mkdir` with `recursive: true`).
 
 #### `sound-player.ts`
@@ -156,10 +160,13 @@ export async function deleteImportedSound(id: string, library: ImportedSound[]):
 const COOLDOWN_MS = 500
 const lastPlayedAt: Partial<Record<SoundEventKey, number>> = {}
 
+export async function preloadDefaultSounds(): Promise<void>  // call once on app mount
 export async function playEventSound(eventKey: SoundEventKey): Promise<void>
 export async function previewSound(soundId: string): Promise<void>
 export function stopAllSounds(): void
 ```
+
+**`preloadDefaultSounds`:** resolves the 4 built-in default sound URLs via `getSoundSrc` and keeps a module-level cache `{ [id: string]: string }` of resolved sources. Eliminates first-play latency (50–200ms) for permission-request and other latency-sensitive events. Subsequent `playEventSound` calls hit the cache.
 
 **`playEventSound` logic:**
 1. Load `sounds` settings via `getSetting('sounds')`.
@@ -182,16 +189,20 @@ Keep a small `activeAudios: Set<HTMLAudioElement>` so `stopAllSounds()` can iter
 export function useSoundEffects(): void
 ```
 
-Mounted once at app root (same place `useSystemNotifications` is used — `src/openacp/main.tsx` or its child). Registers `window` event listeners:
+Mounted once at app root (same place `useSystemNotifications` is used — `src/openacp/main.tsx` or its child). On mount, calls `preloadDefaultSounds()` then registers `window` event listeners.
+
+**Trigger mapping** — mirrors `use-system-notifications.ts` (the canonical event dispatcher; see `src/openacp/hooks/use-system-notifications.ts:87-162`):
 
 | Window event | Trigger condition | Calls |
 |---|---|---|
-| `agent-event` | `detail.event.type === 'usage'` (end of stream) | `playEventSound('agentResponse')` |
+| `agent-event` | `detail.event.type === 'usage'` (end-of-turn marker, fires once per turn) | `playEventSound('agentResponse')` |
 | `permission-request` | any | `playEventSound('permissionRequest')` |
 | `message-failed` | any | `playEventSound('messageFailed')` |
 | `mention-notification` | any | `playEventSound('mentionNotification')` |
 
-Listens to `settings-changed` to invalidate any cached settings reads if needed (the player reads fresh via `getSetting` each call, so caching isn't strictly required — keep it simple).
+**Cleanup:** all listeners removed in the effect's return function (React unmount hygiene).
+
+The player reads fresh settings via `getSetting('sounds')` on each call, so no cache invalidation needed on `settings-changed`.
 
 ### 6. Settings UI — `settings-sounds.tsx`
 
@@ -248,28 +259,37 @@ SSE / workspace code dispatches window event (e.g., agent-event)
 **Import flow:**
 ```
 User clicks "Import audio…" in settings-sounds.tsx
-  → <input type=file> dialog
-  → validate file.size ≤ 5 * 1024 * 1024
-  → validate ext ∈ {mp3, wav, ogg}
+  → <input type=file accept=".mp3,.wav,.ogg"> dialog
+  → ext = file.name.split(".").pop()?.toLowerCase()
+  → validate current.library.length < 50    (library cap)
+  → validate file.size ≤ 5 * 1024 * 1024    (≤5MB)
+  → validate ext ∈ {"mp3", "wav", "ogg"}   (strict allowlist; lowercase only)
   → id = crypto.randomUUID()
+  → name = sanitize(stripExt(file.name))    (strip dangerous chars, cap 64)
   → arrayBuffer = await file.arrayBuffer()
-  → ensure appDataDir/sounds/ exists
+  → ensure appDataDir/sounds/ exists (mkdir recursive)
   → writeFile("sounds/<id>.<ext>", bytes, { baseDir: AppData })
-  → meta = { id, name: stripExt(file.name), filename: "<id>.<ext>", format, importedAt: Date.now() }
-  → setSetting('sounds', { ...current, library: [...current.library, meta] })
+  → meta = { id, name, ext, importedAt: Date.now() }
+  → fresh = await getSetting('sounds')        (atomicity: re-read before write)
+  → setSetting('sounds', { ...fresh, library: [...fresh.library, meta] })
   → dispatch 'settings-changed'
   → UI re-reads settings → new sound appears in library + dropdowns
 ```
 
 **Delete flow:**
 ```
-User clicks delete in Library row
-  → removeFile("sounds/<filename>", { baseDir: AppData })
-  → library' = library.filter(s => s.id !== id)
-  → for each event where events[key].soundId === "imported:<id>":
-      reset to BUILTIN_DEFAULTS[key] (fallback)
-  → setSetting('sounds', next)
+User clicks delete in Library row → confirm dialog (irreversible)
+  → removeFile("sounds/<id>.<ext>", { baseDir: AppData })   (idempotent — ignore not-found)
+  → fresh = await getSetting('sounds')
+  → library' = fresh.library.filter(s => s.id !== id)
+  → revertedEvents: SoundEventKey[] = []
+  → for each event where events[key].soundId === `imported:${id}`:
+      events'[key] = { ...events[key], soundId: BUILTIN_DEFAULTS[key] }
+      revertedEvents.push(key)
+  → setSetting('sounds', { ...fresh, library: library', events: events' })
   → dispatch 'settings-changed'
+  → if revertedEvents.length > 0:
+      toast(`Reverted ${revertedEvents.length} event(s) to default sound`)
 ```
 
 ### 8. Error handling
@@ -278,7 +298,8 @@ All errors surface user-visible output per project rule (no silent `catch {}` pe
 
 | Case | Behavior |
 |---|---|
-| Import: file >5MB | Inline error in import area: "File too large (max 5MB)" |
+| Import: library size ≥50 | Inline error: "Library full (max 50 sounds) — delete unused sounds first" |
+| Import: file >5MB | Inline error: "File too large (max 5MB)" |
 | Import: unsupported format | Inline error: "Use MP3, WAV, or OGG" |
 | Import: appDataDir write fails | Sonner toast: "Failed to save imported sound" + console error |
 | Playback: `soundId` resolves to `null` (file missing) | Fallback to `BUILTIN_DEFAULTS[eventKey]`; on next settings-sounds render, dropdown shows "(missing — using default)" for that soundId and user can re-select |
@@ -312,8 +333,10 @@ Opencode is MIT-licensed. Add attribution:
   ```
   ## Sound Effects
   Notification sounds adapted from opencode (MIT License)
-  https://github.com/sst/opencode
+  Source: https://github.com/sst/opencode
+  Path at time of adaptation: packages/ui/src/assets/audio/*.aac
   ```
+- Include the `LICENSE` text of opencode as an appendix (or link to the SPDX identifier) so MIT obligations are met.
 
 ### 11. Build sequence
 
@@ -330,8 +353,9 @@ To be detailed in writing-plans, but the commit-level order:
 9. **Verify:** toggle master, change volume, switch sound per event, preview per event.
 10. Implement `importSound` + `deleteImportedSound` in `sound-registry.ts`.
 11. Add Library card (listing + preview + import + delete) to `settings-sounds.tsx`.
-12. **Verify end-to-end:** import valid file, import oversized (error), import unsupported format (error), delete imported while in-use (fallback), missing-file fallback (manually remove file from disk, trigger event).
-13. Light pass on dark/light theme — all controls use design tokens, no hardcoded colors.
+12. **Verify end-to-end on macOS (primary dev platform):** import valid file, import oversized (error), import unsupported format (error), import at library cap (error), delete imported while in-use (fallback toast fires), missing-file fallback (manually remove file from disk, trigger event).
+13. **Cross-platform AAC verification:** smoke-test built-in sound playback on Windows and Linux builds (at minimum: open app, trigger one event per platform, confirm sound plays). If Linux webview rejects AAC, convert built-ins to MP3 in a follow-up commit (format change only, no code change).
+14. Light pass on dark/light theme — all controls use design tokens, no hardcoded colors. Verify in both modes.
 
 ## Testing
 
@@ -343,6 +367,8 @@ None — design approved in brainstorm session 2026-04-16.
 
 ## Risks
 
-- **AAC playback failure on some Linux distros:** possible on minimal webview builds; mitigation is to convert to MP3 if encountered during manual verification. Low likelihood given Tauri bundles Chromium.
-- **Autoplay policy rejection:** shouldn't apply in Tauri webview (non-cross-origin, user-initiated), but caught with `console.warn` fallback.
-- **Concurrent `import.meta.glob` resolution:** built-in sounds are lazy-loaded promises; no issue since we `await getSoundSrc` in the player.
+- **AAC playback on Linux webview (WebKitGTK):** Linux Tauri uses WebKitGTK, which may lack AAC codec support in some distros. Mitigation: cross-platform verification step in build sequence (Step 13); fallback plan is to convert built-ins to MP3 (LAME-encoded) if Linux playback fails. No code change required — same filename, same registry.
+- **Autoplay policy rejection:** shouldn't apply in Tauri webview (non-cross-origin, user-initiated), but caught with `console.warn` fallback. Not user-facing.
+- **Library growth:** bounded by `max 50 sounds × 5MB = 250MB` worst case in appDataDir. Acceptable. Users get "Library full" error before going further.
+- **Concurrent `import.meta.glob` resolution:** built-in sounds are lazy-loaded promises; no race since we `await getSoundSrc` in the player and `preloadDefaultSounds()` warms the cache at mount.
+- **Settings atomicity:** documented contract requires import/delete handlers to re-read settings before write. If contract is violated, concurrent toggle-during-import could lose the import. Low likelihood (user can't toggle settings while the file picker is modal), but called out explicitly.
