@@ -25,6 +25,27 @@
     "clipboard-manager:allow-read-image",
     "deep-link:default",
     "updater:default",
+    "fs:default",
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$APPDATA/sounds" }, { "path": "$APPDATA/sounds/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$APPDATA/sounds/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$APPDATA/sounds/**" }]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$APPDATA/sounds/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APPDATA/sounds" }, { "path": "$APPDATA/sounds/**" }]
+    },
     {
       "identifier": "http:default",
       "allow": [

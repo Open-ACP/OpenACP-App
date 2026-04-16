@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { GearSix, Palette, Robot, Desktop, Info, Bell } from "@phosphor-icons/react";
+import { GearSix, Palette, Robot, Desktop, Info, Bell, SpeakerHigh } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { VisuallyHidden } from "radix-ui";
 import { SettingsGeneral } from "./settings-general";
 import { SettingsAppearance } from "./settings-appearance";
 import { SettingsNotifications } from "./settings-notifications";
+import { SettingsSounds } from "./settings-sounds";
 import { SettingsAgents } from "./settings-agents";
 import { SettingsServer } from "./settings-server";
 import { SettingsAbout } from "./settings-about";
@@ -13,6 +14,7 @@ export type SettingsPage =
   | "general"
   | "appearance"
   | "notifications"
+  | "sounds"
   | "agents"
   | "server"
   | "about";
@@ -32,6 +34,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "general", label: "General", icon: GearSix },
       { id: "appearance", label: "Appearance", icon: Palette },
       { id: "notifications", label: "Notifications", icon: Bell },
+      { id: "sounds", label: "Sounds", icon: SpeakerHigh },
     ],
   },
   {
@@ -123,6 +126,7 @@ export function SettingsDialog({
             )}
             {page === "appearance" && <SettingsAppearance />}
             {page === "notifications" && <SettingsNotifications />}
+            {page === "sounds" && <SettingsSounds />}
             {page === "agents" && (
               <SettingsAgents workspacePath={workspacePath} />
             )}

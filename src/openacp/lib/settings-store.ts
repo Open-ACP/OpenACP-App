@@ -13,6 +13,42 @@ export interface NotificationSettings {
   messageFailed: boolean
 }
 
+export type SoundEventKey =
+  | "agentResponse"
+  | "permissionRequest"
+  | "messageFailed"
+  | "mentionNotification"
+
+export type ImportedFormat = "mp3" | "wav" | "ogg"
+
+export interface ImportedSound {
+  /** UUID — sole component of stored filename (prevents path traversal) */
+  id: string
+  /** User-visible name (default: original filename without ext, sanitized) */
+  name: string
+  /** Lowercase; file stored as "<id>.<ext>" in appDataDir/sounds/ */
+  ext: ImportedFormat
+  /** Epoch ms */
+  importedAt: number
+}
+
+export interface SoundEventSettings {
+  enabled: boolean
+  /** "builtin:<name>" or "imported:<uuid>" */
+  soundId: string
+}
+
+export interface SoundSettings {
+  /** Master toggle — disables all sound effects when false */
+  enabled: boolean
+  /** 0..1 — global volume multiplier (clamped) */
+  volume: number
+  /** Imported sound metadata — files live in appDataDir/sounds/ (max 50 entries) */
+  library: ImportedSound[]
+  /** Per-event config */
+  events: Record<SoundEventKey, SoundEventSettings>
+}
+
 export interface AppSettings {
   theme: "dark" | "light" | "system"
   fontSize: "small" | "medium" | "large"
@@ -24,6 +60,7 @@ export interface AppSettings {
   toolAutoExpand: Record<string, boolean>
   messageMode: "queue" | "instant"
   notifications: NotificationSettings
+  sounds: SoundSettings
 }
 
 const defaults: AppSettings = {
@@ -51,6 +88,17 @@ const defaults: AppSettings = {
     agentResponse: true,
     permissionRequest: true,
     messageFailed: true,
+  },
+  sounds: {
+    enabled: true,
+    volume: 0.6,
+    library: [],
+    events: {
+      agentResponse:       { enabled: true, soundId: "builtin:staplebops-01" },
+      permissionRequest:   { enabled: true, soundId: "builtin:yup-03" },
+      messageFailed:       { enabled: true, soundId: "builtin:nope-01" },
+      mentionNotification: { enabled: true, soundId: "builtin:bip-bop-02" },
+    },
   },
 }
 
@@ -88,7 +136,9 @@ export async function getAllSettings(): Promise<AppSettings> {
     ((await s.get("messageMode")) as AppSettings["messageMode"]) ?? defaults.messageMode
   const notifications =
     ((await s.get("notifications")) as AppSettings["notifications"]) ?? defaults.notifications
-  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand, messageMode, notifications }
+  const sounds =
+    ((await s.get("sounds")) as AppSettings["sounds"]) ?? defaults.sounds
+  return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand, messageMode, notifications, sounds }
 }
 
 /** Apply theme to document element. `system` resolves to the OS preference so that
