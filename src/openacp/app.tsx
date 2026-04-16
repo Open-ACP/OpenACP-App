@@ -41,6 +41,7 @@ import {
 } from "./hooks/use-workspace-connection";
 import { useUpdateCheckContext } from "./hooks/use-update-check";
 import { useSystemNotifications } from "./hooks/use-system-notifications";
+import { useSoundEffects } from "./hooks/use-sound-effects";
 import { NotificationsProvider, useNotifications } from "./context/notifications";
 import {
   getAllSettings,
@@ -394,6 +395,7 @@ function OpenACPAppInner() {
   }, []);
   const getSessionName = useCallback((id: string) => sessionNamesRef.current.get(id), []);
   useSystemNotifications(appendNotification, activeWsName, getSessionName);
+  useSoundEffects();
 
   // Unified update system — the hook and the toast effect now live in
   // main.tsx App so they also cover the onboarding screens. Here we only
