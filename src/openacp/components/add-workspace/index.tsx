@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 
 interface AddWorkspaceModalProps {
   onAdd: (entry: WorkspaceEntry) => void;
-  onSetup?: (path: string, instanceId: string) => void;
+  onSetup?: (path: string, instanceId: string, instanceName: string) => void;
   onClose: () => void;
   existingWorkspaces: WorkspaceEntry[];
   defaultTab?: "local" | "remote";

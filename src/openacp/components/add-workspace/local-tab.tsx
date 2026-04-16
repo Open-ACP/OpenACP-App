@@ -13,7 +13,7 @@ import { Button } from '../ui/button'
 
 interface LocalTabProps {
   onAdd: (entry: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string) => void
+  onSetup?: (path: string, instanceId: string, instanceName: string) => void
   existingIds?: string[]
 }
 
@@ -154,7 +154,7 @@ function BrowseResultView(props: {
   result: { type: 'registered'; instance: InstanceListEntry } | { type: 'unregistered'; directory: string } | { type: 'new'; directory: string }
   instances: InstanceListEntry[]
   onAdd: (e: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string) => void
+  onSetup?: (path: string, instanceId: string, instanceName: string) => void
   onClose: () => void
 }) {
   const result = props.result
