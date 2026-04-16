@@ -149,7 +149,7 @@ export async function deleteImportedSound(id: string, library: ImportedSound[]):
 - Imported file resolution: `convertFileSrc` from `@tauri-apps/api/core` on `${appDataDir}/sounds/<id>.<ext>`.
 - **Filename sanitization contract:** the stored filename is `${uuidv4()}.${ext}` where `ext` is the lowercased last `.`-segment of the original filename, validated against the allowlist `["mp3", "wav", "ogg"]`. The user-supplied filename is NEVER used in the stored path — only for the human-visible `name` field (stripped of extension and sanitized via `.replace(/[^\w\s\-.]/g, "").trim().slice(0, 64)`). This prevents path traversal, directory escape, and double-extension attacks (e.g., `sound.mp3.exe`).
 - **Library size cap:** `importSound` rejects with "Library full (max 50 sounds)" if `library.length >= 50` before writing anything.
-- `importSound` validation order: (1) library size; (2) file size ≤5MB; (3) extension in allowlist. Then: generate UUID → read bytes → write via `@tauri-apps/plugin-fs` `writeFile` with `BaseDirectory.AppData` scoped to `sounds/` subdir → return metadata.
+- `importSound` validation order: (1) library size; (2) file size ≤5MB; (3) extension in allowlist. Then: generate UUID via native `crypto.randomUUID()` (no external dep) → read bytes → write via `@tauri-apps/plugin-fs` `writeFile` with `BaseDirectory.AppData` scoped to `sounds/` subdir → return metadata.
 - **Atomicity contract:** caller MUST re-read `sounds` via `getSetting('sounds')` immediately before calling `setSetting` to avoid clobbering concurrent writes (e.g., user toggling a setting mid-import). Caller adds the returned metadata to the fresh library snapshot and persists.
 - `deleteImportedSound` removes the file + returns updated library (caller persists under same atomicity contract). If the file is already missing, proceed silently (delete is idempotent).
 - If app-data subdir `sounds/` doesn't exist on first import, create it (`mkdir` with `recursive: true`).
@@ -311,7 +311,7 @@ All errors surface user-visible output per project rule (no silent `catch {}` pe
 - **Per-event cooldown 500ms:** if same event fires twice in <500ms, second is skipped.
 - **Cross-event overlap:** different events can play simultaneously (e.g., permission + agent-done). Audio mixing is handled by the OS/browser.
 - **Focus-agnostic:** unlike visual notifications (suppressed when focused), sound plays regardless of focus. Rationale: sound cues are primarily for when the user is *elsewhere*; suppressing them defeats the purpose. If noisy in foreground, user can toggle `enabled` or individual events.
-- **No preloading:** sound assets are lazy-loaded on first play. Latency is ~50–200ms on first play, negligible after Vite caches the URL. Acceptable for notification cues.
+- **Preloading scope:** only the 4 built-in default sounds are preloaded at app mount via `preloadDefaultSounds()` — eliminates first-play latency for the common case. Imported sounds and non-default built-ins remain lazy-loaded; first-play latency (~50–200ms) is acceptable since those are triggered by user preview, not time-sensitive events.
 
 ### 10. Assets & licensing
 
