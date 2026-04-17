@@ -331,6 +331,11 @@ export function ChatView() {
   useEffect(() => {
     if (!streaming) return;
     const id = setInterval(() => {
+      // If the flag is set but user is still within atBottomThreshold, the scroll was too small
+      // to trigger atBottomStateChange — auto-clear so we don't permanently lose auto-scroll.
+      if (userScrolledUpRef.current && atBottomRef.current) {
+        userScrolledUpRef.current = false;
+      }
       if (!userScrolledUpRef.current) {
         virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
       }
@@ -508,6 +513,9 @@ export function ChatView() {
                 // Ignoring isAtBottom here is intentional: content growth can push the viewport
                 // past atBottomThreshold within a single rAF frame, which would make followOutput
                 // disengage. userScrolledUpRef is the sole gating signal for user intent.
+                if (userScrolledUpRef.current && atBottomRef.current) {
+                  userScrolledUpRef.current = false;
+                }
                 if (!streaming || userScrolledUpRef.current) return false;
                 return "auto";
               }}
