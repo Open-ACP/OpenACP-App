@@ -24,6 +24,13 @@ pub struct FileChange {
     pub status: String, // "modified" | "added" | "deleted" | "untracked"
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct GitRepoInfo {
+    pub name: String,
+    pub path: String,
+    pub branch: String,
+}
+
 /// List one level of a directory, sorted: directories first, then files.
 /// Skips hidden files (.) and common ignore patterns.
 #[tauri::command]
@@ -181,7 +188,7 @@ fn mime_from_ext(ext: &str) -> &'static str {
 #[tauri::command]
 pub fn get_workspace_changes(path: String) -> Result<Vec<FileChange>, String> {
     let output = std::process::Command::new("git")
-        .args(["status", "--porcelain", "-uall"])
+        .args(["status", "--porcelain"])
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -327,6 +334,84 @@ pub fn get_git_remote_url(directory: String) -> Option<String> {
         }
     }
     None
+}
+
+/// Discover git repositories within a workspace directory.
+/// If the directory itself is a git repo, returns just that one.
+/// Otherwise scans up to 2 levels deep for directories containing .git.
+#[tauri::command]
+pub fn discover_git_repos(directory: String) -> Vec<GitRepoInfo> {
+    let root = Path::new(&directory);
+
+    // If root itself is a git repo, return just it
+    if root.join(".git").exists() {
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| directory.clone());
+        let branch = get_git_branch(directory.clone()).unwrap_or_default();
+        return vec![GitRepoInfo {
+            name,
+            path: directory,
+            branch,
+        }];
+    }
+
+    let mut repos = Vec::new();
+
+    // Scan 2 levels deep
+    let Ok(level1) = std::fs::read_dir(root) else {
+        return repos;
+    };
+
+    for entry1 in level1.flatten() {
+        if !entry1.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name1 = entry1.file_name().to_string_lossy().to_string();
+        if name1.starts_with('.') || name1 == "node_modules" || name1 == "target" {
+            continue;
+        }
+
+        let path1 = entry1.path();
+        if path1.join(".git").exists() {
+            let branch = get_git_branch(path1.to_string_lossy().to_string())
+                .unwrap_or_default();
+            repos.push(GitRepoInfo {
+                name: name1,
+                path: path1.to_string_lossy().to_string(),
+                branch,
+            });
+            continue;
+        }
+
+        // Level 2
+        let Ok(level2) = std::fs::read_dir(&path1) else {
+            continue;
+        };
+        for entry2 in level2.flatten() {
+            if !entry2.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name2 = entry2.file_name().to_string_lossy().to_string();
+            if name2.starts_with('.') {
+                continue;
+            }
+            let path2 = entry2.path();
+            if path2.join(".git").exists() {
+                let branch = get_git_branch(path2.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                repos.push(GitRepoInfo {
+                    name: format!("{name1}/{name2}"),
+                    path: path2.to_string_lossy().to_string(),
+                    branch,
+                });
+            }
+        }
+    }
+
+    repos.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    repos
 }
 
 #[tauri::command]
