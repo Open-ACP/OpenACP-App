@@ -207,8 +207,8 @@ function ChatFooter() {
           <span className="oac-stream-cursor" />
         </div>
       )}
-      {/* Spacer so the last message is not obscured by the Composer (replaces pb-80) */}
-      <div style={{ height: 320 }} />
+      {/* Spacer for visual breathing room at end of message list. */}
+      <div style={{ height: 24 }} />
     </div>
   );
 }
@@ -219,6 +219,9 @@ export function ChatView() {
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [atBottom, setAtBottom] = useState(true);
+  // Tracks whether the user has intentionally scrolled up (vs. content expansion pushing viewport).
+  // Set on upward wheel input; cleared when the viewport reaches the bottom again.
+  const userScrolledUpRef = useRef(false);
 
   const messages = chat.messages();
   const streaming = chat.streaming();
@@ -301,15 +304,31 @@ export function ChatView() {
 
   // Scroll to bottom on session switch
   useEffect(() => {
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" });
+    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
   }, [activeSessionId]);
 
   // Scroll to bottom when triggered (user sent message, cross-adapter turn, history loaded)
   useEffect(() => {
     if (chat.scrollTrigger() > 0) {
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" });
+      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
     }
   }, [chat.scrollTrigger()]);
+
+  // During streaming, run a rAF loop to continuously scroll to the bottom of the last item.
+  // This is more reliable than Virtuoso's followOutput for rapidly growing blocks (e.g. thinking
+  // text spanning multiple screens), where ResizeObserver batching can cause the viewport to lag.
+  useEffect(() => {
+    if (!streaming) return;
+    let rafId: number;
+    const tick = () => {
+      if (!userScrolledUpRef.current) {
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [streaming]);
 
   const sessions = useSessions();
   const sessionTitle = useMemo(() => {
@@ -423,7 +442,10 @@ export function ChatView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="flex-1 min-h-0 overflow-hidden relative">
+      <div
+        className="flex-1 min-h-0 overflow-hidden relative"
+        onWheel={(e) => { if (e.deltaY < 0) userScrolledUpRef.current = true; }}
+      >
         {hasMessages ? (
           <>
             <Virtuoso
@@ -456,8 +478,11 @@ export function ChatView() {
                   )}
                 </div>
               )}
-              followOutput={streaming ? "smooth" : false}
-              atBottomStateChange={setAtBottom}
+              followOutput={false}
+              atBottomStateChange={(isAtBottom) => {
+                if (isAtBottom) userScrolledUpRef.current = false;
+                setAtBottom(isAtBottom);
+              }}
               atBottomThreshold={100}
               components={{ Footer: ChatFooter }}
               increaseViewportBy={{ top: 1200, bottom: 600 }}
@@ -469,6 +494,7 @@ export function ChatView() {
                 virtuosoRef.current?.scrollToIndex({
                   index: "LAST",
                   behavior: "smooth",
+                  align: "end",
                 })
               }
             />
