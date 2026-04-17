@@ -305,22 +305,27 @@ export function ChatView() {
   }, [messages]);
 
   // ── Single scroll helper ──
-  // Uses the scroller element directly. Keeps retrying until the viewport actually reaches the
-  // bottom (gap < 2px) or a 500ms timeout expires. Each frame, Virtuoso measures items near the
-  // new viewport and adjusts scrollHeight — so we keep scrolling until it converges.
-  // For short sessions this converges in 1-2 frames; for long sessions (hundreds of messages
-  // with unmeasured items) it may take 10-20 frames but always reaches the true bottom.
+  // Uses the scroller element directly. After each scrollTo, waits one frame for Virtuoso to
+  // measure newly visible items and adjust scrollHeight, then checks if we actually reached the
+  // bottom. Repeats until converged (gap < 2px) or 1s timeout.
   const scrollToBottom = useCallback(() => {
     const el = scrollerElRef.current;
     if (!el) return;
-    const deadline = Date.now() + 500;
+    const deadline = Date.now() + 1000;
     const settle = () => {
       const el = scrollerElRef.current;
       if (!el || Date.now() > deadline) return;
       el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
-      if (el.scrollHeight - el.scrollTop - el.clientHeight > 2) {
-        requestAnimationFrame(settle);
-      }
+      // Check gap AFTER a frame — scrollTo instantly sets scrollTop to max (gap=0), but
+      // Virtuoso adjusts scrollHeight in the next frame as it measures newly rendered items.
+      // Without this delay, the gap check always sees 0 and stops prematurely.
+      requestAnimationFrame(() => {
+        const el = scrollerElRef.current;
+        if (!el || Date.now() > deadline) return;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight > 2) {
+          settle();
+        }
+      });
     };
     settle();
   }, []);
