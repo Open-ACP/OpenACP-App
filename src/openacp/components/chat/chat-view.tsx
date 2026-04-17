@@ -11,6 +11,7 @@ import { BrandIcon } from "../brand-loader";
 import { useChat } from "../../context/chat";
 import { useSessions } from "../../context/sessions";
 import { useWorkspace } from "../../context/workspace";
+import { useGitRepos } from "../../hooks/use-git-repos";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { UserMessage } from "./user-message";
 import {
@@ -40,23 +41,19 @@ import {
 
 function EmptyState() {
   const workspace = useWorkspace();
-  const [branch, setBranch] = useState<string | null>(null);
-  const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
+  const { repos: gitRepos } = useGitRepos(workspace.directory)
+  const [remoteUrl, setRemoteUrl] = useState<string | null>(null)
+
+  const branch = gitRepos.length > 0 ? gitRepos[0].branch : null
 
   useEffect(() => {
-    let cancelled = false;
-    invoke<string | null>("get_git_branch", { directory: workspace.directory })
-      .then((b) => !cancelled && setBranch(b))
-      .catch(() => !cancelled && setBranch(null));
-    invoke<string | null>("get_git_remote_url", {
-      directory: workspace.directory,
-    })
+    let cancelled = false
+    const dir = gitRepos.length > 0 ? gitRepos[0].path : workspace.directory
+    invoke<string | null>("get_git_remote_url", { directory: dir })
       .then((u) => !cancelled && setRemoteUrl(u))
-      .catch(() => !cancelled && setRemoteUrl(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [workspace.directory]);
+      .catch(() => !cancelled && setRemoteUrl(null))
+    return () => { cancelled = true }
+  }, [gitRepos, workspace.directory])
 
   const { parentPath, folderName } = useMemo(() => {
     const dir = workspace.directory.replace(/\/$/, "");
