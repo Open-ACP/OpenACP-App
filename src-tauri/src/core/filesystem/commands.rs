@@ -188,7 +188,7 @@ fn mime_from_ext(ext: &str) -> &'static str {
 #[tauri::command]
 pub fn get_workspace_changes(path: String) -> Result<Vec<FileChange>, String> {
     let output = std::process::Command::new("git")
-        .args(["status", "--porcelain", "-uall"])
+        .args(["status", "--porcelain"])
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;

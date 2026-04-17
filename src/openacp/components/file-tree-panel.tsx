@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useTransition, useMemo } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { Virtuoso } from "react-virtuoso"
 import { ResizeHandle } from "./ui/resize-handle"
 import { TreeNode, type FileNode } from "./file-tree/tree-node"
 import { GitDiff, Files, CaretRight, CaretDown, FolderSimple } from "@phosphor-icons/react"
@@ -8,6 +9,7 @@ import { useGitRepos, type GitRepoInfo } from "../hooks/use-git-repos"
 const DEFAULT_WIDTH = 280
 const MIN_WIDTH = 200
 const MAX_WIDTH = 480
+const ROW_HEIGHT = 24
 
 interface FileChange {
   path: string
@@ -38,6 +40,14 @@ const STATUS_LABELS: Record<string, string> = {
   untracked: "?",
 }
 
+// ── Virtual row types for flattened list ────────────────────────────
+
+type VirtualRow =
+  | { kind: "header"; repo: GitRepoInfo; count: number; collapsed: boolean }
+  | { kind: "change"; repoPath: string; change: FileChange }
+
+// ── Grouped changes (multi-repo) — virtualized ─────────────────────
+
 function GroupedChangesView({
   repoChanges,
   onOpenChange,
@@ -56,24 +66,39 @@ function GroupedChangesView({
     })
   }
 
-  return (
-    <div className="flex flex-col">
-      {repoChanges.map(({ repo, changes }) => {
-        const isCollapsed = collapsed.has(repo.path)
-        const hasChanges = changes.length > 0
+  const rows = useMemo<VirtualRow[]>(() => {
+    const result: VirtualRow[] = []
+    for (const { repo, changes } of repoChanges) {
+      const isCollapsed = collapsed.has(repo.path)
+      result.push({ kind: "header", repo, count: changes.length, collapsed: isCollapsed })
+      if (!isCollapsed && changes.length > 0) {
+        for (const change of changes) {
+          result.push({ kind: "change", repoPath: repo.path, change })
+        }
+      }
+    }
+    return result
+  }, [repoChanges, collapsed])
 
-        return (
-          <div key={repo.path}>
+  return (
+    <Virtuoso
+      totalCount={rows.length}
+      fixedItemHeight={ROW_HEIGHT}
+      itemContent={(index) => {
+        const row = rows[index]
+        if (row.kind === "header") {
+          const hasChanges = row.count > 0
+          return (
             <button
               type="button"
-              className={`flex items-center gap-1.5 w-full px-3 py-1.5 text-left transition-colors ${
+              className={`flex items-center gap-1.5 w-full px-3 h-6 text-left transition-colors ${
                 hasChanges ? "hover:bg-accent" : ""
               }`}
-              onClick={() => hasChanges && toggleCollapse(repo.path)}
+              onClick={() => hasChanges && toggleCollapse(row.repo.path)}
               disabled={!hasChanges}
             >
               {hasChanges ? (
-                isCollapsed ? (
+                row.collapsed ? (
                   <CaretRight size={10} className="shrink-0 text-fg-weakest" />
                 ) : (
                   <CaretDown size={10} className="shrink-0 text-fg-weakest" />
@@ -83,41 +108,70 @@ function GroupedChangesView({
               )}
               <FolderSimple size={12} weight="fill" className={`shrink-0 ${hasChanges ? "text-fg-weaker" : "text-fg-weakest"}`} />
               <span className={`text-xs truncate ${hasChanges ? "text-fg-weaker" : "text-fg-weakest"}`}>
-                {repo.name}
+                {row.repo.name}
               </span>
               <span className={`text-2xs ${hasChanges ? "text-fg-weak" : "text-fg-weakest"}`}>
-                {repo.branch}
+                {row.repo.branch}
               </span>
               <span className="flex-1" />
               {hasChanges && (
-                <span className="text-2xs text-fg-weakest">{changes.length}</span>
+                <span className="text-2xs text-fg-weakest">{row.count}</span>
               )}
             </button>
-
-            {hasChanges && !isCollapsed && (
-              <div className="flex flex-col">
-                {changes.map((change) => (
-                  <button
-                    key={`${repo.path}/${change.path}`}
-                    type="button"
-                    className="flex items-center gap-2 w-full text-left pl-7 pr-3 py-[3px] hover:bg-accent rounded-sm transition-colors text-sm"
-                    onClick={() => onOpenChange(repo.path, change.path)}
-                    title={change.path}
-                  >
-                    <span className={`text-2xs font-mono shrink-0 w-3 ${STATUS_COLORS[change.status]}`}>
-                      {STATUS_LABELS[change.status]}
-                    </span>
-                    <span className="truncate text-fg-weak">{change.path}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          )
+        }
+        return (
+          <button
+            type="button"
+            className="flex items-center gap-2 w-full text-left pl-7 pr-3 h-6 hover:bg-accent rounded-sm transition-colors text-sm"
+            onClick={() => onOpenChange(row.repoPath, row.change.path)}
+            title={row.change.path}
+          >
+            <span className={`text-2xs font-mono shrink-0 w-3 ${STATUS_COLORS[row.change.status]}`}>
+              {STATUS_LABELS[row.change.status]}
+            </span>
+            <span className="truncate text-fg-weak">{row.change.path}</span>
+          </button>
         )
-      })}
-    </div>
+      }}
+    />
   )
 }
+
+// ── Single-repo changes — virtualized ──────────────────────────────
+
+function SingleChangesView({
+  changes,
+  onOpenChange,
+}: {
+  changes: FileChange[]
+  onOpenChange: (filePath: string) => void
+}) {
+  return (
+    <Virtuoso
+      totalCount={changes.length}
+      fixedItemHeight={ROW_HEIGHT}
+      itemContent={(index) => {
+        const change = changes[index]
+        return (
+          <button
+            type="button"
+            className="flex items-center gap-2 w-full text-left px-3 h-6 hover:bg-accent rounded-sm transition-colors text-sm"
+            onClick={() => onOpenChange(change.path)}
+            title={change.path}
+          >
+            <span className={`text-2xs font-mono shrink-0 w-3 ${STATUS_COLORS[change.status]}`}>
+              {STATUS_LABELS[change.status]}
+            </span>
+            <span className="truncate text-fg-weak">{change.path}</span>
+          </button>
+        )
+      }}
+    />
+  )
+}
+
+// ── Main panel ─────────────────────────────────────────────────────
 
 export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
@@ -127,10 +181,10 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
   const [loading, setLoading] = useState(true)
   const [repoChanges, setRepoChanges] = useState<RepoChanges[]>([])
   const { mode: gitMode, repos: gitRepos } = useGitRepos(workspacePath)
-  // Stable key: only re-fetch when repo paths/branches actually change
   const reposKey = gitRepos.map((r) => `${r.path}:${r.branch}`).join("|")
 
   const [refreshKey, setRefreshKey] = useState(0)
+  const [, startTransition] = useTransition()
 
   // Refresh when workspace, mode, or refreshKey changes
   useEffect(() => {
@@ -145,18 +199,18 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
       Promise.all(
         gitRepos.map((repo) =>
           invoke<FileChange[]>("get_workspace_changes", { path: repo.path })
-            .then((changes) => ({ repo, changes }))
+            .then((c) => ({ repo, changes: c }))
             .catch(() => ({ repo, changes: [] as FileChange[] }))
         )
       )
-        .then(setRepoChanges)
+        .then((result) => startTransition(() => setRepoChanges(result)))
         .finally(() => setLoading(false))
     } else {
       invoke<FileChange[]>("get_workspace_changes", { path: workspacePath })
-        .then((c) => {
+        .then((c) => startTransition(() => {
           setChanges(c)
           setRepoChanges([])
-        })
+        }))
         .catch(() => {
           setChanges([])
           setRepoChanges([])
@@ -165,14 +219,13 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
     }
   }, [workspacePath, mode, refreshKey, gitMode, reposKey])
 
-  // Auto-refresh when agent modifies files (tool_call completed for file-related tools)
+  // Auto-refresh when agent modifies files
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout>
     function handleAgentEvent(e: Event) {
       const { event } = (e as CustomEvent).detail ?? {}
       if (!event) return
 
-      // Refresh when a file-related tool starts (SSE only sends pending, not completed)
       if (event.type === "tool_call") {
         const fileTools = ["write", "edit", "bash", "terminal", "notebookedit"]
         if (fileTools.includes(event.name?.toLowerCase())) {
@@ -182,7 +235,6 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
         return
       }
 
-      // Also refresh when agent response finishes (catches all changes)
       if (event.type === "usage") {
         clearTimeout(debounceTimer)
         debounceTimer = setTimeout(() => setRefreshKey(k => k + 1), 300)
@@ -247,17 +299,19 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 py-1">
+      <div className="flex-1 overflow-hidden min-h-0">
         {loading ? (
           <div className="px-3 py-4 text-sm text-muted-foreground">Loading...</div>
         ) : mode === "files" ? (
-          rootNodes.length > 0 ? (
-            rootNodes.map((node) => (
-              <TreeNode key={node.path} node={node} depth={0} onOpenFile={handleOpenFile} />
-            ))
-          ) : (
-            <div className="px-3 py-4 text-sm text-muted-foreground">No files found</div>
-          )
+          <div className="h-full overflow-y-auto overflow-x-hidden py-1">
+            {rootNodes.length > 0 ? (
+              rootNodes.map((node) => (
+                <TreeNode key={node.path} node={node} depth={0} onOpenFile={handleOpenFile} />
+              ))
+            ) : (
+              <div className="px-3 py-4 text-sm text-muted-foreground">No files found</div>
+            )}
+          </div>
         ) : repoChanges.length > 0 ? (
           <GroupedChangesView
             repoChanges={repoChanges}
@@ -267,22 +321,10 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
             }}
           />
         ) : changes.length > 0 ? (
-          <div className="flex flex-col">
-            {changes.map((change) => (
-              <button
-                key={change.path}
-                type="button"
-                className="flex items-center gap-2 w-full text-left px-3 py-[3px] hover:bg-accent rounded-sm transition-colors text-sm"
-                onClick={() => handleOpenChange(change.path)}
-                title={change.path}
-              >
-                <span className={`text-2xs font-mono shrink-0 w-3 ${STATUS_COLORS[change.status]}`}>
-                  {STATUS_LABELS[change.status]}
-                </span>
-                <span className="truncate text-fg-weak">{change.path}</span>
-              </button>
-            ))}
-          </div>
+          <SingleChangesView
+            changes={changes}
+            onOpenChange={handleOpenChange}
+          />
         ) : (
           <div className="px-3 py-4 text-sm text-muted-foreground">No changes</div>
         )}
