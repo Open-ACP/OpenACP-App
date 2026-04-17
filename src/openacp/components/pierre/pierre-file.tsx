@@ -122,6 +122,7 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
         renderGutterUtility={onComment ? renderGutterUtility : undefined}
         options={{
           enableLineSelection: true,
+          enableGutterUtility: !!onComment,
           onLineSelected: handleLineSelected,
         }}
         metrics={{
