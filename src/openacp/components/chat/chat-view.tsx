@@ -324,20 +324,31 @@ export function ChatView() {
     }
   }, [chat.scrollTrigger()]);
 
-  // During streaming, run a rAF loop to continuously scroll to the bottom of the last item.
-  // This is more reliable than Virtuoso's followOutput for rapidly growing blocks (e.g. thinking
-  // text spanning multiple screens), where ResizeObserver batching can cause the viewport to lag.
+  // Throttled catch-up scroll for rapidly growing blocks (e.g. thinking text spanning multiple
+  // screens). 100ms interval gives the user enough time (~6 frames) to scroll up and register
+  // intent between ticks, unlike a 60fps rAF loop which fights user input. Virtuoso's followOutput
+  // handles normal content updates; this interval handles cases where ResizeObserver batching
+  // causes followOutput to lag behind rapid single-item growth.
   useEffect(() => {
     if (!streaming) return;
-    let rafId: number;
-    const tick = () => {
-      if (!userScrolledUpRef.current) {
+    const id = setInterval(() => {
+      if (!userScrolledUpRef.current && atBottomRef.current) {
         virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
       }
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    }, 100);
+    return () => clearInterval(id);
+  }, [streaming]);
+
+  // Final scroll when streaming ends — catches content from charStream.flush() that may have
+  // increased content height after the streaming scroll mechanisms stopped.
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current && !streaming && !userScrolledUpRef.current) {
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
+      });
+    }
+    prevStreamingRef.current = streaming;
   }, [streaming]);
 
   const sessions = useSessions();
@@ -493,7 +504,10 @@ export function ChatView() {
                   )}
                 </div>
               )}
-              followOutput={false}
+              followOutput={(isAtBottom: boolean) => {
+                if (!streaming || userScrolledUpRef.current) return false;
+                return isAtBottom ? "auto" : false;
+              }}
               atBottomStateChange={(isAtBottom) => {
                 atBottomRef.current = isAtBottom;
                 if (isAtBottom) userScrolledUpRef.current = false;
