@@ -330,6 +330,12 @@ export function ChatView() {
   useEffect(() => {
     userScrolledUpRef.current = false;
     scrollToBottom();
+    // For cached sessions, messages update AFTER this effect runs (React batches separately).
+    // scrollTrigger doesn't fire for cached sessions, so we retry at increasing delays to
+    // catch the new content after Virtuoso has processed the updated flatItems.
+    const t1 = setTimeout(scrollToBottom, 100);
+    const t2 = setTimeout(scrollToBottom, 300);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [activeSessionId]);
 
   useEffect(() => {
