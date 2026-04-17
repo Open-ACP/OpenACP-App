@@ -312,17 +312,23 @@ export function ChatView() {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
   }, []);
 
-  // Persistent scroll: keeps scrolling every frame for up to 1s. Virtuoso adjusts scrollHeight
-  // across multiple frames as it mounts and measures items near the new viewport — a single
-  // scrollTo is never enough when jumping from far up in a long session. No gap-check: just
-  // scroll every frame and let the browser no-op when already at bottom.
+  // Persistent scroll: keeps scrolling every frame until Virtuoso converges scrollHeight.
+  // Uses a shared deadline ref so concurrent calls extend the window instead of spawning
+  // duplicate loops (session switch + scrollTrigger can fire close together).
+  const scrollDeadlineRef = useRef(0);
+  const scrollActiveRef = useRef(false);
   const scrollToBottom = useCallback(() => {
     const el = scrollerElRef.current;
     if (!el) return;
-    const deadline = Date.now() + 1000;
+    scrollDeadlineRef.current = Date.now() + 1000;
+    if (scrollActiveRef.current) return; // extend deadline only, loop already running
+    scrollActiveRef.current = true;
     const tick = () => {
       const el = scrollerElRef.current;
-      if (!el || Date.now() > deadline) return;
+      if (!el || Date.now() > scrollDeadlineRef.current) {
+        scrollActiveRef.current = false;
+        return;
+      }
       el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
       requestAnimationFrame(tick);
     };
@@ -333,20 +339,16 @@ export function ChatView() {
 
   useEffect(() => {
     userScrolledUpRef.current = false;
+    // Persistent loop runs for 1s — catches content from cached sessions that load after this
+    // effect runs. No timers needed: the loop's rAF ticks pick up scrollHeight changes as
+    // Virtuoso processes newly loaded messages.
     scrollToBottom();
-    // For cached sessions, messages update AFTER this effect runs (React batches separately).
-    // scrollTrigger doesn't fire for cached sessions, so we retry at increasing delays to
-    // catch the new content after Virtuoso has processed the updated flatItems.
-    const t1 = setTimeout(scrollToBottom, 100);
-    const t2 = setTimeout(scrollToBottom, 300);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [activeSessionId]);
 
   useEffect(() => {
     if (chat.scrollTrigger() > 0) {
       userScrolledUpRef.current = false;
-      // Wait one frame for new items to render before scrolling
-      requestAnimationFrame(scrollToBottom);
+      scrollToBottom();
     }
   }, [chat.scrollTrigger()]);
 
@@ -372,7 +374,7 @@ export function ChatView() {
   const prevStreamingRef = useRef(false);
   useEffect(() => {
     if (prevStreamingRef.current && !streaming && !userScrolledUpRef.current) {
-      requestAnimationFrame(scrollToBottom);
+      scrollToBottom();
     }
     prevStreamingRef.current = streaming;
   }, [streaming]);
