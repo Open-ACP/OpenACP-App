@@ -1,14 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { File } from "@pierre/diffs/react"
 import { Plus } from "@phosphor-icons/react"
-import type { FileContents, SelectedLineRange, LineAnnotation, GetHoveredLineResult } from "@pierre/diffs"
+import type { FileContents, SelectedLineRange } from "@pierre/diffs"
 import { Button } from "../ui/button"
-
-interface CommentAnnotation {
-  lineNumber: number
-  startLine: number
-  endLine: number
-}
 
 interface PierreFileProps {
   content: string
@@ -21,7 +15,9 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null)
   const [commenting, setCommenting] = useState(false)
   const [commentText, setCommentText] = useState("")
+  const [hoveredLine, setHoveredLine] = useState<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const file: FileContents = useMemo(() => ({
     name: filePath,
@@ -29,17 +25,48 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
     lang: language === "text" ? undefined : language,
   }), [filePath, content, language])
 
-  const annotations = useMemo<LineAnnotation<CommentAnnotation>[]>(() => {
-    if (!commenting || !selectedLines) return []
-    return [{
-      lineNumber: selectedLines.end,
-      metadata: {
-        lineNumber: selectedLines.end,
-        startLine: selectedLines.start,
-        endLine: selectedLines.end,
-      },
-    }]
-  }, [commenting, selectedLines])
+  // Track hovered line via pointer events on the diffs-container shadow DOM
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    function findLineNumber(el: HTMLElement): number | null {
+      let current: HTMLElement | null = el
+      while (current && current !== container) {
+        const lineAttr = current.getAttribute("data-line-number")
+        if (lineAttr) return parseInt(lineAttr, 10)
+        current = current.parentElement
+      }
+      return null
+    }
+
+    function onPointerMove(e: PointerEvent) {
+      const target = e.target as HTMLElement
+      // Look inside shadow DOM
+      const diffsEl = container?.querySelector("diffs-container")
+      if (!diffsEl?.shadowRoot) return
+      const elementsAtPoint = diffsEl.shadowRoot.elementsFromPoint(e.clientX, e.clientY)
+      for (const el of elementsAtPoint) {
+        const lineAttr = (el as HTMLElement).getAttribute?.("data-line-number")
+        if (lineAttr) {
+          setHoveredLine(parseInt(lineAttr, 10))
+          return
+        }
+      }
+      setHoveredLine(null)
+    }
+
+    function onPointerLeave() {
+      setHoveredLine(null)
+    }
+
+    container.addEventListener("pointermove", onPointerMove)
+    container.addEventListener("pointerleave", onPointerLeave)
+    return () => {
+      container.removeEventListener("pointermove", onPointerMove)
+      container.removeEventListener("pointerleave", onPointerLeave)
+    }
+  }, [])
 
   const handleLineSelected = useCallback((range: SelectedLineRange | null) => {
     setSelectedLines(range)
@@ -60,69 +87,21 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
     if (commenting) textareaRef.current?.focus()
   }, [commenting])
 
-  const renderAnnotation = useCallback((annotation: LineAnnotation<CommentAnnotation>) => {
-    return (
-      <div className="mx-3 my-1.5 rounded-lg border border-border bg-card p-3">
-        <textarea
-          ref={textareaRef}
-          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-y min-h-[60px] max-h-[120px] focus:outline-none"
-          placeholder="Add comment"
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmitComment()
-            if (e.key === "Escape") {
-              setCommenting(false)
-              setSelectedLines(null)
-            }
-          }}
-        />
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-muted-foreground">
-            {annotation.metadata?.startLine !== annotation.metadata?.endLine
-              ? `Lines ${annotation.metadata?.startLine}-${annotation.metadata?.endLine}`
-              : `Line ${annotation.metadata?.lineNumber}`}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => { setCommenting(false); setSelectedLines(null) }}>Cancel</Button>
-            <Button size="sm" disabled={!commentText.trim()} onClick={handleSubmitComment}>Comment</Button>
-          </div>
-        </div>
-      </div>
-    )
-  }, [commentText, handleSubmitComment])
-
-  const renderGutterUtility = useCallback((getHoveredLine: () => GetHoveredLineResult<"file"> | undefined) => {
-    if (!onComment || commenting) return null
-    const hovered = getHoveredLine()
-    if (!hovered) return null
-
-    return (
-      <button
-        className="size-4 flex items-center justify-center rounded-full bg-foreground text-background hover:bg-foreground/80 transition-colors"
-        onClick={() => {
-          if (!selectedLines) {
-            setSelectedLines({ start: hovered.lineNumber, end: hovered.lineNumber })
-          }
-          setCommenting(true)
-        }}
-      >
-        <Plus size={10} weight="bold" />
-      </button>
-    )
-  }, [onComment, commenting, selectedLines])
+  // Determine gutter button position
+  const showGutterBtn = onComment && !commenting && hoveredLine !== null
+  const gutterBtnLine = selectedLines
+    ? (hoveredLine !== null && hoveredLine >= selectedLines.start && hoveredLine <= selectedLines.end
+        ? selectedLines.end
+        : hoveredLine)
+    : hoveredLine
 
   return (
-    <div className="h-full w-full overflow-auto no-scrollbar">
+    <div ref={containerRef} className="h-full w-full overflow-auto no-scrollbar relative">
       <File
         file={file}
         selectedLines={selectedLines}
-        lineAnnotations={annotations}
-        renderAnnotation={renderAnnotation}
-        renderGutterUtility={onComment ? renderGutterUtility : undefined}
         options={{
           enableLineSelection: true,
-          enableGutterUtility: !!onComment,
           onLineSelected: handleLineSelected,
         }}
         metrics={{
@@ -135,6 +114,63 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
         className="select-text"
         style={{ fontSize: "12px" }}
       />
+
+      {/* Comment box — rendered as overlay after the selected line range */}
+      {commenting && selectedLines && (
+        <div
+          className="absolute left-0 right-0 z-10 px-2"
+          style={{ top: `${selectedLines.end * 20 + 8}px` }}
+        >
+          <div className="rounded-lg border border-border bg-card p-3 shadow-md">
+            <textarea
+              ref={textareaRef}
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-y min-h-[60px] max-h-[120px] focus:outline-none"
+              placeholder="Add comment"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmitComment()
+                if (e.key === "Escape") {
+                  setCommenting(false)
+                  setSelectedLines(null)
+                  setCommentText("")
+                }
+              }}
+            />
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-muted-foreground">
+                {selectedLines.start !== selectedLines.end
+                  ? `Lines ${selectedLines.start}-${selectedLines.end}`
+                  : `Line ${selectedLines.start}`}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => { setCommenting(false); setSelectedLines(null); setCommentText("") }}>Cancel</Button>
+                <Button size="sm" disabled={!commentText.trim()} onClick={handleSubmitComment}>Comment</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gutter "+" button — React overlay positioned by line number */}
+      {showGutterBtn && gutterBtnLine !== null && (
+        <button
+          className="absolute z-10 size-4 flex items-center justify-center rounded-full bg-foreground text-background hover:bg-foreground/80 transition-colors"
+          style={{
+            left: "4px",
+            top: `${(gutterBtnLine - 1) * 20 + 10}px`,
+            transform: "translateY(-50%)",
+          }}
+          onClick={() => {
+            if (!selectedLines) {
+              setSelectedLines({ start: gutterBtnLine, end: gutterBtnLine })
+            }
+            setCommenting(true)
+          }}
+        >
+          <Plus size={10} weight="bold" />
+        </button>
+      )}
     </div>
   )
 }
