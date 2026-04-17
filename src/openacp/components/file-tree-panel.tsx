@@ -111,9 +111,6 @@ function GroupedChangesView({
               <span className={`text-xs truncate min-w-0 ${hasChanges ? "text-fg-weaker" : "text-fg-weakest"}`}>
                 {row.repo.name}
               </span>
-              <span className={`text-2xs truncate min-w-0 shrink-[2] ${hasChanges ? "text-fg-weak" : "text-fg-weakest"}`}>
-                {row.repo.branch}
-              </span>
               {hasChanges && (
                 <span className="text-2xs text-fg-weakest shrink-0 ml-auto">{row.count}</span>
               )}
