@@ -217,12 +217,16 @@ export function ChatView() {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [atBottom, setAtBottom] = useState(true);
   // Tracks whether the user has intentionally scrolled up during streaming.
-  // Only set when the user has moved beyond atBottomThreshold (not on tiny wheel nudges within the
-  // threshold). Cleared when the viewport returns to the bottom or an explicit scroll is triggered.
+  // Set immediately on upward wheel input; cleared when the viewport returns to the bottom,
+  // an explicit scroll is triggered, or a debounced timer determines the scroll was accidental.
   const userScrolledUpRef = useRef(false);
   // Mirrors atBottom state as a ref so the onWheel handler can read it synchronously without
   // accessing stale closure state.
   const atBottomRef = useRef(true);
+  // Debounced reset timer: when onWheel sets userScrolledUpRef, this timer checks 300ms later
+  // whether the user actually left the bottom zone. If still at bottom, the scroll was accidental
+  // and the flag is cleared. Continuous scrolling resets the timer each event.
+  const scrollResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const messages = chat.messages();
   const streaming = chat.streaming();
@@ -331,11 +335,6 @@ export function ChatView() {
   useEffect(() => {
     if (!streaming) return;
     const id = setInterval(() => {
-      // If the flag is set but user is still within atBottomThreshold, the scroll was too small
-      // to trigger atBottomStateChange — auto-clear so we don't permanently lose auto-scroll.
-      if (userScrolledUpRef.current && atBottomRef.current) {
-        userScrolledUpRef.current = false;
-      }
       if (!userScrolledUpRef.current) {
         virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
       }
@@ -470,10 +469,18 @@ export function ChatView() {
       <div
         className="flex-1 min-h-0 overflow-hidden relative"
         onWheel={(e) => {
-          // Any upward scroll during streaming immediately disables auto-scroll.
-          // This matches standard chat app behaviour (Telegram, Discord, Slack): scroll up = stop
-          // following. User resumes by scrolling to bottom or clicking the scroll button.
-          if (e.deltaY < 0 && streaming) userScrolledUpRef.current = true;
+          // Upward scroll during streaming disables auto-scroll. Threshold of -2 filters
+          // sub-pixel trackpad inertia noise (macOS generates trailing negative deltaY after
+          // a downward momentum swipe). A debounced timer clears the flag after 300ms if the
+          // user is still within atBottomThreshold — treating it as an accidental nudge.
+          // Continuous scrolling resets the timer, so intentional slow scrolls are not cleared.
+          if (e.deltaY < -2 && streaming) {
+            userScrolledUpRef.current = true;
+            if (scrollResetTimerRef.current) clearTimeout(scrollResetTimerRef.current);
+            scrollResetTimerRef.current = setTimeout(() => {
+              if (atBottomRef.current) userScrolledUpRef.current = false;
+            }, 300);
+          }
         }}
       >
         {hasMessages ? (
@@ -513,9 +520,6 @@ export function ChatView() {
                 // Ignoring isAtBottom here is intentional: content growth can push the viewport
                 // past atBottomThreshold within a single rAF frame, which would make followOutput
                 // disengage. userScrolledUpRef is the sole gating signal for user intent.
-                if (userScrolledUpRef.current && atBottomRef.current) {
-                  userScrolledUpRef.current = false;
-                }
                 if (!streaming || userScrolledUpRef.current) return false;
                 return "auto";
               }}
