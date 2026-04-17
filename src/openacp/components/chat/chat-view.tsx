@@ -304,30 +304,29 @@ export function ChatView() {
     return items;
   }, [messages]);
 
-  // ── Single scroll helper ──
-  // Uses the scroller element directly. After each scrollTo, waits one frame for Virtuoso to
-  // measure newly visible items and adjust scrollHeight, then checks if we actually reached the
-  // bottom. Repeats until converged (gap < 2px) or 1s timeout.
+  // ── Scroll helpers ──
+
+  // Single-frame scroll: used by the streaming rAF loop (which already retries every frame).
+  const scrollToBottomOnce = useCallback(() => {
+    const el = scrollerElRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+  }, []);
+
+  // Persistent scroll: keeps scrolling every frame for up to 1s. Virtuoso adjusts scrollHeight
+  // across multiple frames as it mounts and measures items near the new viewport — a single
+  // scrollTo is never enough when jumping from far up in a long session. No gap-check: just
+  // scroll every frame and let the browser no-op when already at bottom.
   const scrollToBottom = useCallback(() => {
     const el = scrollerElRef.current;
     if (!el) return;
     const deadline = Date.now() + 1000;
-    const settle = () => {
+    const tick = () => {
       const el = scrollerElRef.current;
       if (!el || Date.now() > deadline) return;
       el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
-      // Check gap AFTER a frame — scrollTo instantly sets scrollTop to max (gap=0), but
-      // Virtuoso adjusts scrollHeight in the next frame as it measures newly rendered items.
-      // Without this delay, the gap check always sees 0 and stops prematurely.
-      requestAnimationFrame(() => {
-        const el = scrollerElRef.current;
-        if (!el || Date.now() > deadline) return;
-        if (el.scrollHeight - el.scrollTop - el.clientHeight > 2) {
-          settle();
-        }
-      });
+      requestAnimationFrame(tick);
     };
-    settle();
+    tick();
   }, []);
 
   // ── Explicit scroll triggers (always scroll + always reset flag) ──
@@ -362,7 +361,7 @@ export function ChatView() {
     if (!streaming) return;
     let rafId: number;
     const tick = () => {
-      if (!userScrolledUpRef.current) scrollToBottom();
+      if (!userScrolledUpRef.current) scrollToBottomOnce();
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
