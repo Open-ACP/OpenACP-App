@@ -362,6 +362,11 @@ export function ChatView() {
     prevStreamingRef.current = streaming;
   }, [streaming]);
 
+  // Clean up debounce timer on unmount to prevent stale ref access
+  useEffect(() => {
+    return () => { if (scrollResetTimerRef.current) clearTimeout(scrollResetTimerRef.current); };
+  }, []);
+
   const sessions = useSessions();
   const sessionTitle = useMemo(() => {
     if (!activeSessionId) return "";
