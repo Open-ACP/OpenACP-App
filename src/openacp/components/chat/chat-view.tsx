@@ -301,13 +301,17 @@ export function ChatView() {
 
   // Scroll to bottom on session switch
   useEffect(() => {
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
+    // align: "end" is intentionally omitted — items are unmeasured at this point (defaultItemHeight
+    // estimates), so Virtuoso cannot reliably compute the end-aligned position. Default behaviour
+    // scrolls to show the last item at the viewport bottom when it is below the fold.
+    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" });
   }, [activeSessionId]);
 
   // Scroll to bottom when triggered (user sent message, cross-adapter turn, history loaded)
   useEffect(() => {
     if (chat.scrollTrigger() > 0) {
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
+      // Same reason as above — avoid align: "end" before items have been measured.
+      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" });
     }
   }, [chat.scrollTrigger()]);
 
