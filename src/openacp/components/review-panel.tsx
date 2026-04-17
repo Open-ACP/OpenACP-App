@@ -197,13 +197,20 @@ export interface OpenFile {
   language: string
 }
 
+export interface RequestedDiff {
+  path: string
+  before: string
+  after: string
+  language: string
+}
+
 export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onRequestedTabHandled, requestedDiffPath, onRequestedDiffHandled }: {
   onClose: () => void
   openFiles?: OpenFile[]
   onCloseFile?: (path: string)=> void
   requestedTab?: string | null
   onRequestedTabHandled?: () => void
-  requestedDiffPath?: string | null
+  requestedDiffPath?: RequestedDiff | null
   onRequestedDiffHandled?: () => void
 }) {
   const chat = useChat();
@@ -237,6 +244,21 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
     }));
   }, [chat.messages()]);
 
+  // Git working tree diffs (from files panel changes tab)
+  const [gitDiffs, setGitDiffs] = useState<Map<string, { before: string; after: string }>>(new Map())
+
+  // Combine agent diffs + git working tree diffs
+  const allDiffs = useMemo(() => {
+    const agentPaths = new Set(fileDiffs.map((d) => d.path))
+    const gitEntries = Array.from(gitDiffs.entries())
+      .filter(([path]) => !agentPaths.has(path))
+      .map(([path, { before, after }]) => ({
+        path,
+        diff: { path, before, after } as FileDiffData,
+      }))
+    return [...fileDiffs, ...gitEntries]
+  }, [fileDiffs, gitDiffs])
+
   const openFileTabs = openFiles ?? [];
 
   // Handle requested tab from parent (always switch, even if already in list)
@@ -250,15 +272,16 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
   // Handle requested diff from files panel changes tab
   useEffect(() => {
     if (!requestedDiffPath) return
-    const matched = fileDiffs.find(
-      (d) => d.path === requestedDiffPath || d.path.endsWith(requestedDiffPath) || requestedDiffPath.endsWith(d.path)
-    )
+    // Add git diff to local state
+    setGitDiffs((prev) => {
+      const next = new Map(prev)
+      next.set(requestedDiffPath.path, { before: requestedDiffPath.before, after: requestedDiffPath.after })
+      return next
+    })
     setSelectedTab(null) // switch to review tab
-    if (matched) {
-      setExpandedDiffs((prev) => new Set(prev).add(matched.path))
-    }
+    setExpandedDiffs((prev) => new Set(prev).add(requestedDiffPath.path))
     onRequestedDiffHandled?.()
-  }, [requestedDiffPath, fileDiffs, onRequestedDiffHandled])
+  }, [requestedDiffPath, onRequestedDiffHandled])
 
   // "review" = built-in review tab, or a file path for open file tabs
   const activeView = selectedTab ?? "review";
@@ -311,8 +334,8 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
           onClick={() => setSelectedTab(null)}
         >
           <span className="text-sm font-medium">Review</span>
-          {fileDiffs.length > 0 && (
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-secondary text-foreground">{fileDiffs.length}</span>
+          {allDiffs.length > 0 && (
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-secondary text-foreground">{allDiffs.length}</span>
           )}
         </button>
         {openFileTabs.length > 0 && (
@@ -330,7 +353,7 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
       {/* Review tab content */}
       {activeView === "review" && (
         <>
-          {fileDiffs.length === 0 ? (
+          {allDiffs.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <div className="text-sm leading-lg text-muted-foreground">
@@ -348,17 +371,17 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
                 <button
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
                   onClick={() => {
-                    if (expandedDiffs.size === fileDiffs.length) {
+                    if (expandedDiffs.size === allDiffs.length) {
                       setExpandedDiffs(new Set());
                     } else {
-                      setExpandedDiffs(new Set(fileDiffs.map(d => d.path)));
+                      setExpandedDiffs(new Set(allDiffs.map(d => d.path)));
                     }
                   }}
                 >
-                  {expandedDiffs.size === fileDiffs.length ? "Collapse all" : "Expand all"}
+                  {expandedDiffs.size === allDiffs.length ? "Collapse all" : "Expand all"}
                 </button>
               </div>
-              {fileDiffs.map(({ path, diff }) => {
+              {allDiffs.map(({ path, diff }) => {
                 const isExpanded = expandedDiffs.has(path);
                 return (
                   <div key={path} className="border-b border-border-weak">
