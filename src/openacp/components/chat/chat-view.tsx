@@ -324,21 +324,6 @@ export function ChatView() {
     }
   }, [chat.scrollTrigger()]);
 
-  // Throttled catch-up scroll for rapidly growing blocks (e.g. thinking text spanning multiple
-  // screens). 100ms interval gives the user enough time (~6 frames) to scroll up and register
-  // intent between ticks, unlike a 60fps rAF loop which fights user input. Virtuoso's followOutput
-  // handles normal content updates; this interval handles cases where ResizeObserver batching
-  // causes followOutput to lag behind rapid single-item growth.
-  useEffect(() => {
-    if (!streaming) return;
-    const id = setInterval(() => {
-      if (!userScrolledUpRef.current && atBottomRef.current) {
-        virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
-      }
-    }, 100);
-    return () => clearInterval(id);
-  }, [streaming]);
-
   // Final scroll when streaming ends — catches content from charStream.flush() that may have
   // increased content height after the streaming scroll mechanisms stopped.
   const prevStreamingRef = useRef(false);
@@ -466,10 +451,10 @@ export function ChatView() {
       <div
         className="flex-1 min-h-0 overflow-hidden relative"
         onWheel={(e) => {
-          // Only disable auto-scroll when the user has actually moved beyond the atBottomThreshold.
-          // Ignoring wheel events while still within the threshold prevents tiny trackpad nudges
-          // from permanently disabling streaming auto-scroll.
-          if (e.deltaY < 0 && !atBottomRef.current) userScrolledUpRef.current = true;
+          // Any upward scroll during streaming immediately disables auto-scroll.
+          // This matches standard chat app behaviour (Telegram, Discord, Slack): scroll up = stop
+          // following. User resumes by scrolling to bottom or clicking the scroll button.
+          if (e.deltaY < 0 && streaming) userScrolledUpRef.current = true;
         }}
       >
         {hasMessages ? (
@@ -504,9 +489,13 @@ export function ChatView() {
                   )}
                 </div>
               )}
-              followOutput={(isAtBottom: boolean) => {
+              followOutput={() => {
+                // Always follow during streaming unless user explicitly scrolled up.
+                // Ignoring isAtBottom here is intentional: content growth can push the viewport
+                // past atBottomThreshold within a single rAF frame, which would make followOutput
+                // disengage. userScrolledUpRef is the sole gating signal for user intent.
                 if (!streaming || userScrolledUpRef.current) return false;
-                return isAtBottom ? "auto" : false;
+                return "auto";
               }}
               atBottomStateChange={(isAtBottom) => {
                 atBottomRef.current = isAtBottom;
