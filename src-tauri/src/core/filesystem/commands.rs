@@ -221,6 +221,50 @@ pub fn get_workspace_changes(path: String) -> Result<Vec<FileChange>, String> {
     Ok(changes)
 }
 
+/// Get git diff for a single file (before and after content).
+/// For tracked modified files: returns HEAD version as `before` and working tree as `after`.
+/// For untracked files: returns empty `before` and file content as `after`.
+#[derive(Clone, serde::Serialize)]
+pub struct FileDiffContent {
+    pub before: String,
+    pub after: String,
+    pub language: String,
+}
+
+#[tauri::command]
+pub fn get_file_diff(repo_path: String, file_path: String) -> Result<FileDiffContent, String> {
+    let full_path = std::path::Path::new(&repo_path).join(&file_path);
+    let ext = full_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let language = language_from_ext(ext);
+
+    // Try to get HEAD version (before)
+    let before_output = std::process::Command::new("git")
+        .args(["show", &format!("HEAD:{file_path}")])
+        .current_dir(&repo_path)
+        .output();
+
+    let before = match before_output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => String::new(), // New file or not in HEAD
+    };
+
+    // Read current working tree version (after)
+    let after = if full_path.exists() {
+        std::fs::read_to_string(&full_path).unwrap_or_default()
+    } else {
+        String::new() // Deleted file
+    };
+
+    Ok(FileDiffContent {
+        before,
+        after,
+        language,
+    })
+}
+
 fn language_from_ext(ext: &str) -> String {
     match ext {
         "ts" | "tsx" => "typescript",

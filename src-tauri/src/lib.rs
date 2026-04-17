@@ -112,6 +112,7 @@ pub fn run() {
             core::filesystem::commands::read_file_base64,
             core::filesystem::commands::get_workspace_changes,
             core::filesystem::commands::discover_git_repos,
+            core::filesystem::commands::get_file_diff,
             // Browser panel commands
             core::browser::browser_show,
             core::browser::browser_navigate,

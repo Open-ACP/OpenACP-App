@@ -278,9 +278,25 @@ function ChatWithPermissions({
         console.error("[open-file-in-review] failed:", err);
       }
     }
+    // Open diff from files panel changes tab as a file tab
+    function handleOpenDiffInReview(e: Event) {
+      const { path, before, after, language } = (e as CustomEvent).detail ?? {};
+      if (!path) return;
+      const tabPath = `diff:${path}`;
+      setOpenFiles((prev) => {
+        if (prev.some((f) => f.path === tabPath)) return prev;
+        return [...prev, { path: tabPath, content: after ?? "", language: language ?? "text", diff: { before: before ?? "", after: after ?? "" } }];
+      });
+      setRequestedTab(tabPath);
+      setReviewOpen(true);
+    }
+
     window.addEventListener("open-file-in-review", handleOpenFromChat);
-    return () =>
+    window.addEventListener("open-diff-in-review", handleOpenDiffInReview);
+    return () => {
       window.removeEventListener("open-file-in-review", handleOpenFromChat);
+      window.removeEventListener("open-diff-in-review", handleOpenDiffInReview);
+    };
   }, [handleOpenFile, isRemote]);
 
   return (

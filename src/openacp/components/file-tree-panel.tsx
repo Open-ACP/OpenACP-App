@@ -280,15 +280,28 @@ export function FileTreePanel({ workspacePath, onOpenFile }: FileTreePanelProps)
     }
   }, [onOpenFile])
 
+  // Open changed file diff in review panel
+  const openChangeDiff = useCallback(async (repoPath: string, filePath: string) => {
+    try {
+      const result = await invoke<{ before: string; after: string; language: string }>(
+        "get_file_diff",
+        { repoPath, filePath }
+      )
+      window.dispatchEvent(new CustomEvent("open-diff-in-review", {
+        detail: { path: filePath, before: result.before, after: result.after, language: result.language }
+      }))
+    } catch (e) {
+      console.error("[file-tree] failed to get diff:", e)
+    }
+  }, [])
+
   const handleOpenChange = useCallback((filePath: string) => {
-    const absPath = filePath.startsWith("/") ? filePath : `${workspacePath}/${filePath}`
-    handleOpenFile(absPath)
-  }, [workspacePath, handleOpenFile])
+    openChangeDiff(workspacePath, filePath)
+  }, [workspacePath, openChangeDiff])
 
   const handleGroupedOpenChange = useCallback((repoPath: string, filePath: string) => {
-    const absPath = filePath.startsWith("/") ? filePath : `${repoPath}/${filePath}`
-    handleOpenFile(absPath)
-  }, [handleOpenFile])
+    openChangeDiff(repoPath, filePath)
+  }, [openChangeDiff])
 
   return (
     <div
