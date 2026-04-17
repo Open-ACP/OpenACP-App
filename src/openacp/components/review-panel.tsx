@@ -197,12 +197,14 @@ export interface OpenFile {
   language: string
 }
 
-export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onRequestedTabHandled }: {
+export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onRequestedTabHandled, requestedDiffPath, onRequestedDiffHandled }: {
   onClose: () => void
   openFiles?: OpenFile[]
   onCloseFile?: (path: string)=> void
   requestedTab?: string | null
   onRequestedTabHandled?: () => void
+  requestedDiffPath?: string | null
+  onRequestedDiffHandled?: () => void
 }) {
   const chat = useChat();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -245,23 +247,18 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
     }
   }, [requestedTab, onRequestedTabHandled])
 
-  // Listen for "open-diff-in-review" from files panel changes tab
+  // Handle requested diff from files panel changes tab
   useEffect(() => {
-    function handleOpenDiff(e: Event) {
-      const { path: requestedPath } = (e as CustomEvent).detail ?? {}
-      if (!requestedPath) return
-      // Match by exact path or by suffix (git status path vs tool.diff.path may differ)
-      const matchedDiff = fileDiffs.find(
-        (d) => d.path === requestedPath || d.path.endsWith(requestedPath) || requestedPath.endsWith(d.path)
-      )
-      setSelectedTab(null)
-      if (matchedDiff) {
-        setExpandedDiffs((prev) => new Set(prev).add(matchedDiff.path))
-      }
+    if (!requestedDiffPath) return
+    const matched = fileDiffs.find(
+      (d) => d.path === requestedDiffPath || d.path.endsWith(requestedDiffPath) || requestedDiffPath.endsWith(d.path)
+    )
+    setSelectedTab(null) // switch to review tab
+    if (matched) {
+      setExpandedDiffs((prev) => new Set(prev).add(matched.path))
     }
-    window.addEventListener("open-diff-in-review", handleOpenDiff)
-    return () => window.removeEventListener("open-diff-in-review", handleOpenDiff)
-  }, [fileDiffs])
+    onRequestedDiffHandled?.()
+  }, [requestedDiffPath, fileDiffs, onRequestedDiffHandled])
 
   // "review" = built-in review tab, or a file path for open file tabs
   const activeView = selectedTab ?? "review";
