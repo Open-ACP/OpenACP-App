@@ -96,15 +96,15 @@ function GroupedChangesView({
               onClick={() => toggleExpand(row.repo.path)}
             >
               {row.collapsed ? (
-                <CaretRight size={10} className="shrink-0 text-fg-weakest" />
+                <CaretRight size={10} className="shrink-0 text-fg-weak" />
               ) : (
-                <CaretDown size={10} className="shrink-0 text-fg-weakest" />
+                <CaretDown size={10} className="shrink-0 text-fg-weak" />
               )}
-              <FolderSimple size={12} weight="fill" className="shrink-0 text-fg-weaker" />
-              <span className="text-xs truncate min-w-0 text-fg-weaker">
+              <FolderSimple size={12} weight="fill" className="shrink-0 text-fg-weak" />
+              <span className="text-xs truncate min-w-0 text-fg-base font-medium">
                 {row.repo.name}
               </span>
-              <span className="text-2xs text-fg-weakest shrink-0 ml-auto">{row.count}</span>
+              <span className="text-2xs text-fg-weaker shrink-0 ml-auto">{row.count}</span>
             </button>
           )
         }
