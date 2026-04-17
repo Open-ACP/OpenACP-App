@@ -305,21 +305,24 @@ export function ChatView() {
   }, [messages]);
 
   // ── Single scroll helper ──
-  // Uses the scroller element directly. Retries across multiple frames because Virtuoso adjusts
-  // its total scrollHeight as items near the bottom get measured — each scroll gets closer to
-  // the true bottom. Typically converges within 3-4 frames (~50-65ms).
+  // Uses the scroller element directly. Keeps retrying until the viewport actually reaches the
+  // bottom (gap < 2px) or a 500ms timeout expires. Each frame, Virtuoso measures items near the
+  // new viewport and adjusts scrollHeight — so we keep scrolling until it converges.
+  // For short sessions this converges in 1-2 frames; for long sessions (hundreds of messages
+  // with unmeasured items) it may take 10-20 frames but always reaches the true bottom.
   const scrollToBottom = useCallback(() => {
     const el = scrollerElRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
-    let remaining = 5;
+    const deadline = Date.now() + 500;
     const settle = () => {
       const el = scrollerElRef.current;
-      if (!el || --remaining <= 0) return;
+      if (!el || Date.now() > deadline) return;
       el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
-      requestAnimationFrame(settle);
+      if (el.scrollHeight - el.scrollTop - el.clientHeight > 2) {
+        requestAnimationFrame(settle);
+      }
     };
-    requestAnimationFrame(settle);
+    settle();
   }, []);
 
   // ── Explicit scroll triggers (always scroll + always reset flag) ──
