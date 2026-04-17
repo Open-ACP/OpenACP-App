@@ -184,7 +184,7 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
       />
 
       {/* Tab bar: Review fixed + file tabs scrollable */}
-      <div className="shrink-0 flex items-center h-9 border-b border-border-weak">
+      <div className="shrink-0 flex items-center h-9 border-b border-border-weak overflow-hidden">
         <button
           className={`flex items-center gap-1.5 px-3 shrink-0 transition-colors ${activeView === "review" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           onClick={() => setSelectedTab(null)}
@@ -265,12 +265,14 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
 
       {/* Open file tab content */}
       {activeView !== "review" && currentFile && (
-        <PierreFile
-          content={currentFile.content}
-          language={currentFile.language}
-          filePath={currentFile.path}
-          onComment={handleCodeComment}
-        />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <PierreFile
+            content={currentFile.content}
+            language={currentFile.language}
+            filePath={currentFile.path}
+            onComment={handleCodeComment}
+          />
+        </div>
       )}
     </div>
   );
