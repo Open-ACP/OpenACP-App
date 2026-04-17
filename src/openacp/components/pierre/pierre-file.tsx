@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react"
-import { File, Virtualizer } from "@pierre/diffs/react"
+import { File } from "@pierre/diffs/react"
 import { Plus } from "@phosphor-icons/react"
 import type { FileContents, SelectedLineRange, LineAnnotation, GetHoveredLineResult } from "@pierre/diffs"
 import { Button } from "../ui/button"
@@ -113,10 +113,7 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
   }, [onComment, commenting, selectedLines])
 
   return (
-    <Virtualizer
-      className="h-full w-full"
-      contentClassName="select-text"
-    >
+    <div className="h-full w-full overflow-auto no-scrollbar">
       <File
         file={file}
         selectedLines={selectedLines}
@@ -134,8 +131,9 @@ export function PierreFile({ content, language, filePath, onComment }: PierreFil
           diffHeaderHeight: 0,
           fileGap: 0,
         }}
+        className="select-text"
         style={{ fontSize: "12px" }}
       />
-    </Virtualizer>
+    </div>
   )
 }
