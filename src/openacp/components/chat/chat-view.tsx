@@ -324,6 +324,20 @@ export function ChatView() {
     }
   }, [chat.scrollTrigger()]);
 
+  // Supplementary scroll for rapidly growing items (e.g. thinking text). followOutput only fires
+  // when new items are added, not when an existing item grows. This interval catches growing-item
+  // cases. Because onWheel sets userScrolledUpRef=true immediately (no gate), the interval never
+  // fights user input: the flag is already set before the first tick after user starts scrolling.
+  useEffect(() => {
+    if (!streaming) return;
+    const id = setInterval(() => {
+      if (!userScrolledUpRef.current) {
+        virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto", align: "end" });
+      }
+    }, 80);
+    return () => clearInterval(id);
+  }, [streaming]);
+
   // Final scroll when streaming ends — catches content from charStream.flush() that may have
   // increased content height after the streaming scroll mechanisms stopped.
   const prevStreamingRef = useRef(false);
