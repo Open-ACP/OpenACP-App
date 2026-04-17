@@ -208,18 +208,31 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_WIDTH);
 
+  // Accumulate diffs: first edit's `before` + last edit's `after` per file
   const fileDiffs = useMemo(() => {
-    const diffs = new Map<string, FileDiffData>();
+    const firstBefore = new Map<string, string | undefined>();
+    const lastAfter = new Map<string, FileDiffData>();
     for (const msg of chat.messages()) {
       if (msg.role !== "assistant") continue;
       for (const part of msg.parts) {
         if (part.type !== "tool_call") continue;
         const tool = part as ToolCallPart;
         if (!tool.diff?.path) continue;
-        diffs.set(tool.diff.path, tool.diff);
+        // Keep the very first `before` (original file state)
+        if (!firstBefore.has(tool.diff.path)) {
+          firstBefore.set(tool.diff.path, tool.diff.before);
+        }
+        // Always update to latest `after`
+        lastAfter.set(tool.diff.path, tool.diff);
       }
     }
-    return Array.from(diffs.entries()).map(([path, diff]) => ({ path, diff }));
+    return Array.from(lastAfter.entries()).map(([path, diff]) => ({
+      path,
+      diff: {
+        ...diff,
+        before: firstBefore.get(path),
+      },
+    }));
   }, [chat.messages()]);
 
   const openFileTabs = openFiles ?? [];
@@ -231,6 +244,19 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
       onRequestedTabHandled?.()
     }
   }, [requestedTab, onRequestedTabHandled])
+
+  // Listen for "open-diff-in-review" from files panel changes tab
+  useEffect(() => {
+    function handleOpenDiff(e: Event) {
+      const { path } = (e as CustomEvent).detail ?? {}
+      if (!path) return
+      // Switch to review tab and expand the file's diff
+      setSelectedTab(null)
+      setExpandedDiffs((prev) => new Set(prev).add(path))
+    }
+    window.addEventListener("open-diff-in-review", handleOpenDiff)
+    return () => window.removeEventListener("open-diff-in-review", handleOpenDiff)
+  }, [])
 
   // "review" = built-in review tab, or a file path for open file tabs
   const activeView = selectedTab ?? "review";
