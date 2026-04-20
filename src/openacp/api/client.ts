@@ -178,7 +178,7 @@ export function createApiClient(server: ServerInfo, workspaceId?: string) {
 
     /** Cancel/abort the current prompt in a session */
     async cancelPrompt(sessionID: string): Promise<void> {
-      await api(`/sessions/${encodeURIComponent(sessionID)}/cancel`, {
+      await api(`/sse/sessions/${encodeURIComponent(sessionID)}/cancel`, {
         method: "POST",
       })
     },
