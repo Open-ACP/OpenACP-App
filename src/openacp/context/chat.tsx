@@ -16,6 +16,7 @@ import {
 } from "../components/chat/block-utils"
 import * as charStream from "../lib/char-stream"
 import { getSetting } from "../lib/settings-store"
+import { showToast } from "../lib/toast"
 
 interface ChatContext {
   messages: () => Message[]
@@ -29,7 +30,7 @@ interface ChatContext {
   scrollTrigger: () => number
   setActiveSession: (id: string) => void
   sendPrompt: (text: string, attachments?: import("../types").FileAttachment[]) => Promise<boolean>
-  abort: () => void
+  abort: () => Promise<void>
   connect: () => void
   addCommandResponse: (sessionID: string, text: string, role?: "user" | "assistant") => void
 }
@@ -329,6 +330,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           // Local turnIds (random UUID) differ from server turnIds (turn index), so match
           // by position: find the Nth interrupted assistant message locally, mark the Nth
           // assistant message from the server.
+          // Known limitation: if the server returns more assistant messages than the client
+          // has seen (e.g. cross-adapter turns from another session participant), position
+          // indices will be off and interrupted flags may land on the wrong message.
           const localInterruptedIndices = new Set<number>()
           let localAstIdx = 0
           for (const m of local) {
@@ -339,10 +343,12 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
           }
           if (localInterruptedIndices.size > 0) {
             let serverAstIdx = 0
-            for (const msg of serverMessages) {
+            for (let i = 0; i < serverMessages.length; i++) {
+              const msg = serverMessages[i]
               if (msg.role === "assistant") {
                 if (localInterruptedIndices.has(serverAstIdx) && !msg.interrupted) {
-                  msg.interrupted = true
+                  // Create a new object rather than mutating in-place for safety
+                  serverMessages[i] = { ...msg, interrupted: true }
                 }
                 serverAstIdx++
               }
@@ -1126,8 +1132,9 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
     // Instant mode: interrupt current turn before sending new message.
     // Await abort so the server has acknowledged cancellation before we send the new prompt,
     // preventing the race where cancel arrives after the new prompt starts processing.
+    // Race against 5s so a slow server doesn't block the user from sending a new message.
     if (store.streaming && store.activeSession && messageModeRef.current === "instant") {
-      await abort()
+      await Promise.race([abort(), new Promise<void>(resolve => setTimeout(resolve, 5_000))])
       // Do NOT clear the abort guard here — handleMessageProcessing
       // clears it when the NEW turn's message:processing event arrives.
     }
@@ -1306,6 +1313,7 @@ export function ChatProvider({ children, onPermissionRequest, onPermissionResolv
       await workspace.client.cancelPrompt(sessionID)
     } catch (e) {
       console.warn("[Chat] cancelPrompt failed:", e)
+      showToast({ description: "Interrupt failed — the server may still be processing.", variant: "error" })
     }
     // Fallback: clear guard after 10s even if server never responds
     setTimeout(() => {
