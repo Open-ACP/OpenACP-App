@@ -38,43 +38,19 @@ function NodeRenderer({
   path: number[]
   tab: TerminalTab
 }) {
+  // Leaves and splits call different render paths but the same set of hooks
+  // MUST be invoked unconditionally on every render — otherwise a node that
+  // morphs between leaf and split (e.g. after splitActive / closeLeaf) would
+  // violate React's hook-order rule and throw "Rendered more hooks…".
   const { backend, setActiveLeaf, setSplitRatio, closeLeaf, activeTabId } =
     useTerminal()
-  const isActive = activeTabId === tab.id
   const containerRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ size: number; ratio: number } | null>(null)
 
-  if (node.type === "leaf") {
-    const focused = tab.activeLeaf === node.sessionId
-    return (
-      <div
-        className={`relative h-full w-full ${
-          focused && isActive ? "ring-1 ring-inset ring-border-strong" : ""
-        }`}
-        onMouseDown={() => setActiveLeaf(node.sessionId)}
-      >
-        <TerminalRenderer sessionId={node.sessionId} backend={backend} />
-        {/* Per-leaf close button: appears on hover so single-pane tabs stay clean. */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            void closeLeaf(node.sessionId)
-          }}
-          className="absolute right-1 top-1 z-20 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-accent hover:opacity-100 group-hover:opacity-60"
-          aria-label="Close pane"
-          title="Close pane"
-        >
-          <X size={10} />
-        </button>
-      </div>
-    )
-  }
-
-  // Split
-  const isRow = node.direction === "horizontal"
-  const childAPath = [...path, 0]
-  const childBPath = [...path, 1]
+  // Direction flags default safely for leaves so useCallback deps are stable.
+  const isSplit = node.type === "split"
+  const isRow = isSplit && node.direction === "horizontal"
+  const splitRatio = isSplit ? node.ratio : 0.5
 
   const onResize = useCallback(
     (delta: number) => {
@@ -98,16 +74,47 @@ function NodeRenderer({
     const rect = container.getBoundingClientRect()
     dragStartRef.current = {
       size: isRow ? rect.width : rect.height,
-      ratio: node.ratio,
+      ratio: splitRatio,
     }
-  }, [isRow, node.ratio])
+  }, [isRow, splitRatio])
 
+  if (node.type === "leaf") {
+    const focused = tab.activeLeaf === node.sessionId
+    const isActive = activeTabId === tab.id
+    return (
+      <div
+        className={`group relative h-full w-full ${
+          focused && isActive ? "ring-1 ring-inset ring-border-strong" : ""
+        }`}
+        onMouseDown={() => setActiveLeaf(node.sessionId)}
+      >
+        <TerminalRenderer sessionId={node.sessionId} backend={backend} />
+        {/* Per-leaf close button: appears on hover so single-pane tabs stay clean. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            void closeLeaf(node.sessionId)
+          }}
+          className="absolute right-1 top-1 z-20 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-accent hover:opacity-100 group-hover:opacity-60"
+          aria-label="Close pane"
+          title="Close pane"
+        >
+          <X size={10} />
+        </button>
+      </div>
+    )
+  }
+
+  // Split branch
+  const childAPath = [...path, 0]
+  const childBPath = [...path, 1]
   return (
     <div
       ref={containerRef}
       className={`flex h-full w-full ${isRow ? "flex-row" : "flex-col"}`}
     >
-      <div style={{ flex: `${node.ratio} 1 0%`, minWidth: 0, minHeight: 0 }}>
+      <div style={{ flex: `${splitRatio} 1 0%`, minWidth: 0, minHeight: 0 }}>
         <NodeRenderer node={node.a} path={childAPath} tab={tab} />
       </div>
       <SplitDivider
@@ -115,7 +122,7 @@ function NodeRenderer({
         onResize={onResize}
         onResizeStart={onResizeStart}
       />
-      <div style={{ flex: `${1 - node.ratio} 1 0%`, minWidth: 0, minHeight: 0 }}>
+      <div style={{ flex: `${1 - splitRatio} 1 0%`, minWidth: 0, minHeight: 0 }}>
         <NodeRenderer node={node.b} path={childBPath} tab={tab} />
       </div>
     </div>
@@ -131,43 +138,40 @@ function SplitDivider({
   onResize,
   onResizeStart,
 }: {
-  direction: "horizontal" | "vertical" // visual orientation of the handle bar
+  /** Visual orientation of the handle bar: horizontal = wide thin bar between
+   *  stacked panes; vertical = tall thin bar between side-by-side panes. */
+  direction: "horizontal" | "vertical"
   onResize: (delta: number) => void
   onResizeStart: () => void
 }) {
-  const startRef = useRef<{ x: number; y: number } | null>(null)
-  const isHorizontal = direction === "horizontal" // handle bar goes horizontally → split is vertical (stacked)
+  const isHorizontal = direction === "horizontal"
 
-  useEffect(() => {
-    function onMove(e: MouseEvent) {
-      const start = startRef.current
-      if (!start) return
-      const delta = isHorizontal ? e.clientY - start.y : e.clientX - start.x
-      onResize(delta)
-    }
-    function onUp() {
-      startRef.current = null
-      document.body.style.cursor = ""
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-    }
-    if (!startRef.current) return
-    window.addEventListener("mousemove", onMove)
-    window.addEventListener("mouseup", onUp)
-    return () => {
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-    }
-  })
+  const handleMouseDown = useCallback(
+    (downEvent: React.MouseEvent) => {
+      downEvent.preventDefault()
+      const startX = downEvent.clientX
+      const startY = downEvent.clientY
+      onResizeStart()
+      document.body.style.cursor = isHorizontal ? "row-resize" : "col-resize"
+
+      function onMove(e: MouseEvent) {
+        const delta = isHorizontal ? e.clientY - startY : e.clientX - startX
+        onResize(delta)
+      }
+      function onUp() {
+        document.body.style.cursor = ""
+        window.removeEventListener("mousemove", onMove)
+        window.removeEventListener("mouseup", onUp)
+      }
+      window.addEventListener("mousemove", onMove)
+      window.addEventListener("mouseup", onUp)
+    },
+    [isHorizontal, onResize, onResizeStart],
+  )
 
   return (
     <div
-      onMouseDown={(e) => {
-        e.preventDefault()
-        startRef.current = { x: e.clientX, y: e.clientY }
-        document.body.style.cursor = isHorizontal ? "row-resize" : "col-resize"
-        onResizeStart()
-      }}
+      onMouseDown={handleMouseDown}
       className={
         isHorizontal
           ? "h-1 w-full shrink-0 cursor-row-resize bg-border-weak hover:bg-border-strong"
