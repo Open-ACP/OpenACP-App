@@ -150,18 +150,20 @@ export const TerminalRenderer = React.memo(function TerminalRenderer({
         },
       })
 
-      // Cmd/Ctrl+F opens the find overlay; swallowing the event keeps the
-      // WebView's default Find dialog from popping over the terminal.
+      // Cmd/Ctrl+F opens the find overlay. The handler contract here is:
+      // return `true` to PREVENT default terminal handling, `false` to let
+      // the key through to the PTY. Only swallow the find shortcut; every
+      // other keystroke must pass through so the user can actually type.
       term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (event.type !== "keydown") return true
+        if (event.type !== "keydown") return false
         const withMod = event.metaKey || event.ctrlKey
         if (withMod && event.key.toLowerCase() === "f") {
           event.preventDefault()
           setSearchOpen(true)
           requestAnimationFrame(() => searchInputRef.current?.focus())
-          return false
+          return true
         }
-        return true
+        return false
       })
 
       // Fit after a frame to ensure container has dimensions
