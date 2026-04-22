@@ -126,6 +126,7 @@ pub fn run() {
             core::pty::commands::pty_write,
             core::pty::commands::pty_resize,
             core::pty::commands::pty_close,
+            core::pty::commands::pty_start_stream,
             toggle_devtools,
         ])
         .setup(move |app| {

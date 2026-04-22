@@ -97,9 +97,7 @@ export function SidebarPanel({ collapsed }: { collapsed?: boolean }) {
               key={session.id}
               session={session}
               active={chat.activeSession() === session.id}
-              streaming={
-                chat.streaming() && chat.activeSession() === session.id
-              }
+              streaming={chat.isSessionStreaming(session.id)}
               onClick={() => chat.setActiveSession(session.id)}
               onArchive={() => sessions.archive(session.id)}
             />
