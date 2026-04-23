@@ -7,11 +7,14 @@ import { registry, type DemoEntry } from "./registry"
 export function DemoApp() {
   const [activeId, setActiveId] = useState(registry[0].id)
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    return (localStorage.getItem("ds-demo-theme") as "light" | "dark") || "dark"
+    const stored = localStorage.getItem("ds-demo-theme")
+    return stored === "light" ? "light" : "dark"
   })
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme)
+    const root = document.documentElement
+    root.setAttribute("data-theme", theme === "light" ? "default-light" : "default-dark")
+    root.setAttribute("data-mode", theme)
     localStorage.setItem("ds-demo-theme", theme)
   }, [theme])
 
