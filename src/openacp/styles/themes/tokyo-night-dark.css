@@ -1,0 +1,67 @@
+/* Tokyo Night Dark — https://github.com/enkia/tokyo-night-vscode-theme */
+[data-theme="tokyo-night-dark"] {
+  color-scheme: dark;
+
+  --bg-base:    #1a1b26;
+  --bg-weak:    #16161e;
+  --bg-weaker:  #13131a;
+  --bg-weakest: #24253a;
+  --bg-strong:  #24253a;
+
+  --fg-base:    #c0caf5;
+  --fg-weak:    #a9b1d6;
+  --fg-weaker:  #737aa2;
+  --fg-weakest: #565f89;
+
+  --border-base:    rgba(192, 202, 245, 0.14);
+  --border-weak:    rgba(192, 202, 245, 0.08);
+  --border-weaker:  rgba(192, 202, 245, 0.05);
+  --border-weakest: rgba(192, 202, 245, 0.03);
+  --border-strong:  rgba(192, 202, 245, 0.24);
+
+  --color-success:          #9ece6a;
+  --color-success-weak:     #1b2a18;
+  --color-warning:          #e0af68;
+  --color-warning-weak:     #2a2116;
+  --color-critical:         #f7768e;
+  --color-critical-weak:    #2d1820;
+  --color-info:             #bb9af7;
+  --color-info-weak:        #231b33;
+  --color-interactive:      #7aa2f7;
+  --color-interactive-weak: #131d33;
+
+  --syntax-comment:      #565f89;
+  --syntax-regexp:       #f7768e;
+  --syntax-string:       #9ece6a;
+  --syntax-keyword:      #bb9af7;
+  --syntax-primitive:    #ff9e64;
+  --syntax-operator:     #89ddff;
+  --syntax-variable:     #c0caf5;
+  --syntax-property:     #7dcfff;
+  --syntax-type:         #2ac3de;
+  --syntax-constant:     #ff9e64;
+  --syntax-punctuation:  #89ddff;
+  --syntax-object:       #c0caf5;
+  --syntax-success:      #9ece6a;
+  --syntax-warning:      #e0af68;
+  --syntax-critical:     #f7768e;
+  --syntax-info:         #7aa2f7;
+  --syntax-diff-add:     #9ece6a;
+  --syntax-diff-delete:  #f7768e;
+  --syntax-diff-unknown: #ff9e64;
+
+  --markdown-heading:          #bb9af7;
+  --markdown-text:             #c0caf5;
+  --markdown-link:             #7aa2f7;
+  --markdown-link-text:        #7dcfff;
+  --markdown-code:             #9ece6a;
+  --markdown-block-quote:      #e0af68;
+  --markdown-emph:             #e0af68;
+  --markdown-strong:           #bb9af7;
+  --markdown-horizontal-rule:  #565f89;
+  --markdown-list-item:        #7aa2f7;
+  --markdown-list-enumeration: #7dcfff;
+  --markdown-image:            #7aa2f7;
+  --markdown-image-text:       #7dcfff;
+  --markdown-code-block:       #c0caf5;
+}
