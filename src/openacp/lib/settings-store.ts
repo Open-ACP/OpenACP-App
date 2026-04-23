@@ -1,4 +1,10 @@
 import { load } from "@tauri-apps/plugin-store"
+import {
+  type ThemeId,
+  DEFAULT_THEME_ID,
+  getThemeDescriptor,
+  migrateLegacyTheme,
+} from "./themes"
 
 const STORE_NAME = "settings.json"
 
@@ -50,7 +56,7 @@ export interface SoundSettings {
 }
 
 export interface AppSettings {
-  theme: "dark" | "light" | "system"
+  theme: ThemeId
   fontSize: "small" | "medium" | "large"
   language: string
   devMode: boolean
@@ -64,7 +70,7 @@ export interface AppSettings {
 }
 
 const defaults: AppSettings = {
-  theme: "dark",
+  theme: DEFAULT_THEME_ID,
   fontSize: "medium",
   language: "en",
   devMode: false,
@@ -121,7 +127,14 @@ export async function setSetting<K extends keyof AppSettings>(key: K, value: App
 
 export async function getAllSettings(): Promise<AppSettings> {
   const s = await getStore()
-  const theme = ((await s.get("theme")) as AppSettings["theme"]) ?? defaults.theme
+  const rawTheme = (await s.get("theme")) as string | undefined
+  const theme: ThemeId =
+    rawTheme == null ? defaults.theme : migrateLegacyTheme(rawTheme)
+  if (rawTheme != null && rawTheme !== theme) {
+    await s.set("theme", theme)
+    await s.save()
+    console.info(`[theme] migrated "${rawTheme}" → "${theme}"`)
+  }
   const fontSize = ((await s.get("fontSize")) as AppSettings["fontSize"]) ?? defaults.fontSize
   const language = ((await s.get("language")) as AppSettings["language"]) ?? defaults.language
   const devMode = ((await s.get("devMode")) as AppSettings["devMode"]) ?? defaults.devMode
@@ -141,21 +154,18 @@ export async function getAllSettings(): Promise<AppSettings> {
   return { theme, fontSize, language, devMode, browserPanel, browserLastMode, browserSearchEngine, toolAutoExpand, messageMode, notifications, sounds }
 }
 
-/** Apply theme to document element. `system` resolves to the OS preference so that
- *  both our `[data-theme]` tokens and Tailwind's `dark:` variant stay in sync.
- *  Mirrors the resolved value into localStorage so the pre-paint script in
- *  index.html can restore it on next launch without waiting for the Tauri store. */
-export function applyTheme(theme: AppSettings["theme"]) {
+/** Apply theme to document element. Looks up the descriptor from the theme registry
+ *  and writes both `data-theme` (descriptor id) and `data-mode` (light/dark) so that
+ *  token CSS and Tailwind's `dark:` variant stay in sync. Mirrors the id into
+ *  localStorage so the pre-paint script in index.html can restore it on next launch
+ *  without waiting for the Tauri store. */
+export function applyTheme(theme: ThemeId) {
+  const descriptor = getThemeDescriptor(theme)
   const root = document.documentElement
-  const resolved =
-    theme === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : theme
-  root.setAttribute("data-theme", resolved)
+  root.setAttribute("data-theme", descriptor.id)
+  root.setAttribute("data-mode", descriptor.mode)
   try {
-    localStorage.setItem("theme-hint", resolved)
+    localStorage.setItem("theme-id", descriptor.id)
   } catch {}
 }
 
