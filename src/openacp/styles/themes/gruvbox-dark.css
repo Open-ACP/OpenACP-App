@@ -1,0 +1,67 @@
+/* Gruvbox Dark — https://github.com/morhetz/gruvbox */
+[data-theme="gruvbox-dark"] {
+  color-scheme: dark;
+
+  --bg-base:    #282828;  /* bg0 */
+  --bg-weak:    #3c3836;  /* bg1 */
+  --bg-weaker:  #504945;  /* bg2 */
+  --bg-weakest: #665c54;  /* bg3 */
+  --bg-strong:  #32302f;  /* bg0_s */
+
+  --fg-base:    #ebdbb2;  /* fg1 */
+  --fg-weak:    #d5c4a1;  /* fg2 */
+  --fg-weaker:  #bdae93;  /* fg3 */
+  --fg-weakest: #a89984;  /* fg4 */
+
+  --border-base:    rgba(235, 219, 178, 0.14);
+  --border-weak:    rgba(235, 219, 178, 0.08);
+  --border-weaker:  rgba(235, 219, 178, 0.05);
+  --border-weakest: rgba(235, 219, 178, 0.03);
+  --border-strong:  rgba(235, 219, 178, 0.28);
+
+  --color-success:          #b8bb26;
+  --color-success-weak:     #1f2208;
+  --color-warning:          #fabd2f;
+  --color-warning-weak:     #2a2108;
+  --color-critical:         #fb4934;
+  --color-critical-weak:    #2d110c;
+  --color-info:             #d3869b;
+  --color-info-weak:        #2a1820;
+  --color-interactive:      #83a598;
+  --color-interactive-weak: #1a2320;
+
+  --syntax-comment:      #928374;
+  --syntax-regexp:       #fb4934;
+  --syntax-string:       #b8bb26;
+  --syntax-keyword:      #fb4934;
+  --syntax-primitive:    #fe8019;
+  --syntax-operator:     #fe8019;
+  --syntax-variable:     #ebdbb2;
+  --syntax-property:     #8ec07c;
+  --syntax-type:         #fabd2f;
+  --syntax-constant:     #d3869b;
+  --syntax-punctuation:  #a89984;
+  --syntax-object:       #ebdbb2;
+  --syntax-success:      #b8bb26;
+  --syntax-warning:      #fabd2f;
+  --syntax-critical:     #fb4934;
+  --syntax-info:         #83a598;
+  --syntax-diff-add:     #b8bb26;
+  --syntax-diff-delete:  #fb4934;
+  --syntax-diff-unknown: #fe8019;
+
+  --markdown-heading:          #fabd2f;
+  --markdown-text:             #ebdbb2;
+  --markdown-link:             #83a598;
+  --markdown-link-text:        #8ec07c;
+  --markdown-code:             #b8bb26;
+  --markdown-block-quote:      #d3869b;
+  --markdown-emph:             #d3869b;
+  --markdown-strong:           #fabd2f;
+  --markdown-horizontal-rule:  #665c54;
+  --markdown-list-item:        #83a598;
+  --markdown-list-enumeration: #8ec07c;
+  --markdown-image:            #83a598;
+  --markdown-image-text:       #8ec07c;
+  --markdown-code-block:       #ebdbb2;
+}

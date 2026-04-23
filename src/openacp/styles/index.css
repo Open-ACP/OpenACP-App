@@ -16,6 +16,7 @@
 @import "./themes/catppuccin-latte.css";
 @import "./themes/catppuccin-mocha.css";
 @import "./themes/tokyo-night-dark.css";
+@import "./themes/gruvbox-dark.css";
 @import "katex/dist/katex.min.css" layer(base);
 
 /* ── Component styles (markdown, .oac-* app styles) ──────────────────────── */
