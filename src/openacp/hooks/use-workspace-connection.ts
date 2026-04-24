@@ -132,6 +132,8 @@ export function useWorkspaceConnection(
   const retryTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const cancelledRef = useRef(false)
   const workspaceIdRef = useRef<string | null>(null)
+  // Track host separately so a host-only change (tunnel URL rotation) also triggers reconnect
+  const workspaceHostRef = useRef<string | null>(null)
 
   // Stop retry loop
   const stopRetry = useCallback(() => {
@@ -277,11 +279,16 @@ export function useWorkspaceConnection(
     }
   }, [workspace, connect])
 
-  // Auto-connect when workspace changes
+  // Auto-connect when workspace changes.
+  // Also watches workspace.host so that tunnel URL rotation (same workspace ID, new host)
+  // correctly triggers a fresh connection instead of retrying the stale URL.
   useEffect(() => {
     const newId = workspace?.id ?? null
-    if (newId === workspaceIdRef.current) return
+    const newHost = workspace?.host ?? null
+
+    if (newId === workspaceIdRef.current && newHost === workspaceHostRef.current) return
     workspaceIdRef.current = newId
+    workspaceHostRef.current = newHost
 
     // Cleanup previous
     cancelledRef.current = true
@@ -301,7 +308,7 @@ export function useWorkspaceConnection(
       cancelledRef.current = true
       stopRetry()
     }
-  }, [workspace?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workspace?.id, workspace?.host]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reconnect on visibility change
   useEffect(() => {

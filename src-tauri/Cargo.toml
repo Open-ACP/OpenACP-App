@@ -25,6 +25,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-fs = "2"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -37,6 +38,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ignore = "0.4.25"
 base64 = "0.22"
+wait-timeout = "0.2"
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs", branch = "dev" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [profile.release]
 opt-level = "z"          # Optimize for binary size

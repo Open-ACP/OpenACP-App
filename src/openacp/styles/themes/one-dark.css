@@ -1,0 +1,67 @@
+/* One Dark — https://github.com/atom/atom (one-dark-ui + one-dark-syntax) */
+[data-theme="one-dark"] {
+  color-scheme: dark;
+
+  --bg-base:    #282c34;
+  --bg-weak:    #21252b;
+  --bg-weaker:  #1b1d23;
+  --bg-weakest: #3e4451;
+  --bg-strong:  #2c313a;
+
+  --fg-base:    #abb2bf;
+  --fg-weak:    #9da5b4;
+  --fg-weaker:  #7f848e;
+  --fg-weakest: #5c6370;
+
+  --border-base:    rgba(171, 178, 191, 0.14);
+  --border-weak:    rgba(171, 178, 191, 0.08);
+  --border-weaker:  rgba(171, 178, 191, 0.05);
+  --border-weakest: rgba(171, 178, 191, 0.03);
+  --border-strong:  rgba(171, 178, 191, 0.24);
+
+  --color-success:          #98c379;
+  --color-success-weak:     #1e281a;
+  --color-warning:          #e5c07b;
+  --color-warning-weak:     #2a2516;
+  --color-critical:         #e06c75;
+  --color-critical-weak:    #2c191b;
+  --color-info:             #c678dd;
+  --color-info-weak:        #291a33;
+  --color-interactive:      #61afef;
+  --color-interactive-weak: #132536;
+
+  --syntax-comment:      #5c6370;
+  --syntax-regexp:       #e06c75;
+  --syntax-string:       #98c379;
+  --syntax-keyword:      #c678dd;
+  --syntax-primitive:    #d19a66;
+  --syntax-operator:     #56b6c2;
+  --syntax-variable:     #abb2bf;
+  --syntax-property:     #e06c75;
+  --syntax-type:         #e5c07b;
+  --syntax-constant:     #d19a66;
+  --syntax-punctuation:  #abb2bf;
+  --syntax-object:       #abb2bf;
+  --syntax-success:      #98c379;
+  --syntax-warning:      #e5c07b;
+  --syntax-critical:     #e06c75;
+  --syntax-info:         #61afef;
+  --syntax-diff-add:     #98c379;
+  --syntax-diff-delete:  #e06c75;
+  --syntax-diff-unknown: #d19a66;
+
+  --markdown-heading:          #c678dd;
+  --markdown-text:             #abb2bf;
+  --markdown-link:             #61afef;
+  --markdown-link-text:        #56b6c2;
+  --markdown-code:             #98c379;
+  --markdown-block-quote:      #e5c07b;
+  --markdown-emph:             #e5c07b;
+  --markdown-strong:           #c678dd;
+  --markdown-horizontal-rule:  #3e4451;
+  --markdown-list-item:        #61afef;
+  --markdown-list-enumeration: #56b6c2;
+  --markdown-image:            #61afef;
+  --markdown-image-text:       #56b6c2;
+  --markdown-code-block:       #abb2bf;
+}

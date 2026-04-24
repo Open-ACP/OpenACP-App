@@ -11,6 +11,7 @@ import { BrandIcon } from "../brand-loader";
 import { useChat } from "../../context/chat";
 import { useSessions } from "../../context/sessions";
 import { useWorkspace } from "../../context/workspace";
+import { useGitRepos } from "../../hooks/use-git-repos";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { UserMessage } from "./user-message";
 import {
@@ -40,23 +41,19 @@ import {
 
 function EmptyState() {
   const workspace = useWorkspace();
-  const [branch, setBranch] = useState<string | null>(null);
-  const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
+  const { repos: gitRepos } = useGitRepos(workspace.directory)
+  const [remoteUrl, setRemoteUrl] = useState<string | null>(null)
+
+  const branch = gitRepos.length > 0 ? gitRepos[0].branch : null
 
   useEffect(() => {
-    let cancelled = false;
-    invoke<string | null>("get_git_branch", { directory: workspace.directory })
-      .then((b) => !cancelled && setBranch(b))
-      .catch(() => !cancelled && setBranch(null));
-    invoke<string | null>("get_git_remote_url", {
-      directory: workspace.directory,
-    })
+    let cancelled = false
+    const dir = gitRepos.length > 0 ? gitRepos[0].path : workspace.directory
+    invoke<string | null>("get_git_remote_url", { directory: dir })
       .then((u) => !cancelled && setRemoteUrl(u))
-      .catch(() => !cancelled && setRemoteUrl(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [workspace.directory]);
+      .catch(() => !cancelled && setRemoteUrl(null))
+    return () => { cancelled = true }
+  }, [gitRepos, workspace.directory])
 
   const { parentPath, folderName } = useMemo(() => {
     const dir = workspace.directory.replace(/\/$/, "");
@@ -207,8 +204,8 @@ function ChatFooter() {
           <span className="oac-stream-cursor" />
         </div>
       )}
-      {/* Spacer so the last message is not obscured by the Composer (replaces pb-80) */}
-      <div style={{ height: 320 }} />
+      {/* Spacer for visual breathing room at end of message list. */}
+      <div style={{ height: 24 }} />
     </div>
   );
 }
@@ -218,7 +215,15 @@ export function ChatView() {
   const activeSessionId = chat.activeSession();
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // Direct access to Virtuoso's scroller element — bypasses Virtuoso's height estimation
+  // (which can be wrong for unmeasured items). All scroll-to-bottom calls go through this.
+  const scrollerElRef = useRef<HTMLElement | null>(null);
   const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
+  // Tracks whether the user has intentionally scrolled up during streaming.
+  // Set by onWheel on any upward scroll; cleared by atBottomStateChange(true) or explicit
+  // actions (button click, send message, session switch). No debounce, no conditional resets.
+  const userScrolledUpRef = useRef(false);
 
   const messages = chat.messages();
   const streaming = chat.streaming();
@@ -299,17 +304,80 @@ export function ChatView() {
     return items;
   }, [messages]);
 
-  // Scroll to bottom on session switch
+  // ── Scroll helpers ──
+
+  // Single-frame scroll: used by the streaming rAF loop (which already retries every frame).
+  const scrollToBottomOnce = useCallback(() => {
+    const el = scrollerElRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+  }, []);
+
+  // Persistent scroll: keeps scrolling every frame until Virtuoso converges scrollHeight.
+  // Uses a shared deadline ref so concurrent calls extend the window instead of spawning
+  // duplicate loops (session switch + scrollTrigger can fire close together).
+  const scrollDeadlineRef = useRef(0);
+  const scrollActiveRef = useRef(false);
+  const scrollToBottom = useCallback(() => {
+    const el = scrollerElRef.current;
+    if (!el) return;
+    scrollDeadlineRef.current = Date.now() + 1000;
+    if (scrollActiveRef.current) return; // extend deadline only, loop already running
+    scrollActiveRef.current = true;
+    const tick = () => {
+      const el = scrollerElRef.current;
+      if (!el || Date.now() > scrollDeadlineRef.current) {
+        scrollActiveRef.current = false;
+        return;
+      }
+      el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }, []);
+
+  // ── Explicit scroll triggers (always scroll + always reset flag) ──
+
   useEffect(() => {
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" });
+    userScrolledUpRef.current = false;
+    // Persistent loop runs for 1s — catches content from cached sessions that load after this
+    // effect runs. No timers needed: the loop's rAF ticks pick up scrollHeight changes as
+    // Virtuoso processes newly loaded messages.
+    scrollToBottom();
   }, [activeSessionId]);
 
-  // Scroll to bottom when triggered (user sent message, cross-adapter turn, history loaded)
   useEffect(() => {
     if (chat.scrollTrigger() > 0) {
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "auto" });
+      userScrolledUpRef.current = false;
+      scrollToBottom();
     }
   }, [chat.scrollTrigger()]);
+
+  // ── Streaming auto-scroll (single driver: rAF loop) ──
+  // followOutput is disabled — this rAF loop is the sole scroll mechanism during streaming.
+  // It handles both new items and growing items (e.g. thinking text).
+  // Runs every frame (~16ms) so Virtuoso's scroll corrections (from height estimation errors
+  // when new blocks are added) are immediately countered — no visible upward jump.
+  // onWheel sets userScrolledUpRef synchronously (before rAF), so the loop never fights
+  // user input: the flag is always set before the next rAF tick.
+  useEffect(() => {
+    if (!streaming) return;
+    let rafId: number;
+    const tick = () => {
+      if (!userScrolledUpRef.current) scrollToBottomOnce();
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [streaming]);
+
+  // ── Streaming end (catch charStream.flush content) ──
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current && !streaming && !userScrolledUpRef.current) {
+      scrollToBottom();
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming]);
 
   const sessions = useSessions();
   const sessionTitle = useMemo(() => {
@@ -423,11 +491,31 @@ export function ChatView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="flex-1 min-h-0 overflow-hidden relative">
+      <div
+        className="flex-1 min-h-0 overflow-hidden relative"
+        onWheel={(e) => {
+          // Any upward scroll during streaming stops auto-follow (standard chat app UX).
+          // Threshold of -2 filters sub-pixel trackpad inertia noise on macOS.
+          // User resumes by scrolling to bottom (atBottomStateChange resets) or clicking button.
+          if (e.deltaY < -2 && streaming) userScrolledUpRef.current = true;
+        }}
+      >
         {hasMessages ? (
           <>
             <Virtuoso
               ref={virtuosoRef}
+              scrollerRef={(el) => {
+                scrollerElRef.current = el as HTMLElement | null;
+                // Scroll to bottom on Virtuoso mount (initial session load, session switch
+                // from empty to messages). The rAF gives Virtuoso time to render initial items.
+                if (el && !userScrolledUpRef.current) {
+                  requestAnimationFrame(() => {
+                    if (scrollerElRef.current) {
+                      scrollerElRef.current.scrollTo({ top: scrollerElRef.current.scrollHeight, behavior: "auto" });
+                    }
+                  });
+                }
+              }}
               className="h-full no-scrollbar"
               data={flatItems}
               computeItemKey={(_, item) => item.key}
@@ -456,8 +544,12 @@ export function ChatView() {
                   )}
                 </div>
               )}
-              followOutput={streaming ? "smooth" : false}
-              atBottomStateChange={setAtBottom}
+              followOutput={false}
+              atBottomStateChange={(isAtBottom) => {
+                atBottomRef.current = isAtBottom;
+                if (isAtBottom) userScrolledUpRef.current = false;
+                setAtBottom(isAtBottom);
+              }}
               atBottomThreshold={100}
               components={{ Footer: ChatFooter }}
               increaseViewportBy={{ top: 1200, bottom: 600 }}
@@ -465,12 +557,10 @@ export function ChatView() {
             />
             <ScrollToBottomButton
               visible={!atBottom}
-              onClick={() =>
-                virtuosoRef.current?.scrollToIndex({
-                  index: "LAST",
-                  behavior: "smooth",
-                })
-              }
+              onClick={() => {
+                userScrolledUpRef.current = false;
+                scrollToBottom();
+              }}
             />
           </>
         ) : (

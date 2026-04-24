@@ -77,7 +77,7 @@ export function SetupWizard(props: Props) {
   const [agentInstallLog, setAgentInstallLog] = useState<string[]>([]);
 
   useEffect(() => {
-    invoke<string>("run_openacp_agents_list")
+    invoke<string>("run_openacp_agents_list", {})
       .then((result) => {
         const raw = typeof result === "string" ? JSON.parse(result) : result;
         let list: AgentEntry[];
@@ -119,7 +119,11 @@ export function SetupWizard(props: Props) {
       setAgentInstallLog((prev) => [...prev, event.payload]),
     );
     try {
-      await invoke("run_openacp_agent_install", { agentKey: key });
+      // Pass the user's chosen workspace so the CLI has a real context.
+      // Backend also has a home-dir fallback as a safety net, but passing
+      // the actual workspace is semantically correct and keeps agent state
+      // scoped to the workspace the user is setting up.
+      await invoke("run_openacp_agent_install", { agentKey: key, workspaceDir: workspace });
       setSelectedAgent(key);
       setAgents((prev) =>
         prev.map((a) => (a.key === key ? { ...a, installed: true } : a)),

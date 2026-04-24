@@ -5,11 +5,22 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities) source("../../../");
 
-/* Bind Tailwind's `dark:` variant to our explicit data-theme attribute */
-@custom-variant dark ([data-theme="dark"] &);
+/* Bind Tailwind's `dark:` variant to our explicit data-mode attribute */
+@custom-variant dark ([data-mode="dark"] &);
 
 /* ── Theme tokens (colors, shadows — light/dark) ─────────────────────────── */
 @import "./theme.css" layer(theme);
+@import "./themes/default-light.css";
+@import "./themes/default-dark.css";
+@import "./themes/amoled-dark.css";
+@import "./themes/catppuccin-latte.css";
+@import "./themes/catppuccin-mocha.css";
+@import "./themes/tokyo-night-dark.css";
+@import "./themes/gruvbox-dark.css";
+@import "./themes/nord-dark.css";
+@import "./themes/one-dark.css";
+@import "./themes/github-light.css";
+@import "./themes/github-dark.css";
 @import "katex/dist/katex.min.css" layer(base);
 
 /* ── Component styles (markdown, .oac-* app styles) ──────────────────────── */

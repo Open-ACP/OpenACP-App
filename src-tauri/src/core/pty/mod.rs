@@ -1,4 +1,4 @@
 pub mod commands;
-mod manager;
+pub mod manager;
 
 pub use manager::PtyManager;

@@ -23,6 +23,13 @@ export interface PtyBackend {
 
   /** Subscribe to PTY exit event. Returns unsubscribe function. */
   onExit(id: string, callback: () => void): Promise<() => void>
+
+  /**
+   * Flip the session into streaming mode and return any output that the
+   * shell produced before the frontend could subscribe (initial prompt,
+   * shell init scripts, etc). Call this AFTER `onData` is wired up.
+   */
+  startStream(id: string): Promise<string>
 }
 
 /** Local PTY backend using Tauri commands + events. */
@@ -71,6 +78,11 @@ export class TauriPtyBackend implements PtyBackend {
       callback()
     })
     return unlisten
+  }
+
+  async startStream(id: string): Promise<string> {
+    const { invoke } = await import("@tauri-apps/api/core")
+    return invoke<string>("pty_start_stream", { id })
   }
 }
 

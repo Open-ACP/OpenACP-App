@@ -615,7 +615,7 @@ export function Composer() {
   }
 
   return (
-    <div className="w-full pb-3 flex flex-col justify-center items-center pointer-events-none [&>*]:pointer-events-auto">
+    <div className="w-full pb-3 flex flex-col justify-center items-center">
       <div
         ref={composerRef}
         data-component="composer-area"

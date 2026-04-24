@@ -1,0 +1,73 @@
+/* Default Dark — OpenACP stock neutral dark palette */
+[data-theme="default-dark"] {
+  color-scheme: dark;
+
+  /* Background */
+  --bg-base:    #0a0a0a;
+  --bg-weak:    #171717;
+  --bg-weaker:  #1c1c1c;
+  --bg-weakest: #242424;
+  --bg-strong:  #121212;
+
+  /* Foreground */
+  --fg-base:    #fafafa;
+  --fg-weak:    #a3a3a3;
+  --fg-weaker:  #737373;
+  --fg-weakest: #525252;
+
+  /* Border */
+  --border-base:    rgba(255, 255, 255, 0.14);
+  --border-weak:    rgba(255, 255, 255, 0.08);
+  --border-weaker:  rgba(255, 255, 255, 0.05);
+  --border-weakest: rgba(255, 255, 255, 0.03);
+  --border-strong:  rgba(255, 255, 255, 0.24);
+
+  /* Semantic */
+  --color-success:          #12c905;
+  --color-success-weak:     #062d04;
+  --color-warning:          #fcd53a;
+  --color-warning-weak:     #fdf3cf;
+  --color-critical:         #fc533a;
+  --color-critical-weak:    #1f0603;
+  --color-info:             #edb2f1;
+  --color-info-weak:        #feecfe;
+  --color-interactive:      #9dbefe;
+  --color-interactive-weak: #091f52;
+
+  /* Syntax */
+  --syntax-comment:      var(--fg-weaker);
+  --syntax-regexp:       var(--fg-weak);
+  --syntax-string:       #00ceb9;
+  --syntax-keyword:      var(--fg-weaker);
+  --syntax-primitive:    #ffba92;
+  --syntax-operator:     var(--fg-weak);
+  --syntax-variable:     var(--fg-base);
+  --syntax-property:     #ff9ae2;
+  --syntax-type:         #ecf58c;
+  --syntax-constant:     #93e9f6;
+  --syntax-punctuation:  var(--fg-weak);
+  --syntax-object:       var(--fg-base);
+  --syntax-success:      #35c02d;
+  --syntax-warning:      #f5b238;
+  --syntax-critical:     #f54f36;
+  --syntax-info:         #93e9f6;
+  --syntax-diff-add:     #9bcd97;
+  --syntax-diff-delete:  #faa494;
+  --syntax-diff-unknown: #ff0000;
+
+  /* Markdown */
+  --markdown-heading:         #9d7cd8;
+  --markdown-text:            #eeeeee;
+  --markdown-link:            #fab283;
+  --markdown-link-text:       #56b6c2;
+  --markdown-code:            #7fd88f;
+  --markdown-block-quote:     #e5c07b;
+  --markdown-emph:            #e5c07b;
+  --markdown-strong:          #f5a742;
+  --markdown-horizontal-rule: #808080;
+  --markdown-list-item:       #fab283;
+  --markdown-list-enumeration:#56b6c2;
+  --markdown-image:           #fab283;
+  --markdown-image-text:      #56b6c2;
+  --markdown-code-block:      #eeeeee;
+}

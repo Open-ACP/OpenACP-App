@@ -46,6 +46,10 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
   // Persist sessions to cache whenever they change (including empty list)
   useEffect(() => {
     void cacheSessions(workspace.directory, sessions)
+    // Broadcast session names for notification lookup (outside SessionsProvider)
+    window.dispatchEvent(new CustomEvent("sessions-updated", {
+      detail: sessions.map((s) => ({ id: s.id, name: s.name })),
+    }))
   }, [sessions, workspace.directory])
 
   /** Fetch authoritative session list from server.

@@ -32,24 +32,24 @@ import {
   SettingsDialog,
   type SettingsPage,
 } from "./components/settings/settings-dialog";
-import { SetupModal } from "./components/add-workspace/setup-modal";
 import { showToast } from "./lib/toast";
-import { toast } from "sonner";
-import { ArrowLineDown, Package, X } from "@phosphor-icons/react";
 import { Toaster } from "./components/ui/toaster";
 import { useSortedWorkspaces } from "./hooks/use-sorted-workspaces";
 import {
   useWorkspaceConnection,
   type ConnectionStatus,
 } from "./hooks/use-workspace-connection";
-import { useUpdateCheck } from "./hooks/use-update-check";
+import { useUpdateCheckContext } from "./hooks/use-update-check";
 import { useSystemNotifications } from "./hooks/use-system-notifications";
+import { useSoundEffects } from "./hooks/use-sound-effects";
+import { NotificationsProvider, useNotifications } from "./context/notifications";
 import {
   getAllSettings,
   getSetting,
   applyTheme,
   applyFontSize,
 } from "./lib/settings-store";
+import { verifyThemeRegistry } from "./lib/themes";
 import { Titlebar } from "./components/titlebar";
 import { FileTreePanel } from "./components/file-tree-panel";
 import { BrowserPanel } from "./components/browser-panel";
@@ -61,7 +61,7 @@ import { TerminalPanel } from "./components/terminal-panel";
 import { ToolDisplayProvider } from "./context/tool-display";
 import type { ServerInfo } from "./types";
 
-function UpdateToastRow({
+export function UpdateToastRow({
   icon,
   title,
   actionLabel,
@@ -194,13 +194,23 @@ function NoServerScreen({
 
 function ChatArea() {
   const chat = useChat();
+
+  useEffect(() => {
+    function handleNavigateSession(e: Event) {
+      const { sessionId } = (e as CustomEvent).detail ?? {}
+      if (sessionId) {
+        chat.setActiveSession(sessionId)
+      }
+    }
+    window.addEventListener("navigate-session", handleNavigateSession)
+    return () => window.removeEventListener("navigate-session", handleNavigateSession)
+  }, [chat])
+
   return (
     <div className="flex flex-1 min-h-0 h-full min-w-0">
-      <div className="@container relative flex-1 flex flex-col min-h-0 h-full bg-bg-strong min-w-0 border-l border-border-weak overflow-hidden">
+      <div className="@container flex-1 flex flex-col min-h-0 h-full bg-bg-strong min-w-0 border-l border-border-weak overflow-hidden">
         <ChatView />
-        <div className="absolute inset-x-0 bottom-0 z-10">
-          <Composer />
-        </div>
+        <Composer />
       </div>
     </div>
   );
@@ -269,9 +279,25 @@ function ChatWithPermissions({
         console.error("[open-file-in-review] failed:", err);
       }
     }
+    // Open diff from files panel changes tab as a file tab
+    function handleOpenDiffInReview(e: Event) {
+      const { path, before, after, language } = (e as CustomEvent).detail ?? {};
+      if (!path) return;
+      const tabPath = `diff:${path}`;
+      setOpenFiles((prev) => {
+        if (prev.some((f) => f.path === tabPath)) return prev;
+        return [...prev, { path: tabPath, content: after ?? "", language: language ?? "text", diff: { before: before ?? "", after: after ?? "" } }];
+      });
+      setRequestedTab(tabPath);
+      setReviewOpen(true);
+    }
+
     window.addEventListener("open-file-in-review", handleOpenFromChat);
-    return () =>
+    window.addEventListener("open-diff-in-review", handleOpenDiffInReview);
+    return () => {
       window.removeEventListener("open-file-in-review", handleOpenFromChat);
+      window.removeEventListener("open-diff-in-review", handleOpenDiffInReview);
+    };
   }, [handleOpenFile, isRemote]);
 
   return (
@@ -349,8 +375,10 @@ export function OpenACPApp() {
     <ToolDisplayProvider>
       <BrowserOverlayProvider>
         <BrowserPanelProvider>
-          <OpenACPAppInner />
-          <FloatingBrowserFrame />
+          <NotificationsProvider>
+            <OpenACPAppInner />
+            <FloatingBrowserFrame />
+          </NotificationsProvider>
         </BrowserPanelProvider>
       </BrowserOverlayProvider>
     </ToolDisplayProvider>
@@ -359,62 +387,42 @@ export function OpenACPApp() {
 
 function OpenACPAppInner() {
   const browser = useBrowserPanel();
-  useSystemNotifications();
+  const { append: appendNotification, unreadCount } = useNotifications();
+  const [notifOpen, setNotifOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const activeWs = workspaces.find((w) => w.id === active);
+  const activeWsName = activeWs?.directory?.split("/").pop() || activeWs?.name;
 
-  // Unified update system
-  const { state: updateState, updateCore, installAppUpdate } = useUpdateCheck();
-  const [updatesSeen, setUpdatesSeen] = useState(false);
-  const updateToastShownRef = useRef(false);
+  // Dev-only: verify theme registry ↔ CSS ↔ MODES table stay in sync
   useEffect(() => {
-    if (updateState.settled && updateState.hasUpdates && !updateToastShownRef.current) {
-      updateToastShownRef.current = true;
+    if (import.meta.env.DEV) verifyThemeRegistry();
+  }, []);
 
-      const openAbout = () => {
-        setSettingsPage("about");
-        setShowSettings(true);
-        setUpdatesSeen(true);
-      };
-
-      toast.custom((id) => (
-        <div className="w-[360px] rounded-lg border border-border bg-card shadow-lg relative overflow-hidden">
-          {updateState.appUpdateAvailable && (
-            <UpdateToastRow
-              icon={<ArrowLineDown size={18} weight="duotone" />}
-              title={`App v${updateState.appLatestVersion} available`}
-              actionLabel="Install and restart"
-              onAction={() => { toast.dismiss(id); void installAppUpdate(); }}
-            />
-          )}
-          {updateState.coreUpdateAvailable && (
-            <UpdateToastRow
-              icon={<Package size={18} weight="duotone" />}
-              title={`Core v${updateState.coreLatestVersion} available`}
-              actionLabel="Update"
-              onAction={() => { toast.dismiss(id); void updateCore(); }}
-            />
-          )}
-          <div className="flex items-center justify-between px-3.5 pb-2.5 pt-1">
-            <button
-              onClick={() => { toast.dismiss(id); openAbout(); }}
-              className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              View in Settings
-            </button>
-            <button
-              onClick={() => toast.dismiss(id)}
-              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
-              aria-label="Dismiss"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        </div>
-      ), { duration: 20000 });
+  // Session name lookup — populated by SessionsProvider deeper in the tree
+  const sessionNamesRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    function handleSessionsUpdated(e: Event) {
+      const sessions = (e as CustomEvent).detail as Array<{ id: string; name: string }> | undefined;
+      if (sessions) {
+        const map = new Map<string, string>();
+        for (const s of sessions) map.set(s.id, s.name);
+        sessionNamesRef.current = map;
+      }
     }
-  }, [updateState.settled, updateState.hasUpdates, updateState.appUpdateAvailable, updateState.appLatestVersion, updateState.coreUpdateAvailable, updateState.coreLatestVersion, installAppUpdate, updateCore]);
+    window.addEventListener("sessions-updated", handleSessionsUpdated);
+    return () => window.removeEventListener("sessions-updated", handleSessionsUpdated);
+  }, []);
+  const getSessionName = useCallback((id: string) => sessionNamesRef.current.get(id), []);
+  useSystemNotifications(appendNotification, activeWsName, getSessionName);
+  useSoundEffects();
+
+  // Unified update system — the hook and the toast effect now live in
+  // main.tsx App so they also cover the onboarding screens. Here we only
+  // read the shared state via context to drive the sidebar badge.
+  const { state: updateState } = useUpdateCheckContext();
+  const [updatesSeen, setUpdatesSeen] = useState(false);
 
   // Listen for macOS menu "Check for Updates"
   useEffect(() => {
@@ -440,12 +448,6 @@ function OpenACPAppInner() {
     new Set(),
   );
   const [shareLinks, setShareLinks] = useState<Map<string, string>>(new Map());
-  const [setupInfo, setSetupInfo] = useState<{
-    path: string;
-    instanceId: string;
-    instanceName: string;
-  } | null>(null);
-
   // ── Helpers ────────────────────────────────────────────────────────────
 
   const {
@@ -773,10 +775,8 @@ function OpenACPAppInner() {
   function handleAddWorkspace(entry: WorkspaceEntry) {
     const isNew = addWorkspace(entry);
     setShowAddWorkspace(false);
-    if (!isNew && active === entry.id) {
-      // Re-connect to updated workspace
-      void connect();
-    }
+    // No explicit connect() here — useWorkspaceConnection watches workspace.host
+    // and will trigger a fresh connection automatically after the state update renders.
     showToast({
       description: isNew
         ? `Workspace "${entry.name}" added.`
@@ -918,6 +918,9 @@ function OpenACPAppInner() {
         hideBrowser={!browserPanelEnabled}
         hideTerminal={!hasInstance}
         disabled={!isConnected}
+        notificationCount={unreadCount}
+        notificationOpen={notifOpen}
+        onNotificationOpenChange={setNotifOpen}
       />
       <div className="flex flex-1 min-h-0">
         <SidebarRail
@@ -1013,38 +1016,38 @@ function OpenACPAppInner() {
               }}
             >
               <TerminalProvider>
-                <SessionsProvider>
-                  <PermissionsProvider>
-                    <ChatWithPermissions
-                      sidebarCollapsed={sidebarCollapsed}
-                      reviewOpen={reviewOpen}
-                      onToggleReview={() => setReviewOpen((v) => !v)}
-                      setReviewOpen={setReviewOpen}
-                      fileTreeOpen={fileTreeOpen}
-                      workspacePath={activeWorkspace?.directory ?? ""}
-                      browserPanelEnabled={browserPanelEnabled}
-                      terminalOpen={terminalOpen}
-                      onCloseTerminal={() => setTerminalOpen(false)}
-                    />
-                  </PermissionsProvider>
-                </SessionsProvider>
-              </TerminalProvider>
-              <PluginsModal
-                open={pluginsOpen}
-                onClose={() => setPluginsOpen(false)}
-              />
-              <ShareWorkspaceDialog
-                open={shareOpen}
-                onOpenChange={setShareOpen}
-                onShared={(link) => {
-                  if (active) {
-                    setSharingWorkspaceIds(
-                      (prev) => new Set([...prev, active]),
-                    );
-                    setShareLinks((prev) => new Map(prev).set(active, link));
-                  }
-                }}
-              />
+                  <SessionsProvider>
+                    <PermissionsProvider>
+                      <ChatWithPermissions
+                        sidebarCollapsed={sidebarCollapsed}
+                        reviewOpen={reviewOpen}
+                        onToggleReview={() => setReviewOpen((v) => !v)}
+                        setReviewOpen={setReviewOpen}
+                        fileTreeOpen={fileTreeOpen}
+                        workspacePath={activeWorkspace?.directory ?? ""}
+                        browserPanelEnabled={browserPanelEnabled}
+                        terminalOpen={terminalOpen}
+                        onCloseTerminal={() => setTerminalOpen(false)}
+                      />
+                    </PermissionsProvider>
+                  </SessionsProvider>
+                </TerminalProvider>
+                <PluginsModal
+                  open={pluginsOpen}
+                  onClose={() => setPluginsOpen(false)}
+                />
+                <ShareWorkspaceDialog
+                  open={shareOpen}
+                  onOpenChange={setShareOpen}
+                  onShared={(link) => {
+                    if (active) {
+                      setSharingWorkspaceIds(
+                        (prev) => new Set([...prev, active]),
+                      );
+                      setShareLinks((prev) => new Map(prev).set(active, link));
+                    }
+                  }}
+                />
             </WorkspaceProvider>
           ) : (
             <div className="flex-1 flex items-center justify-center bg-card">
@@ -1084,10 +1087,6 @@ function OpenACPAppInner() {
       {showAddWorkspace && (
         <AddWorkspaceModal
           onAdd={handleAddWorkspace}
-          onSetup={(path, instanceId, instanceName) => {
-            setShowAddWorkspace(false);
-            setSetupInfo({ path, instanceId, instanceName });
-          }}
           onClose={closeAddWorkspaceModal}
           existingWorkspaces={workspaces}
           defaultTab={addWorkspaceDefaultTab}
@@ -1126,23 +1125,6 @@ function OpenACPAppInner() {
           />
         )
       })()}
-      {setupInfo && (
-        <SetupModal
-          open
-          path={setupInfo.path}
-          instanceId={setupInfo.instanceId}
-          instanceName={setupInfo.instanceName}
-          onComplete={(entry) => {
-            setSetupInfo(null);
-            addWorkspace(entry);
-            showToast({
-              description: `Workspace "${entry.name}" ready.`,
-              variant: "success",
-            });
-          }}
-          onClose={() => setSetupInfo(null)}
-        />
-      )}
       <SettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}

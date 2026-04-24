@@ -156,7 +156,8 @@ function FileTabsBar({ tabs, activeView, fileName, onSelect, onMiddleClick, onCl
       )}
       <div
         ref={scrollRef}
-        className="flex-1 min-w-0 flex items-center gap-1 px-1 overflow-x-auto no-scrollbar"
+        className="flex-1 min-w-0 flex items-center gap-1 px-1 overflow-x-scroll no-scrollbar"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
       >
         {tabs.map((file) => {
           const isSelected = activeView === file.path;
@@ -195,6 +196,8 @@ export interface OpenFile {
   path: string
   content: string
   language: string
+  /** If present, this file tab shows a diff view instead of code viewer */
+  diff?: { before: string; after: string }
 }
 
 export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onRequestedTabHandled }: {
@@ -208,18 +211,26 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_WIDTH);
 
+  // Accumulate agent diffs: first edit's `before` + last edit's `after` per file
   const fileDiffs = useMemo(() => {
-    const diffs = new Map<string, FileDiffData>();
+    const firstBefore = new Map<string, string | undefined>();
+    const lastAfter = new Map<string, FileDiffData>();
     for (const msg of chat.messages()) {
       if (msg.role !== "assistant") continue;
       for (const part of msg.parts) {
         if (part.type !== "tool_call") continue;
         const tool = part as ToolCallPart;
         if (!tool.diff?.path) continue;
-        diffs.set(tool.diff.path, tool.diff);
+        if (!firstBefore.has(tool.diff.path)) {
+          firstBefore.set(tool.diff.path, tool.diff.before);
+        }
+        lastAfter.set(tool.diff.path, tool.diff);
       }
     }
-    return Array.from(diffs.entries()).map(([path, diff]) => ({ path, diff }));
+    return Array.from(lastAfter.entries()).map(([path, diff]) => ({
+      path,
+      diff: { ...diff, before: firstBefore.get(path) },
+    }));
   }, [chat.messages()]);
 
   const openFileTabs = openFiles ?? [];
@@ -231,6 +242,7 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
       onRequestedTabHandled?.()
     }
   }, [requestedTab, onRequestedTabHandled])
+
 
   // "review" = built-in review tab, or a file path for open file tabs
   const activeView = selectedTab ?? "review";
@@ -247,7 +259,12 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
     });
   };
 
-  const fileName = (path: string) => path.split("/").pop() || path;
+  const fileName = (path: string) => {
+    const cleanPath = path.replace(/^diff:/, "")
+    const name = cleanPath.split("/").pop() || cleanPath
+    const file = openFileTabs.find(f => f.path === path)
+    return file?.diff ? `${name} (Working Tree)` : name
+  };
 
   const handleCodeComment = useCallback((comment: string, code: string, lines: [number, number], file?: string) => {
     window.dispatchEvent(new CustomEvent("add-code-snippet", {
@@ -357,14 +374,24 @@ export function ReviewPanel({ onClose, openFiles, onCloseFile, requestedTab, onR
 
       {/* Open file tab content */}
       {activeView !== "review" && currentFile && (
-        <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
-          <CodeViewer
-            content={currentFile.content}
-            language={currentFile.language}
-            filePath={currentFile.path}
-            onComment={handleCodeComment}
-          />
-        </div>
+        currentFile.diff ? (
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto no-scrollbar">
+            <DiffView
+              path={currentFile.path}
+              before={currentFile.diff.before}
+              after={currentFile.diff.after}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 overflow-auto no-scrollbar">
+            <CodeViewer
+              content={currentFile.content}
+              language={currentFile.language}
+              filePath={currentFile.path}
+              onComment={handleCodeComment}
+            />
+          </div>
+        )
       )}
     </div>
   );

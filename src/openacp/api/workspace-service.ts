@@ -100,6 +100,11 @@ export async function isServerAlive(directory: string): Promise<boolean> {
   }
 }
 
+export type ClassifyDirectoryResult =
+  | { type: 'registered'; instance: InstanceListEntry }
+  | { type: 'unregistered'; directory: string }
+  | { type: 'new'; directory: string }
+
 /**
  * Check what kind of workspace a directory is.
  * Returns: 'registered' | 'unregistered' | 'new'
@@ -107,7 +112,7 @@ export async function isServerAlive(directory: string): Promise<boolean> {
 export async function classifyDirectory(
   directory: string,
   knownInstances?: InstanceListEntry[],
-): Promise<{ type: 'registered'; instance: InstanceListEntry } | { type: 'unregistered'; directory: string } | { type: 'new'; directory: string }> {
+): Promise<ClassifyDirectoryResult> {
   const instances = knownInstances ?? await listWorkspaces()
 
   // Check if already registered

@@ -1,6 +1,7 @@
-import { Sidebar, TextAlignLeft, FolderOpen, Globe, Terminal } from "@phosphor-icons/react"
+import { Sidebar, TextAlignLeft, FolderOpen, Globe, Terminal, Bell } from "@phosphor-icons/react"
 import { Button } from "./ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
+import { NotificationPopover } from "./notification-popover"
 import { cn } from "src/lib/utils"
 
 interface TitlebarProps {
@@ -18,6 +19,9 @@ interface TitlebarProps {
   hideBrowser?: boolean
   hideTerminal?: boolean
   disabled?: boolean
+  notificationCount?: number
+  notificationOpen?: boolean
+  onNotificationOpenChange?: (open: boolean) => void
 }
 
 interface IconButtonProps {
@@ -47,7 +51,7 @@ function TitlebarIconButton({ label, active, disabled, onClick, children }: Icon
   )
 }
 
-export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, terminalOpen, onToggleTerminal, hideFileTree, hideBrowser, hideTerminal, disabled }: TitlebarProps) {
+export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onToggleReview, fileTreeOpen, onToggleFileTree, browserOpen, onToggleBrowser, terminalOpen, onToggleTerminal, hideFileTree, hideBrowser, hideTerminal, disabled, notificationCount, notificationOpen, onNotificationOpenChange }: TitlebarProps) {
   return (
     <header
       className="h-12 shrink-0 relative grid items-center border-b border-border-weak px-2"
@@ -64,6 +68,22 @@ export function Titlebar({ sidebarCollapsed, onToggleSidebar, reviewOpen, onTogg
         >
           <Sidebar />
         </TitlebarIconButton>
+        <NotificationPopover
+          open={notificationOpen ?? false}
+          onOpenChange={onNotificationOpenChange ?? (() => {})}
+          onNavigateSession={(sessionId) => {
+            window.dispatchEvent(new CustomEvent("navigate-session", { detail: { sessionId } }))
+          }}
+        >
+          <Button variant="ghost" size="icon-md" className="relative" disabled={disabled}>
+            <Bell className="text-fg-weak" />
+            {(notificationCount ?? 0) > 0 && (
+              <span className="absolute top-0.5 right-0.5 size-3.5 rounded-full bg-destructive text-destructive-foreground text-[9px] leading-none flex items-center justify-center font-medium">
+                {notificationCount! > 99 ? "+" : notificationCount}
+              </span>
+            )}
+          </Button>
+        </NotificationPopover>
       </div>
 
       {/* Center: empty, draggable */}

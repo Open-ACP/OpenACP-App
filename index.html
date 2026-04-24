@@ -6,15 +6,47 @@
     <title>OpenACP</title>
     <meta name="theme-color" content="#131010" />
     <script>
-      // Pre-paint theme init — sets data-theme before CSS applies to prevent FOWT.
-      // Source of truth is Tauri store; localStorage holds a hint from last session.
-      try {
-        var t = localStorage.getItem("theme-hint");
-        document.documentElement.setAttribute(
-          "data-theme",
-          t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
-        );
-      } catch (_) {}
+      (function () {
+        // Keep in sync with THEMES registry in src/openacp/lib/themes.ts.
+        // verifyThemeRegistry() in themes.ts warns at DEV startup on drift.
+        var MODES = {
+          "default-light":    "light",
+          "default-dark":     "dark",
+          "amoled-dark":      "dark",
+          "catppuccin-latte": "light",
+          "catppuccin-mocha": "dark",
+          "tokyo-night-dark": "dark",
+          "gruvbox-dark":     "dark",
+          "nord-dark":        "dark",
+          "one-dark":         "dark",
+          "github-light":     "light",
+          "github-dark":      "dark"
+        };
+
+        var id = null;
+        try { id = localStorage.getItem("theme-id"); } catch (e) {}
+
+        // Legacy migration: old key was "theme-hint" (values "light" | "dark")
+        if (!id) {
+          var hint = null;
+          try { hint = localStorage.getItem("theme-hint"); } catch (e) {}
+          if (hint === "light") id = "default-light";
+          else if (hint === "dark") id = "default-dark";
+          try {
+            if (id) {
+              localStorage.setItem("theme-id", id);
+              localStorage.removeItem("theme-hint");
+            }
+          } catch (e) {}
+        }
+
+        if (!id || !MODES[id]) id = "default-dark";
+        var mode = MODES[id];
+        var r = document.documentElement;
+        r.setAttribute("data-theme", id);
+        r.setAttribute("data-mode", mode);
+        window.__THEME_MODES__ = MODES;
+      })();
     </script>
   </head>
   <body class="antialiased overscroll-none">

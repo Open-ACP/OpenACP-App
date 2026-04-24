@@ -2654,7 +2654,7 @@
                       "content": "Refactor auth middleware"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -2680,7 +2680,7 @@
                       "content": "Fix SSE reconnection bug"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -2706,7 +2706,7 @@
                       "content": "Add i18n Vietnamese locale"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -2732,7 +2732,7 @@
                       "content": "Design system tokens review"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -3091,7 +3091,7 @@
                       "content": "Refactor auth middleware"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -3117,7 +3117,7 @@
                       "content": "Fix SSE reconnection bug"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -3143,7 +3143,7 @@
                       "content": "Add i18n Vietnamese locale"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -3169,7 +3169,7 @@
                       "content": "Design system tokens review"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -3940,7 +3940,7 @@
                       "content": "Refactor auth middleware"
                     },
                     "W:ttBco": {
-                      "x": 200
+                      "x": 216
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -5048,7 +5048,7 @@
                       "content": "Refactor auth middleware"
                     },
                     "W:ttBco": {
-                      "x": 240
+                      "x": 256
                     },
                     "W:eSZOD": {
                       "enabled": false
@@ -8692,6 +8692,496 @@
                   "x": 16
                 }
               }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "UyYTk",
+      "x": 8000,
+      "y": 0,
+      "name": "Stepper Exploration",
+      "width": 1400,
+      "fill": "#000000",
+      "cornerRadius": 12,
+      "layout": "vertical",
+      "gap": 48,
+      "padding": 48,
+      "children": [
+        {
+          "type": "text",
+          "id": "LCa6y",
+          "name": "title",
+          "fill": "#000000",
+          "content": "Onboarding Stepper — 4 variants",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "5bubP",
+          "name": "subtitle",
+          "fill": "#000000",
+          "content": "Current state: Workspace done, Confirm active. 2-step wizard.",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "o9c8g",
+          "name": "Variant A — Current",
+          "width": "fill_container",
+          "fill": "$--surface-raised-base",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 32,
+          "children": [
+            {
+              "type": "text",
+              "id": "5fVad",
+              "name": "v1Label",
+              "fill": "$--text-weak",
+              "content": "A  ·  Current (baseline)",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "ToINR",
+              "name": "v1Row",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zSgeO",
+                  "name": "v1Done",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "L3XZR",
+                      "name": "v1Check",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "check",
+                      "iconFontFamily": "lucide",
+                      "fill": "$--text-strong"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Fxdks",
+                      "name": "v1DoneLabel",
+                      "fill": "$--text-strong",
+                      "content": "Workspace",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon_font",
+                  "id": "CpLJy",
+                  "name": "v1Sep",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "chevron-right",
+                  "iconFontFamily": "lucide",
+                  "fill": "$--text-weaker"
+                },
+                {
+                  "type": "frame",
+                  "id": "4KsQn",
+                  "name": "v1Curr",
+                  "fill": "$--surface-raised-base-hover",
+                  "cornerRadius": 999,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$--border-weak-base"
+                  },
+                  "padding": [
+                    6,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8cri7",
+                      "name": "v1CurrLabel",
+                      "fill": "$--text-strong",
+                      "content": "Confirm",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "dT4YR",
+          "name": "Variant B — Numbered circles + connector",
+          "width": "fill_container",
+          "fill": "$--surface-raised-base",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 32,
+          "children": [
+            {
+              "type": "text",
+              "id": "7i8cz",
+              "name": "v2Label",
+              "fill": "$--text-weak",
+              "content": "B  ·  Numbered circles + connector line (click prev to go back)",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "AN77k",
+              "name": "v2Row",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zHD9t",
+                  "name": "v2Step1Wrap",
+                  "gap": 10,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "kB0Le",
+                      "name": "v2Circle1",
+                      "width": 28,
+                      "height": 28,
+                      "fill": "$--button-primary-base",
+                      "cornerRadius": 999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "zJCiA",
+                          "name": "v2Check",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "check",
+                          "iconFontFamily": "lucide",
+                          "fill": "$--button-primary-fg"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "aJNIF",
+                      "name": "v2Label1",
+                      "fill": "$--text-strong",
+                      "content": "Workspace",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bmUd5",
+                  "name": "v2Line",
+                  "width": 80,
+                  "height": 2,
+                  "fill": "$--border-base"
+                },
+                {
+                  "type": "frame",
+                  "id": "8018A",
+                  "name": "v2Step2Wrap",
+                  "gap": 10,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "HzZzU",
+                      "name": "v2Circle2",
+                      "width": 28,
+                      "height": 28,
+                      "fill": "$--background-base",
+                      "cornerRadius": 999,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 2,
+                        "fill": "$--button-primary-base"
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "aSF0U",
+                          "name": "v2Num",
+                          "fill": "$--text-strong",
+                          "content": "2",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Z7Mcz",
+                      "name": "v2Label2",
+                      "fill": "$--text-strong",
+                      "content": "Confirm",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "UgnSE",
+          "name": "Variant C — Progress bar + label",
+          "width": "fill_container",
+          "fill": "$--surface-raised-base",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 20,
+          "padding": 32,
+          "children": [
+            {
+              "type": "text",
+              "id": "TLisH",
+              "name": "v3Label",
+              "fill": "$--text-weak",
+              "content": "C  ·  Minimal progress bar (Linear/Stripe style)",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "cJsua",
+              "name": "v3Meta",
+              "width": 400,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "EmZE9",
+                  "name": "v3StepText",
+                  "fill": "$--text-weak",
+                  "content": "Step 2 of 2",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "6ruN6",
+                  "name": "v3Title",
+                  "fill": "$--text-strong",
+                  "content": "Confirm",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "FJCDv",
+              "name": "v3Track",
+              "width": 400,
+              "height": 4,
+              "fill": "$--border-weak-base",
+              "cornerRadius": 999,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ESfL4",
+                  "name": "v3Fill",
+                  "width": 200,
+                  "height": 4,
+                  "fill": "$--button-primary-base",
+                  "cornerRadius": 999
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "NPfm7",
+          "name": "Variant D — Dot stepper",
+          "width": "fill_container",
+          "fill": "$--surface-raised-base",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 20,
+          "padding": 32,
+          "children": [
+            {
+              "type": "text",
+              "id": "H5vtK",
+              "name": "v4Label",
+              "fill": "$--text-weak",
+              "content": "D  ·  Minimalist dots + inline label",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "iAVuL",
+              "name": "v4Row",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "z9XXu",
+                  "name": "v4Dot1",
+                  "width": 8,
+                  "height": 8,
+                  "fill": "$--button-primary-base",
+                  "cornerRadius": 999
+                },
+                {
+                  "type": "frame",
+                  "id": "QNwnJ",
+                  "name": "v4Dot2",
+                  "width": 10,
+                  "height": 10,
+                  "fill": "$--button-primary-base",
+                  "cornerRadius": 999,
+                  "stroke": {
+                    "align": "outside",
+                    "thickness": 2,
+                    "fill": "$--button-primary-base"
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "zU53q",
+                  "x": 40,
+                  "y": 4,
+                  "name": "v4Dot3",
+                  "enabled": false,
+                  "width": 8,
+                  "height": 8,
+                  "fill": "$--border-base",
+                  "cornerRadius": 999
+                },
+                {
+                  "type": "frame",
+                  "id": "TsPdv",
+                  "name": "v4Spacer",
+                  "width": 12,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "ViqJb",
+                  "name": "v4Text",
+                  "fill": "$--text-strong",
+                  "content": "Confirm your setup",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "h6tVg",
+          "name": "Variant E — Badge dot + count",
+          "width": "fill_container",
+          "fill": "$--surface-raised-base",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 20,
+          "padding": 32,
+          "children": [
+            {
+              "type": "text",
+              "id": "utCJz",
+              "name": "v5Label",
+              "fill": "$--text-weak",
+              "content": "E  ·  Counter badge (compact, non-intrusive)",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "N9vxL",
+              "name": "v5Row",
+              "fill": "$--background-base",
+              "cornerRadius": 999,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$--border-weak-base"
+              },
+              "gap": 10,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ivAV3",
+                  "name": "v5Count",
+                  "fill": "$--text-weak",
+                  "content": "2/2",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "1iOj9",
+                  "name": "v5Sep",
+                  "width": 1,
+                  "height": 12,
+                  "fill": "$--border-base"
+                },
+                {
+                  "type": "text",
+                  "id": "aZ3V6",
+                  "name": "v5Title",
+                  "fill": "$--text-strong",
+                  "content": "Confirm your setup",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
             }
           ]
         }

@@ -151,6 +151,71 @@ Color registrations in `index.css` `@theme` block:
 - Syntax: `text-syntax-keyword`, `text-syntax-string`, `text-syntax-comment`, etc.
 - Markdown: `text-markdown-heading`, `text-markdown-link`, etc.
 
+## Theme System
+
+OpenACP ships with a registry of named themes. A theme is a complete, fixed palette — users pick one from a dropdown in Settings → Appearance. There is no separate light/dark toggle; the mode is a property of the theme (e.g. "Catppuccin Latte" is the light one).
+
+### Architecture
+
+Two HTML attributes drive styling:
+
+- `data-theme="<id>"` — selects the palette CSS block in `src/openacp/styles/themes/<id>.css`
+- `data-mode="light" | "dark"` — derived from the theme's `mode` field; drives:
+  - Tailwind `dark:` variant (via `@custom-variant dark ([data-mode="dark"] &)`)
+  - Avatar-token fallbacks (`[data-mode="light"]` / `[data-mode="dark"]` blocks in `theme.css`)
+
+Each per-theme CSS file declares its own `color-scheme: light | dark` inside the `[data-theme="<id>"]` block — so native widget rendering follows the active palette directly rather than going through `data-mode`.
+
+### Token coverage
+
+Each theme overrides three groups (~55 tokens):
+
+- **Background** (5), **Foreground** (4), **Border** (5)
+- **Semantic** (5 colors × 2 weights = 10)
+- **Syntax** (~20)
+- **Markdown** (~15)
+
+Avatar tokens are **not** overridden per theme — they fall back to the shared `[data-mode]` block so agent/user colors stay consistent across theme changes.
+
+Shadows, shadcn aliases, and radii are theme-independent and live in `theme.css` at `:root`.
+
+### Registry (v1)
+
+| ID                  | Display name       | Mode  |
+| ------------------- | ------------------ | ----- |
+| `default-light`     | Default Light      | light |
+| `default-dark`      | Default Dark       | dark  |
+| `amoled-dark`       | AMOLED Dark        | dark  |
+| `catppuccin-latte`  | Catppuccin Latte   | light |
+| `catppuccin-mocha`  | Catppuccin Mocha   | dark  |
+| `tokyo-night-dark`  | Tokyo Night Dark   | dark  |
+| `gruvbox-dark`      | Gruvbox Dark       | dark  |
+| `nord-dark`         | Nord Dark          | dark  |
+| `one-dark`          | One Dark           | dark  |
+| `github-light`      | GitHub Light       | light |
+| `github-dark`       | GitHub Dark        | dark  |
+
+Registry source: `src/openacp/lib/themes.ts`.
+
+### Adding a new theme
+
+1. Create `src/openacp/styles/themes/<id>.css`. Start from a same-mode theme as a template. Put the source URL in the file's header comment.
+2. Fill palette values from the upstream source. Cover Core + Syntax + Markdown. **Do not override avatar tokens.**
+3. Add an entry to `THEMES` in `src/openacp/lib/themes.ts`.
+4. Add an entry to the `MODES` lookup in the inline script in `index.html`.
+5. Add an `@import` line to `src/openacp/styles/index.css` (alphabetical, after default themes).
+6. Run `pnpm dev`, open `/ds-demo.html`, switch to the new theme, verify:
+   - Core UI renders correctly
+   - Code blocks have readable syntax highlighting
+   - Markdown (headings, links, code, quotes) matches theme mood
+   - Avatars remain consistent
+
+Estimated time: ~15–20 minutes per theme.
+
+### Dev-mode checks
+
+On startup in development builds, `verifyThemeRegistry()` (in `themes.ts`) probes each theme's CSS block and verifies the `MODES` lookup table in `index.html` stays in sync with the registry. Warnings — not errors — appear in the console.
+
 ## shadcn/ui Components (`src/openacp/components/ui/`)
 
 Installed via `npx shadcn add`. Config in `components.json` (new-york style, Phosphor icons).

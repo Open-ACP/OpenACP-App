@@ -1,74 +1,204 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { X } from '@phosphor-icons/react'
-import { type InstanceListEntry, type WorkspaceEntry } from '../../api/workspace-store'
+import React, { useState, useEffect, useRef } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { invoke } from "@tauri-apps/api/core"
+import { X } from "@phosphor-icons/react"
+import {
+  type InstanceListEntry,
+  type WorkspaceEntry,
+  invalidateInstancesCache,
+} from "../../api/workspace-store"
 import {
   listWorkspaces,
   classifyDirectory,
-  registerWorkspace,
-  WorkspaceServiceError,
-} from '../../api/workspace-service'
-import { CreateInstance } from './create-instance'
-import { invoke } from '@tauri-apps/api/core'
-import { Button } from '../ui/button'
+  type ClassifyDirectoryResult,
+} from "../../api/workspace-service"
+import { FolderFlowStep } from "./folder-flow-step"
+import { AgentSetupStep } from "./agent-setup-step"
 
 interface LocalTabProps {
   onAdd: (entry: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string) => void
   existingIds?: string[]
 }
+
+type View =
+  | { step: "list" }
+  | { step: "folder-flow"; result: ClassifyDirectoryResult }
+  | { step: "agent-setup"; path: string; instanceId: string; instanceName: string }
+
+// Slide spec matches the project convention used in sidebar.tsx:51 and terminal-panel.tsx:58.
+// Reduced-motion path is a quick crossfade.
+const SLIDE_FULL = {
+  listExit: { x: "-30%", opacity: 0 },
+  flowInitial: { x: "100%", opacity: 0 },
+  flowAnimate: { x: 0, opacity: 1 },
+  flowExit: { x: "100%", opacity: 0 },
+  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
+} as const
+
+const SLIDE_REDUCED = {
+  listExit: { opacity: 0 },
+  flowInitial: { opacity: 0 },
+  flowAnimate: { opacity: 1 },
+  flowExit: { opacity: 0 },
+  transition: { duration: 0.08 },
+} as const
 
 export function LocalTab(props: LocalTabProps) {
   const [instances, setInstances] = useState<InstanceListEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [browseResult, setBrowseResult] = useState<
-    | { type: 'registered'; instance: InstanceListEntry }
-    | { type: 'unregistered'; directory: string }
-    | { type: 'new'; directory: string }
-    | null
-  >(null)
-  const browseResultRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState<View>({ step: "list" })
+  const reducedMotion = useReducedMotion()
+  const browseButtonRef = useRef<HTMLButtonElement>(null)
+  const prevStepRef = useRef<View["step"]>(view.step)
 
   useEffect(() => {
-    if (browseResult) {
-      browseResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    if (prevStepRef.current !== "list" && view.step === "list") {
+      browseButtonRef.current?.focus()
     }
-  }, [browseResult])
+    prevStepRef.current = view.step
+  }, [view.step])
 
   useEffect(() => {
-    listWorkspaces().then(setInstances).catch(() => {}).finally(() => setLoading(false))
+    listWorkspaces()
+      .then(setInstances)
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   async function handleBrowse() {
-    const { open } = await import('@tauri-apps/plugin-dialog')
+    const { open } = await import("@tauri-apps/plugin-dialog")
     const selected = await open({ directory: true, multiple: false })
-    if (!selected || typeof selected !== 'string') return
+    if (!selected || typeof selected !== "string") return
     const result = await classifyDirectory(selected, instances)
-    setBrowseResult(result)
+    setView({ step: "folder-flow", result })
   }
 
-  function handleSelectInstance(inst: InstanceListEntry) {
-    props.onAdd({ id: inst.id, name: inst.name ?? inst.id, directory: inst.directory, type: 'local' })
-  }
+  const slide = reducedMotion ? SLIDE_REDUCED : SLIDE_FULL
 
   return (
+    <div className="relative overflow-hidden">
+      <AnimatePresence mode="popLayout" initial={false}>
+        {view.step === "list" ? (
+          <motion.div
+            key="list"
+            initial={{ x: 0, opacity: 1 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={slide.listExit}
+            transition={slide.transition}
+          >
+            <ListView
+              instances={instances}
+              loading={loading}
+              existingIds={props.existingIds}
+              browseButtonRef={browseButtonRef}
+              onSelectInstance={(inst) =>
+                props.onAdd({
+                  id: inst.id,
+                  name: inst.name ?? inst.id,
+                  directory: inst.directory,
+                  type: "local",
+                })
+              }
+              onRemoveInstance={async (id) => {
+                try {
+                  await invoke("remove_instance_registration", { instanceId: id })
+                  invalidateInstancesCache()
+                  setInstances((prev) => prev.filter((x) => x.id !== id))
+                } catch (err) {
+                  console.error("[local-tab] remove instance failed:", err)
+                }
+              }}
+              onBrowse={handleBrowse}
+            />
+          </motion.div>
+        ) : view.step === "folder-flow" ? (
+          <motion.div
+            key="folder-flow"
+            initial={slide.flowInitial}
+            animate={slide.flowAnimate}
+            exit={slide.flowExit}
+            transition={slide.transition}
+          >
+            <FolderFlowStep
+              result={view.result}
+              instances={instances}
+              onAdd={props.onAdd}
+              onSetup={(path, instanceId, instanceName) =>
+                setView({ step: "agent-setup", path, instanceId, instanceName })
+              }
+              onBack={() => setView({ step: "list" })}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="agent-setup"
+            initial={slide.flowInitial}
+            animate={slide.flowAnimate}
+            exit={slide.flowExit}
+            transition={slide.transition}
+          >
+            <AgentSetupStep
+              path={view.path}
+              instanceId={view.instanceId}
+              instanceName={view.instanceName}
+              onComplete={(entry) => props.onAdd(entry)}
+              onBack={() => setView({ step: "list" })}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ListView(props: {
+  instances: InstanceListEntry[]
+  loading: boolean
+  existingIds?: string[]
+  browseButtonRef?: React.RefObject<HTMLButtonElement | null>
+  onSelectInstance: (inst: InstanceListEntry) => void
+  onRemoveInstance: (id: string) => void
+  onBrowse: () => void
+}) {
+  return (
     <div className="space-y-5">
-      {/* Workspaces on machine */}
       <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Workspaces on this machine</p>
-        {loading && <p className="text-sm text-muted-foreground py-3">Looking for workspaces...</p>}
-        {!loading && instances.length === 0 && <p className="text-sm text-muted-foreground py-3">No workspaces found.</p>}
-        {!loading && instances.length > 0 && (
-          <div className="rounded-lg border border-border-weak overflow-hidden">
-            {instances.map((inst, i) => {
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          Workspaces on this machine
+        </p>
+        {props.loading && (
+          <div className="rounded-lg border border-border-weak overflow-hidden max-h-64 overflow-y-auto">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-border-weak" : ""}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium w-32 rounded bg-accent animate-pulse">&nbsp;</span>
+                  </div>
+                  <span className="text-xs font-mono truncate block w-56 rounded bg-accent animate-pulse">&nbsp;</span>
+                </div>
+                <div className="size-2 rounded-full shrink-0 bg-accent animate-pulse" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!props.loading && props.instances.length === 0 && (
+          <p className="text-sm text-muted-foreground py-3">No workspaces found.</p>
+        )}
+        {!props.loading && props.instances.length > 0 && (
+          <div className="rounded-lg border border-border-weak overflow-hidden max-h-64 overflow-y-auto">
+            {props.instances.map((inst, i) => {
               const alreadyAdded = props.existingIds?.includes(inst.id) ?? false
-              const isRunning = inst.status === 'running'
+              const isRunning = inst.status === "running"
               return (
                 <div
                   key={inst.id}
                   className={`group flex items-center gap-3 px-3 py-2.5 transition-colors cursor-pointer ${
-                    i > 0 ? 'border-t border-border-weak' : ''
-                  } ${alreadyAdded ? 'opacity-70' : ''} hover:bg-accent`}
-                  onClick={() => handleSelectInstance(inst)}
+                    i > 0 ? "border-t border-border-weak" : ""
+                  } ${alreadyAdded ? "opacity-70" : ""} hover:bg-accent`}
+                  onClick={() => props.onSelectInstance(inst)}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -78,7 +208,7 @@ export function LocalTab(props: LocalTabProps) {
                     <span className="text-xs text-muted-foreground truncate block font-mono">{inst.directory}</span>
                   </div>
                   {isRunning && (
-                    <div className="size-2 rounded-full shrink-0" style={{ background: 'var(--color-success)' }} />
+                    <div className="size-2 rounded-full shrink-0" style={{ background: "var(--color-success)" }} />
                   )}
                   {!alreadyAdded && !isRunning && (
                     <button
@@ -87,12 +217,7 @@ export function LocalTab(props: LocalTabProps) {
                       title="Remove from list"
                       onClick={async (e) => {
                         e.stopPropagation()
-                        try {
-                          await invoke('remove_instance_registration', { instanceId: inst.id })
-                          setInstances(prev => prev.filter(x => x.id !== inst.id))
-                        } catch (err) {
-                          console.error('[local-tab] remove instance failed:', err)
-                        }
+                        props.onRemoveInstance(inst.id)
                       }}
                     >
                       <X size={12} />
@@ -105,109 +230,19 @@ export function LocalTab(props: LocalTabProps) {
         )}
       </div>
 
-      {/* Browse folder */}
       <div className="border-t border-border-weak pt-4">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Open a folder</p>
         <button
+          ref={props.browseButtonRef}
           type="button"
-          onClick={handleBrowse}
+          onClick={props.onBrowse}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border-weak text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0"><path d="M2.5 5.83333V15.8333H17.5V7.5H9.58333L7.5 5.83333H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0">
+            <path d="M2.5 5.83333V15.8333H17.5V7.5H9.58333L7.5 5.83333H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           Choose a folder to open or create a workspace...
         </button>
-      </div>
-
-      {browseResult && (
-        <div ref={browseResultRef}>
-          <BrowseResultView
-            result={browseResult}
-            instances={instances}
-            onAdd={props.onAdd}
-            onSetup={props.onSetup}
-            onClose={() => setBrowseResult(null)}
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function BrowseResultView(props: {
-  result: { type: 'registered'; instance: InstanceListEntry } | { type: 'unregistered'; directory: string } | { type: 'new'; directory: string }
-  instances: InstanceListEntry[]
-  onAdd: (e: WorkspaceEntry) => void
-  onSetup?: (path: string, instanceId: string) => void
-  onClose: () => void
-}) {
-  const result = props.result
-  if (result.type === 'registered') {
-    const inst = result.instance
-    return (
-      <div className="p-4 bg-secondary rounded-xl border border-border space-y-3">
-        <div>
-          <p className="text-md-medium text-foreground mb-1">Workspace found</p>
-          <p className="text-sm-regular text-muted-foreground">
-            This folder is already set up as <strong className="text-fg-weak">{inst.name ?? inst.id}</strong>. Click Add to open it here.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            onClick={() => props.onAdd({ id: inst.id, name: inst.name ?? inst.id, directory: inst.directory, type: 'local' })}
-            className="px-4 py-1.5 text-sm-medium h-auto"
-          >
-            Add workspace
-          </Button>
-          <Button type="button" variant="ghost" onClick={props.onClose} className="text-sm-regular text-muted-foreground h-auto">Back</Button>
-        </div>
-      </div>
-    )
-  }
-  if (result.type === 'unregistered') {
-    return <RegisterExistingView path={result.directory} onAdd={props.onAdd} onClose={props.onClose} />
-  }
-  return <CreateInstance path={result.directory} existingInstances={props.instances} onAdd={props.onAdd} onSetup={props.onSetup} onClose={props.onClose} />
-}
-
-function RegisterExistingView(props: { path: string; onAdd: (e: WorkspaceEntry) => void; onClose: () => void }) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function register() {
-    setLoading(true)
-    setError(null)
-    try {
-      const entry = await registerWorkspace(props.path)
-      props.onAdd(entry)
-    } catch (e) {
-      if (e instanceof WorkspaceServiceError) {
-        setError(e.message)
-      } else {
-        setError(typeof e === 'string' ? e : 'Failed to add workspace')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="p-4 bg-secondary rounded-xl border border-border space-y-3">
-      <div>
-        <p className="text-md-medium text-foreground mb-1">Existing workspace detected</p>
-        <p className="text-sm-regular text-muted-foreground">This folder already has an OpenACP workspace. Click Add to register it.</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          onClick={register}
-          disabled={loading}
-          className="px-4 py-1.5 text-sm-medium h-auto"
-        >
-          {loading ? 'Adding...' : 'Add workspace'}
-        </Button>
-        {error && <p className="text-sm-regular text-destructive">{error}</p>}
-        <Button type="button" variant="ghost" onClick={props.onClose} className="text-sm-regular text-muted-foreground h-auto">Back</Button>
       </div>
     </div>
   )

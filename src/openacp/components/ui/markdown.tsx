@@ -160,11 +160,20 @@ export function Markdown({ text, cacheKey, streamId, streaming, noGate, classNam
   const prevStreamingRef = useRef(streaming)
   const lastTextRef = useRef("")
   const textRef = useRef(text)
+  // Queued render: when renderMarkdown is called while an async Shiki render is in progress,
+  // the call is stored here instead of being silently dropped. The queued render is processed
+  // when the in-progress render completes, ensuring no content is ever lost.
+  const pendingRenderRef = useRef<{ text: string; isStreaming: boolean } | null>(null)
 
   textRef.current = text
 
   const renderMarkdown = useCallback(function renderMarkdown(mdText: string, isStreaming: boolean) {
-    if (renderingRef.current || !elRef.current) return
+    if (!elRef.current) return
+    if (renderingRef.current) {
+      // Queue instead of dropping — the latest call always wins
+      pendingRenderRef.current = { text: mdText, isStreaming }
+      return
+    }
     if (mdText === lastTextRef.current) return
 
     renderingRef.current = true
@@ -175,6 +184,16 @@ export function Markdown({ text, cacheKey, streamId, streaming, noGate, classNam
 
     function apply(html: string) {
       renderingRef.current = false
+
+      // If a newer render was queued while this one was in progress, skip applying
+      // this stale result and process the queued render immediately.
+      if (pendingRenderRef.current) {
+        const pending = pendingRenderRef.current
+        pendingRenderRef.current = null
+        renderMarkdown(pending.text, pending.isStreaming)
+        return
+      }
+
       const safe = sanitize(html)
       const key = cacheKey || "md"
 
@@ -202,6 +221,12 @@ export function Markdown({ text, cacheKey, streamId, streaming, noGate, classNam
         // On Shiki failure: unblock future renders so the component can recover.
         renderingRef.current = false
         lastTextRef.current = ""
+        // Process queued render even on failure so content is not lost
+        if (pendingRenderRef.current) {
+          const pending = pendingRenderRef.current
+          pendingRenderRef.current = null
+          renderMarkdown(pending.text, pending.isStreaming)
+        }
       })
     } else {
       apply(result)

@@ -1,4 +1,5 @@
-use crate::core::sidecar::binary::{find_openacp_binary, prepend_path};
+use crate::core::sidecar::binary::{find_openacp_binary, resolve_openacp_launcher};
+use crate::core::onboarding::setup::build_openacp_path;
 use std::path::Path;
 
 // ── File Tree Commands ──────────────────────────────────────────────────────
@@ -21,6 +22,13 @@ pub struct FileContent {
 pub struct FileChange {
     pub path: String,
     pub status: String, // "modified" | "added" | "deleted" | "untracked"
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct GitRepoInfo {
+    pub name: String,
+    pub path: String,
+    pub branch: String,
 }
 
 /// List one level of a directory, sorted: directories first, then files.
@@ -180,7 +188,7 @@ fn mime_from_ext(ext: &str) -> &'static str {
 #[tauri::command]
 pub fn get_workspace_changes(path: String) -> Result<Vec<FileChange>, String> {
     let output = std::process::Command::new("git")
-        .args(["status", "--porcelain", "-uall"])
+        .args(["status", "--porcelain"])
         .current_dir(&path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -211,6 +219,50 @@ pub fn get_workspace_changes(path: String) -> Result<Vec<FileChange>, String> {
         .collect();
 
     Ok(changes)
+}
+
+/// Get git diff for a single file (before and after content).
+/// For tracked modified files: returns HEAD version as `before` and working tree as `after`.
+/// For untracked files: returns empty `before` and file content as `after`.
+#[derive(Clone, serde::Serialize)]
+pub struct FileDiffContent {
+    pub before: String,
+    pub after: String,
+    pub language: String,
+}
+
+#[tauri::command]
+pub fn get_file_diff(repo_path: String, file_path: String) -> Result<FileDiffContent, String> {
+    let full_path = std::path::Path::new(&repo_path).join(&file_path);
+    let ext = full_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let language = language_from_ext(ext);
+
+    // Try to get HEAD version (before)
+    let before_output = std::process::Command::new("git")
+        .args(["show", &format!("HEAD:{file_path}")])
+        .current_dir(&repo_path)
+        .output();
+
+    let before = match before_output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => String::new(), // New file or not in HEAD
+    };
+
+    // Read current working tree version (after)
+    let after = if full_path.exists() {
+        std::fs::read_to_string(&full_path).unwrap_or_default()
+    } else {
+        String::new() // Deleted file
+    };
+
+    Ok(FileDiffContent {
+        before,
+        after,
+        language,
+    })
 }
 
 fn language_from_ext(ext: &str) -> String {
@@ -328,6 +380,84 @@ pub fn get_git_remote_url(directory: String) -> Option<String> {
     None
 }
 
+/// Discover git repositories within a workspace directory.
+/// If the directory itself is a git repo, returns just that one.
+/// Otherwise scans up to 2 levels deep for directories containing .git.
+#[tauri::command]
+pub fn discover_git_repos(directory: String) -> Vec<GitRepoInfo> {
+    let root = Path::new(&directory);
+
+    // If root itself is a git repo, return just it
+    if root.join(".git").exists() {
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| directory.clone());
+        let branch = get_git_branch(directory.clone()).unwrap_or_default();
+        return vec![GitRepoInfo {
+            name,
+            path: directory,
+            branch,
+        }];
+    }
+
+    let mut repos = Vec::new();
+
+    // Scan 2 levels deep
+    let Ok(level1) = std::fs::read_dir(root) else {
+        return repos;
+    };
+
+    for entry1 in level1.flatten() {
+        if !entry1.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name1 = entry1.file_name().to_string_lossy().to_string();
+        if name1.starts_with('.') || name1 == "node_modules" || name1 == "target" {
+            continue;
+        }
+
+        let path1 = entry1.path();
+        if path1.join(".git").exists() {
+            let branch = get_git_branch(path1.to_string_lossy().to_string())
+                .unwrap_or_default();
+            repos.push(GitRepoInfo {
+                name: name1,
+                path: path1.to_string_lossy().to_string(),
+                branch,
+            });
+            continue;
+        }
+
+        // Level 2
+        let Ok(level2) = std::fs::read_dir(&path1) else {
+            continue;
+        };
+        for entry2 in level2.flatten() {
+            if !entry2.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name2 = entry2.file_name().to_string_lossy().to_string();
+            if name2.starts_with('.') {
+                continue;
+            }
+            let path2 = entry2.path();
+            if path2.join(".git").exists() {
+                let branch = get_git_branch(path2.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                repos.push(GitRepoInfo {
+                    name: format!("{name1}/{name2}"),
+                    path: path2.to_string_lossy().to_string(),
+                    branch,
+                });
+            }
+        }
+    }
+
+    repos.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    repos
+}
+
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {
     std::path::Path::new(&path).exists()
@@ -344,13 +474,25 @@ pub fn remove_directory(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn invoke_cli(args: Vec<String>, _app: tauri::AppHandle) -> Result<String, String> {
-    let (bin, extra_path) =
-        find_openacp_binary().ok_or_else(|| "Could not find openacp binary".to_string())?;
-    let mut cmd = tokio::process::Command::new(&bin);
-    cmd.args(&args);
-    if let Some(ref extra) = extra_path {
-        cmd.env("PATH", prepend_path(extra));
-    }
+    let mut cmd = if let Some(launcher) = resolve_openacp_launcher() {
+        let node_dir = launcher
+            .node
+            .parent()
+            .map(|p| p.to_string_lossy().to_string());
+        let path_override = build_openacp_path(&launcher.shim, &node_dir);
+        let env = crate::core::shell_env::clean_env(Some(&path_override));
+        let mut cmd = tokio::process::Command::new(&launcher.node);
+        cmd.arg(&launcher.entry).args(&args).env_clear().envs(env);
+        cmd
+    } else {
+        let (bin, extra_path) = find_openacp_binary()
+            .ok_or_else(|| "Could not find openacp binary".to_string())?;
+        let path_override = build_openacp_path(&bin, &extra_path);
+        let env = crate::core::shell_env::clean_env(Some(&path_override));
+        let mut cmd = tokio::process::Command::new(&bin);
+        cmd.args(&args).env_clear().envs(env);
+        cmd
+    };
     let output = cmd.output().await.map_err(|e| e.to_string())?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())

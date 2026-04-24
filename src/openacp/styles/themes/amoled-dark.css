@@ -1,0 +1,67 @@
+/* AMOLED Dark — pure-black palette for OLED displays */
+[data-theme="amoled-dark"] {
+  color-scheme: dark;
+
+  --bg-base: #000000;
+  --bg-weak: #0a0a0a;
+  --bg-weaker: #050505;
+  --bg-weakest: #141414;
+  --bg-strong: #050505;
+
+  --fg-base: #ffffff;
+  --fg-weak: #b0b0b0;
+  --fg-weaker: #808080;
+  --fg-weakest: #505050;
+
+  --border-base: rgba(255, 255, 255, 0.14);
+  --border-weak: rgba(255, 255, 255, 0.08);
+  --border-weaker: rgba(255, 255, 255, 0.05);
+  --border-weakest: rgba(255, 255, 255, 0.03);
+  --border-strong: rgba(255, 255, 255, 0.3);
+
+  --color-success: #4ade80;
+  --color-success-weak: #052e16;
+  --color-warning: #facc15;
+  --color-warning-weak: #1a1400;
+  --color-critical: #f87171;
+  --color-critical-weak: #2a0808;
+  --color-info: #c084fc;
+  --color-info-weak: #1a0b2e;
+  --color-interactive: #60a5fa;
+  --color-interactive-weak: #0a1a33;
+
+  --syntax-comment: var(--fg-weaker);
+  --syntax-regexp: var(--fg-weak);
+  --syntax-string: #4ade80;
+  --syntax-keyword: #c084fc;
+  --syntax-primitive: #facc15;
+  --syntax-operator: var(--fg-weak);
+  --syntax-variable: var(--fg-base);
+  --syntax-property: #f472b6;
+  --syntax-type: #fb923c;
+  --syntax-constant: #60a5fa;
+  --syntax-punctuation: var(--fg-weak);
+  --syntax-object: var(--fg-base);
+  --syntax-success: #4ade80;
+  --syntax-warning: #facc15;
+  --syntax-critical: #f87171;
+  --syntax-info: #60a5fa;
+  --syntax-diff-add: #22c55e;
+  --syntax-diff-delete: #ef4444;
+  --syntax-diff-unknown: #ff0000;
+
+  --markdown-heading: #60a5fa;
+  --markdown-text: #ffffff;
+  --markdown-link: #60a5fa;
+  --markdown-link-text: #22d3ee;
+  --markdown-code: #4ade80;
+  --markdown-block-quote: #facc15;
+  --markdown-emph: #facc15;
+  --markdown-strong: #60a5fa;
+  --markdown-horizontal-rule: #404040;
+  --markdown-list-item: #60a5fa;
+  --markdown-list-enumeration: #22d3ee;
+  --markdown-image: #60a5fa;
+  --markdown-image-text: #22d3ee;
+  --markdown-code-block: #ffffff;
+}

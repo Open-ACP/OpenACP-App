@@ -5,6 +5,16 @@ import { SettingCard } from "./setting-card"
 import { SettingRow } from "./setting-row"
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs"
 import { Switch } from "../ui/switch"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select"
+import { type ThemeId, groupThemesForUI } from "../../lib/themes"
 
 const TOOL_KIND_LABELS: Record<string, string> = {
   read: "Read",
@@ -21,7 +31,7 @@ const TOOL_KIND_LABELS: Record<string, string> = {
 const TOOL_KINDS = Object.keys(TOOL_KIND_LABELS)
 
 export function SettingsAppearance() {
-  const [theme, setTheme] = useState<AppSettings["theme"]>("dark")
+  const [theme, setTheme] = useState<AppSettings["theme"]>("default-dark")
   const [fontSize, setFontSize] = useState<AppSettings["fontSize"]>("medium")
   const { toolAutoExpand, updateToolAutoExpand } = useToolDisplay()
 
@@ -55,14 +65,27 @@ export function SettingsAppearance() {
   return (
     <div className="flex flex-col gap-6">
       <SettingCard title="Theme">
-        <SettingRow label="Color scheme" description="Choose light, dark, or system theme">
-          <Tabs value={theme} onValueChange={(v) => void handleThemeChange(v as AppSettings["theme"])}>
-            <TabsList>
-              <TabsTrigger value="light">Light</TabsTrigger>
-              <TabsTrigger value="dark">Dark</TabsTrigger>
-              <TabsTrigger value="system">System</TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <SettingRow label="Theme" description="Customise how OpenACP is themed">
+          <Select
+            value={theme}
+            onValueChange={(v) => void handleThemeChange(v as ThemeId)}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {groupThemesForUI().map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.themes.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
         </SettingRow>
       </SettingCard>
 

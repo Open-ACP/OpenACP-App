@@ -43,7 +43,7 @@ export const ThinkingBlockView = memo(function ThinkingBlockView({ block, sessio
 
   if (!hasContent && !block.isStreaming) {
     return (
-      <div style={{ fontStyle: "italic", fontSize: "12px", color: "var(--muted-foreground)" }}>
+      <div className="italic text-xs text-muted-foreground">
         {summaryText}
       </div>
     )

@@ -1,3 +1,6 @@
+#[cfg(unix)]
+extern crate libc;
+
 use crate::state::AppState;
 use crate::ServerInfo;
 
@@ -175,6 +178,91 @@ pub async fn remove_instance_registration(instance_id: String) -> Result<(), Str
     let updated = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
     std::fs::write(&path, updated).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// List all registered local instances by reading filesystem directly (no CLI subprocess)
+#[derive(Clone, serde::Serialize)]
+pub struct InstanceListEntry {
+    pub id: String,
+    pub name: Option<String>,
+    pub directory: String,
+    pub root: String,
+    pub status: String, // "running" | "stopped"
+    pub port: Option<u16>,
+}
+
+#[cfg(unix)]
+fn pid_alive(pid: i32) -> bool {
+    unsafe { libc::kill(pid as libc::c_int, 0) == 0 }
+}
+
+#[cfg(windows)]
+fn pid_alive(_pid: u32) -> bool {
+    false
+}
+
+#[tauri::command]
+pub async fn list_local_instances() -> Result<Vec<InstanceListEntry>, String> {
+    let value = read_instances_json()?;
+    let Some(instances) = value.get("instances").and_then(|v| v.as_object()) else {
+        return Ok(vec![]);
+    };
+
+    let mut result = Vec::new();
+    for (id, entry) in instances {
+        let Some(root_str) = entry.get("root").and_then(|r| r.as_str()) else {
+            continue;
+        };
+        let root = expand_tilde(root_str);
+
+        // directory = parent of root if root ends with .openacp, else root itself
+        let directory = if root.file_name().map(|n| n == ".openacp").unwrap_or(false) {
+            root.parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| root_str.to_string())
+        } else {
+            root.to_string_lossy().to_string()
+        };
+
+        // Read instance name from config.json
+        let name = std::fs::read_to_string(root.join("config.json"))
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| v.get("instanceName")?.as_str().map(String::from));
+
+        // Check liveness via PID file
+        let mut status = "stopped".to_string();
+        if let Ok(pid_str) = std::fs::read_to_string(root.join("openacp.pid")) {
+            #[cfg(unix)]
+            if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                if pid_alive(pid) {
+                    status = "running".to_string();
+                }
+            }
+            #[cfg(windows)]
+            if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                if pid_alive(pid) {
+                    status = "running".to_string();
+                }
+            }
+        }
+
+        // Read port
+        let port = std::fs::read_to_string(root.join("api.port"))
+            .ok()
+            .and_then(|s| s.trim().parse::<u16>().ok());
+
+        result.push(InstanceListEntry {
+            id: id.clone(),
+            name,
+            directory,
+            root: root_str.to_string(),
+            status,
+            port,
+        });
+    }
+
+    Ok(result)
 }
 
 /// Check if an OpenACP daemon is alive for a workspace by reading its PID file

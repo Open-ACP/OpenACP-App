@@ -1,0 +1,67 @@
+/* Nord Dark — https://www.nordtheme.com/docs/colors-and-palettes */
+[data-theme="nord-dark"] {
+  color-scheme: dark;
+
+  --bg-base:    #2e3440;  /* nord0 */
+  --bg-weak:    #3b4252;  /* nord1 */
+  --bg-weaker:  #434c5e;  /* nord2 */
+  --bg-weakest: #4c566a;  /* nord3 */
+  --bg-strong:  #434c5e;  /* nord2 */
+
+  --fg-base:    #eceff4;  /* nord6 */
+  --fg-weak:    #e5e9f0;  /* nord5 */
+  --fg-weaker:  #d8dee9;  /* nord4 */
+  --fg-weakest: #7b88a1;
+
+  --border-base:    rgba(216, 222, 233, 0.14);
+  --border-weak:    rgba(216, 222, 233, 0.08);
+  --border-weaker:  rgba(216, 222, 233, 0.05);
+  --border-weakest: rgba(216, 222, 233, 0.03);
+  --border-strong:  rgba(216, 222, 233, 0.24);
+
+  --color-success:          #a3be8c;  /* nord14 */
+  --color-success-weak:     #1f2a1a;
+  --color-warning:          #ebcb8b;  /* nord13 */
+  --color-warning-weak:     #2a2518;
+  --color-critical:         #bf616a;  /* nord11 */
+  --color-critical-weak:    #2a161a;
+  --color-info:             #b48ead;  /* nord15 */
+  --color-info-weak:        #2a1f28;
+  --color-interactive:      #88c0d0;  /* nord8 */
+  --color-interactive-weak: #1d2a30;
+
+  --syntax-comment:      #616e88;
+  --syntax-regexp:       #bf616a;
+  --syntax-string:       #a3be8c;
+  --syntax-keyword:      #81a1c1;
+  --syntax-primitive:    #d08770;
+  --syntax-operator:     #81a1c1;
+  --syntax-variable:     #eceff4;
+  --syntax-property:     #8fbcbb;
+  --syntax-type:         #8fbcbb;
+  --syntax-constant:     #d08770;
+  --syntax-punctuation:  #d8dee9;
+  --syntax-object:       #eceff4;
+  --syntax-success:      #a3be8c;
+  --syntax-warning:      #ebcb8b;
+  --syntax-critical:     #bf616a;
+  --syntax-info:         #88c0d0;
+  --syntax-diff-add:     #a3be8c;
+  --syntax-diff-delete:  #bf616a;
+  --syntax-diff-unknown: #d08770;
+
+  --markdown-heading:          #88c0d0;
+  --markdown-text:             #eceff4;
+  --markdown-link:             #88c0d0;
+  --markdown-link-text:        #8fbcbb;
+  --markdown-code:             #a3be8c;
+  --markdown-block-quote:      #ebcb8b;
+  --markdown-emph:             #ebcb8b;
+  --markdown-strong:           #88c0d0;
+  --markdown-horizontal-rule:  #4c566a;
+  --markdown-list-item:        #88c0d0;
+  --markdown-list-enumeration: #8fbcbb;
+  --markdown-image:            #88c0d0;
+  --markdown-image-text:       #8fbcbb;
+  --markdown-code-block:       #eceff4;
+}

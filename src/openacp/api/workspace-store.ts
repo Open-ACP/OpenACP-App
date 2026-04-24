@@ -121,19 +121,41 @@ export async function patchWorkspace(
   return all
 }
 
+let instancesCache: Promise<InstanceListEntry[]> | null = null
+
+export function invalidateInstancesCache(): void {
+  instancesCache = null
+}
+
 export async function discoverLocalInstances(): Promise<InstanceListEntry[]> {
-  try {
-    const stdout = await invoke<string>('invoke_cli', { args: ['instances', 'list', '--json'] })
-    const parsed = JSON.parse(stdout)
-    // parsed is { success: true, data: [...] } from jsonSuccess
-    const data = parsed?.data ?? parsed
-    const result = Array.isArray(data) ? data : []
-    console.log('[discoverLocalInstances] found', result.length, 'instances', result)
-    return result
-  } catch (err) {
-    console.error('[discoverLocalInstances] failed:', err)
-    return []
-  }
+  if (instancesCache) return instancesCache
+  instancesCache = (async () => {
+    try {
+      return await invoke<InstanceListEntry[]>('list_local_instances')
+    } catch (err) {
+      console.warn('[discoverLocalInstances] Rust path failed, falling back to CLI:', err)
+      // CLI fallback: invoke_cli instances list --json
+      try {
+        const stdout = await invoke<string>('invoke_cli', { args: ['instances', 'list', '--json'] })
+        const raw = typeof stdout === 'string' ? JSON.parse(stdout) : stdout
+        const data = raw?.data ?? raw
+        const list: Array<{ id: string; name?: string | null; directory: string; root: string; status?: string; port?: number | null }> =
+          Array.isArray(data) ? data : (data?.instances ?? [])
+        return list.map(item => ({
+          id: item.id,
+          name: item.name ?? null,
+          directory: item.directory,
+          root: item.root,
+          status: (item.status === 'running' ? 'running' : 'stopped') as 'running' | 'stopped',
+          port: item.port ?? null,
+        }))
+      } catch (cliErr) {
+        console.error('[discoverLocalInstances] CLI fallback also failed:', cliErr)
+        return []
+      }
+    }
+  })().catch((err) => { instancesCache = null; throw err })
+  return instancesCache
 }
 
 // ---------------------------------------------------------------------------

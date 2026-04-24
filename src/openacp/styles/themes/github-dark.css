@@ -1,0 +1,67 @@
+/* GitHub Dark — https://primer.style/foundations/color */
+[data-theme="github-dark"] {
+  color-scheme: dark;
+
+  --bg-base:    #0d1117;
+  --bg-weak:    #161b22;
+  --bg-weaker:  #010409;
+  --bg-weakest: #21262d;
+  --bg-strong:  #1c2128;
+
+  --fg-base:    #c9d1d9;
+  --fg-weak:    #8b949e;
+  --fg-weaker:  #6e7681;
+  --fg-weakest: #484f58;
+
+  --border-base:    #30363d;
+  --border-weak:    #21262d;
+  --border-weaker:  #161b22;
+  --border-weakest: #0d1117;
+  --border-strong:  #484f58;
+
+  --color-success:          #3fb950;
+  --color-success-weak:     #0c2913;
+  --color-warning:          #d29922;
+  --color-warning-weak:     #282006;
+  --color-critical:         #f85149;
+  --color-critical-weak:    #2b0d0f;
+  --color-info:             #a371f7;
+  --color-info-weak:        #1d1433;
+  --color-interactive:      #58a6ff;
+  --color-interactive-weak: #0c1d33;
+
+  --syntax-comment:      #8b949e;
+  --syntax-regexp:       #7ee787;
+  --syntax-string:       #a5d6ff;
+  --syntax-keyword:      #ff7b72;
+  --syntax-primitive:    #79c0ff;
+  --syntax-operator:     #ff7b72;
+  --syntax-variable:     #ffa657;
+  --syntax-property:     #7ee787;
+  --syntax-type:         #ffa657;
+  --syntax-constant:     #79c0ff;
+  --syntax-punctuation:  #c9d1d9;
+  --syntax-object:       #c9d1d9;
+  --syntax-success:      #3fb950;
+  --syntax-warning:      #d29922;
+  --syntax-critical:     #f85149;
+  --syntax-info:         #58a6ff;
+  --syntax-diff-add:     #3fb950;
+  --syntax-diff-delete:  #f85149;
+  --syntax-diff-unknown: #d29922;
+
+  --markdown-heading:          #58a6ff;
+  --markdown-text:             #c9d1d9;
+  --markdown-link:             #58a6ff;
+  --markdown-link-text:        #3fb950;
+  --markdown-code:             #3fb950;
+  --markdown-block-quote:      #8b949e;
+  --markdown-emph:             #8b949e;
+  --markdown-strong:           #c9d1d9;
+  --markdown-horizontal-rule:  #30363d;
+  --markdown-list-item:        #58a6ff;
+  --markdown-list-enumeration: #3fb950;
+  --markdown-image:            #58a6ff;
+  --markdown-image-text:       #3fb950;
+  --markdown-code-block:       #c9d1d9;
+}

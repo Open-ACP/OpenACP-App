@@ -21,6 +21,7 @@
 - Tauri command `discover_workspaces` for reading instance registry
 
 ### Changed
+- Add Workspace → Local: "Choose a folder" result and the agent-setup step now slide in as focused overlay steps inside the same modal; the workspace list and picker are unmounted while the user configures the picked folder, preventing mid-flow misclicks. The previously-separate "Set up workspace" dialog is gone — agent selection is now a 3rd step in the same flow.
 - Messages use `parts: MessagePart[]` instead of plain `content: string`
 - Chat context handles text, thought, tool_call, tool_update, usage, error events as structured parts
 - SSE AgentEvent types now discriminated union matching server event format

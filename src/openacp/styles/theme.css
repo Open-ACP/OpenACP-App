@@ -1,7 +1,7 @@
 /* ── Design tokens ────────────────────────────────────────────────────────── */
-/* Theme switching: set data-theme="light|dark" on <html> (handled by the     */
-/* pre-paint script in index.html + applyTheme in settings-store.ts).         */
-/* To add a new theme, add [data-theme="<name>"] and override semantic vars.  */
+/* Theme selection: set data-theme="<id>" + data-mode="light|dark" on <html>. */
+/* See src/openacp/lib/themes.ts for the registry. Per-theme palettes live in */
+/* src/openacp/styles/themes/*.css.                                           */
 
 :root {
   --shadow-xxs-border: 0 0 0 0.5px var(--border-weak);
@@ -35,7 +35,7 @@
     0 3.127px 6.95px 0 rgba(0, 0, 0, 0.06),
     0 1.237px 2.748px 0 rgba(0, 0, 0, 0.09);
 
-  /* shadcn/ui aliases (theme-independent — resolve via raw tokens per theme) */
+  /* shadcn/ui aliases (resolve via semantic tokens from the active theme) */
   --background: var(--bg-base);
   --foreground: var(--fg-base);
   --card: var(--bg-strong);
@@ -68,198 +68,41 @@
   --sidebar-ring: var(--color-interactive);
 }
 
-/* ── Light theme (default) ─────────────────────────────────────────────────── */
+/* ── Avatar — shared fallback by mode ──────────────────────────────────────── */
+/* Themes do not override avatar tokens; they inherit from the mode block.      */
 
-:root,
-[data-theme="light"] {
-  color-scheme: light;
-
-  /* Background — 4 levels + 1 elevated */
-  --bg-base: #f7f7f7;
-  --bg-weak: #f0f0f0;
-  --bg-weaker: #e8e8e8;
-  --bg-weakest: #dedede;
-  --bg-strong: #ffffff;
-
-  /* Foreground — 4 levels */
-  --fg-base: #171717;
-  --fg-weak: #525252;
-  --fg-weaker: #737373;
-  --fg-weakest: #a3a3a3;
-
-  /* Border — 4 levels + 1 strong (high contrast for focus/active) */
-  --border-base: rgba(0, 0, 0, 0.12);
-  --border-weak: rgba(0, 0, 0, 0.08);
-  --border-weaker: rgba(0, 0, 0, 0.05);
-  --border-weakest: rgba(0, 0, 0, 0.03);
-  --border-strong: rgba(0, 0, 0, 0.24);
-
-  /* Semantic — flat palette (5 colors × 2 weights) */
-  --color-success: #12c905;
-  --color-success-weak: #dbfed7;
-  --color-warning: #fbdd46;
-  --color-warning-weak: #fcf3cb;
-  --color-critical: #fc533a;
-  --color-critical-weak: #fff2f0;
-  --color-info: #a753ae;
-  --color-info-weak: #fdecfe;
-  --color-interactive: #034cff;
-  --color-interactive-weak: #ecf3ff;
-
-  /* Avatar — paired bg + text per color */
-  --avatar-background-pink: #feeef8;
-  --avatar-background-mint: #e1fbf4;
+[data-mode="light"] {
+  --avatar-background-pink:   #feeef8;
+  --avatar-background-mint:   #e1fbf4;
   --avatar-background-orange: #fff1e7;
   --avatar-background-purple: #f9f1fe;
-  --avatar-background-cyan: #e7f9fb;
-  --avatar-background-lime: #eefadc;
-  --avatar-text-pink: #cd1d8d;
-  --avatar-text-mint: #147d6f;
+  --avatar-background-cyan:   #e7f9fb;
+  --avatar-background-lime:   #eefadc;
+  --avatar-text-pink:   #cd1d8d;
+  --avatar-text-mint:   #147d6f;
   --avatar-text-orange: #ed5f00;
   --avatar-text-purple: #8445bc;
-  --avatar-text-cyan: #0894b3;
-  --avatar-text-lime: #5d770d;
-
-  /* Syntax highlighting */
-  --syntax-comment: var(--fg-weaker);
-  --syntax-regexp: var(--fg-weak);
-  --syntax-string: #006656;
-  --syntax-keyword: var(--fg-weaker);
-  --syntax-primitive: #fb4804;
-  --syntax-operator: var(--fg-weak);
-  --syntax-variable: var(--fg-base);
-  --syntax-property: #ed6dc8;
-  --syntax-type: #596600;
-  --syntax-constant: #007b80;
-  --syntax-punctuation: var(--fg-weak);
-  --syntax-object: var(--fg-base);
-  --syntax-success: #2dba26;
-  --syntax-warning: #efa72e;
-  --syntax-critical: #ed4831;
-  --syntax-info: #0092a8;
-  --syntax-diff-add: #3a8437;
-  --syntax-diff-delete: #ca2d17;
-  --syntax-diff-unknown: #ff0000;
-
-  /* Markdown */
-  --markdown-heading: #d68c27;
-  --markdown-text: #1a1a1a;
-  --markdown-link: #3b7dd8;
-  --markdown-link-text: #318795;
-  --markdown-code: #3d9a57;
-  --markdown-block-quote: #b0851f;
-  --markdown-emph: #b0851f;
-  --markdown-strong: #d68c27;
-  --markdown-horizontal-rule: #8a8a8a;
-  --markdown-list-item: #3b7dd8;
-  --markdown-list-enumeration: #318795;
-  --markdown-image: #3b7dd8;
-  --markdown-image-text: #318795;
-  --markdown-code-block: #1a1a1a;
+  --avatar-text-cyan:   #0894b3;
+  --avatar-text-lime:   #5d770d;
 }
 
-/* ── Dark theme ────────────────────────────────────────────────────────────── */
-/* Flash-of-wrong-theme prevention is handled by an inline script in index.html */
-/* that sets [data-theme] before CSS paint — no @media fallback needed.          */
-
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  /* Background */
-  --bg-base: #0a0a0a;
-  --bg-weak: #171717;
-  --bg-weaker: #1c1c1c;
-  --bg-weakest: #242424;
-  --bg-strong: #121212;
-
-  /* Foreground */
-  --fg-base: #fafafa;
-  --fg-weak: #a3a3a3;
-  --fg-weaker: #737373;
-  --fg-weakest: #525252;
-
-  /* Border */
-  --border-base: rgba(255, 255, 255, 0.14);
-  --border-weak: rgba(255, 255, 255, 0.08);
-  --border-weaker: rgba(255, 255, 255, 0.05);
-  --border-weakest: rgba(255, 255, 255, 0.03);
-  --border-strong: rgba(255, 255, 255, 0.24);
-
-  /* Semantic */
-  --color-success: #12c905;
-  --color-success-weak: #062d04;
-  --color-warning: #fcd53a;
-  --color-warning-weak: #fdf3cf;
-  --color-critical: #fc533a;
-  --color-critical-weak: #1f0603;
-  --color-info: #edb2f1;
-  --color-info-weak: #feecfe;
-  --color-interactive: #9dbefe;
-  --color-interactive-weak: #091f52;
-
-  /* Avatar */
-  --avatar-background-pink: #501b3f;
-  --avatar-background-mint: #033a34;
+[data-mode="dark"] {
+  --avatar-background-pink:   #501b3f;
+  --avatar-background-mint:   #033a34;
   --avatar-background-orange: #5f2a06;
   --avatar-background-purple: #432155;
-  --avatar-background-cyan: #0f3058;
-  --avatar-background-lime: #2b3711;
-  --avatar-text-pink: #e34ba9;
-  --avatar-text-mint: #95f3d9;
+  --avatar-background-cyan:   #0f3058;
+  --avatar-background-lime:   #2b3711;
+  --avatar-text-pink:   #e34ba9;
+  --avatar-text-mint:   #95f3d9;
   --avatar-text-orange: #ff802b;
   --avatar-text-purple: #9d5bd2;
-  --avatar-text-cyan: #369eff;
-  --avatar-text-lime: #c4f042;
-
-  /* Syntax */
-  --syntax-comment: var(--fg-weaker);
-  --syntax-regexp: var(--fg-weak);
-  --syntax-string: #00ceb9;
-  --syntax-keyword: var(--fg-weaker);
-  --syntax-primitive: #ffba92;
-  --syntax-operator: var(--fg-weak);
-  --syntax-variable: var(--fg-base);
-  --syntax-property: #ff9ae2;
-  --syntax-type: #ecf58c;
-  --syntax-constant: #93e9f6;
-  --syntax-punctuation: var(--fg-weak);
-  --syntax-object: var(--fg-base);
-  --syntax-success: #35c02d;
-  --syntax-warning: #f5b238;
-  --syntax-critical: #f54f36;
-  --syntax-info: #93e9f6;
-  --syntax-diff-add: #9bcd97;
-  --syntax-diff-delete: #faa494;
-  --syntax-diff-unknown: #ff0000;
-
-  /* Markdown */
-  --markdown-heading: #9d7cd8;
-  --markdown-text: #eeeeee;
-  --markdown-link: #fab283;
-  --markdown-link-text: #56b6c2;
-  --markdown-code: #7fd88f;
-  --markdown-block-quote: #e5c07b;
-  --markdown-emph: #e5c07b;
-  --markdown-strong: #f5a742;
-  --markdown-horizontal-rule: #808080;
-  --markdown-list-item: #fab283;
-  --markdown-list-enumeration: #56b6c2;
-  --markdown-image: #fab283;
-  --markdown-image-text: #56b6c2;
-  --markdown-code-block: #eeeeee;
+  --avatar-text-cyan:   #369eff;
+  --avatar-text-lime:   #c4f042;
 }
 
 /* ── Interface scale ────────────────────────────────────────────────────────── */
-/* Applied on :root — all rem-based tokens scale with this (UI zoom level).     */
 
-[data-font-size="small"] {
-  font-size: 14px;
-}
-
-[data-font-size="medium"] {
-  font-size: 15px;
-}
-
-[data-font-size="large"] {
-  font-size: 16px;
-}
+[data-font-size="small"]  { font-size: 14px; }
+[data-font-size="medium"] { font-size: 15px; }
+[data-font-size="large"]  { font-size: 16px; }

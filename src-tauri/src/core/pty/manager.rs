@@ -1,14 +1,31 @@
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
+
+/// Output mode for a session's reader thread.
+///
+/// Newly-created sessions start in `Buffering`: the reader thread appends
+/// chunks to the vec instead of emitting Tauri events. This prevents the
+/// initial shell prompt from being lost to the race between `pty_create`
+/// returning (which starts the reader) and the frontend wiring up its
+/// `pty-output:${id}` listener.
+///
+/// The frontend flips the session to `Streaming` by calling
+/// `pty_start_stream`, which atomically drains the accumulated buffer and
+/// hands it back. Subsequent reads emit events directly.
+pub enum ReaderState {
+    Buffering(Vec<u8>),
+    Streaming,
+}
 
 /// Represents a single PTY session
 struct PtySession {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
+    state: Arc<StdMutex<ReaderState>>,
 }
 
 /// Manages multiple PTY sessions. Designed to be swappable with a server-based
@@ -72,6 +89,7 @@ impl PtyManager {
                 master: pair.master,
                 writer,
                 _child: child,
+                state: Arc::new(StdMutex::new(ReaderState::Buffering(Vec::with_capacity(4096)))),
             },
         );
 
@@ -90,6 +108,35 @@ impl PtyManager {
             .master
             .try_clone_reader()
             .map_err(|e| format!("Failed to clone PTY reader: {e}"))
+    }
+
+    /// Clone the reader-state handle for a session. Used by the background
+    /// reader thread to decide whether to buffer or emit each chunk.
+    pub fn state_handle(&self, id: &str) -> Result<Arc<StdMutex<ReaderState>>, String> {
+        let session = self
+            .sessions
+            .get(id)
+            .ok_or_else(|| format!("PTY session not found: {id}"))?;
+        Ok(session.state.clone())
+    }
+
+    /// Flip the session to streaming mode and return any bytes that were
+    /// buffered before the frontend attached its listener. Safe to call
+    /// multiple times — subsequent calls return an empty string.
+    pub fn start_stream(&self, id: &str) -> Result<String, String> {
+        let session = self
+            .sessions
+            .get(id)
+            .ok_or_else(|| format!("PTY session not found: {id}"))?;
+        let mut state = session
+            .state
+            .lock()
+            .map_err(|e| format!("PTY state lock poisoned: {e}"))?;
+        let prev = std::mem::replace(&mut *state, ReaderState::Streaming);
+        match prev {
+            ReaderState::Buffering(buf) => Ok(String::from_utf8_lossy(&buf).into_owned()),
+            ReaderState::Streaming => Ok(String::new()),
+        }
     }
 
     /// Write input data to the PTY (user keystrokes).

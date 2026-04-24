@@ -82,7 +82,7 @@ a,
   overflow-wrap: break-word;
   color: var(--foreground);
   font-family: var(--font-family-sans);
-  font-size: 14px; /* 14px */
+  font-size: var(--text-sm);
   line-height: 1.6;
 
   /* Spacing for flow */
@@ -128,7 +128,7 @@ a,
   h4,
   h5,
   h6 {
-    font-size: 14px;
+    font-size: var(--text-sm);
     color: var(--foreground);
     font-weight: 600;
     margin-top: 24px;
@@ -829,7 +829,7 @@ a,
   cursor: pointer;
   color: var(--muted-foreground);
   font-style: italic;
-  font-size: 12px;
+  font-size: var(--text-xs);
   list-style: none;
   display: flex;
   align-items: center;
@@ -857,7 +857,7 @@ a,
 }
 
 .oac-thinking-content [data-component="markdown"] {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted-foreground);
 }
 
@@ -867,13 +867,13 @@ a,
 }
 
 .oac-thinking-content [data-component="markdown"] pre {
-  font-size: 11px;
+  font-size: var(--text-2xs);
   margin: 0.5em 0;
   padding: 6px 8px;
 }
 
 .oac-thinking-content [data-component="markdown"] code:not(pre code) {
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 
 /* ── Tool IN/OUT card ───────────────────────────────────────────────────── */

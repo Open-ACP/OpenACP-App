@@ -1,14 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X as XIcon } from "@phosphor-icons/react";
 import { LocalTab } from "./local-tab";
 import { RemoteTab } from "./remote-tab";
 import type { WorkspaceEntry } from "../../api/workspace-store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
+import { prefetchAgentsList } from "./use-agents-list";
 
 interface AddWorkspaceModalProps {
   onAdd: (entry: WorkspaceEntry) => void;
-  onSetup?: (path: string, instanceId: string) => void;
   onClose: () => void;
   existingWorkspaces: WorkspaceEntry[];
   defaultTab?: "local" | "remote";
@@ -18,6 +18,10 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
   const [tab, setTab] = useState<"local" | "remote">(
     props.defaultTab ?? "local",
   );
+
+  useEffect(() => {
+    prefetchAgentsList()
+  }, []);
 
   // Derive IDs for LocalTab; RemoteTab needs the full entries for silent re-linking
   const existingIds = props.existingWorkspaces.map((w) => w.id);
@@ -47,23 +51,24 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-border-weak">
+        {/* Tabs — every tab carries a 2px bottom border (active = foreground, inactive = weak),
+            so the underline is one continuous line across both halves with no height jump. */}
+        <div className="flex">
           <button
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${
               tab === "local"
-                ? "text-foreground border-b-2 border-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "text-foreground border-foreground"
+                : "text-muted-foreground border-border-weak hover:text-foreground"
             }`}
             onClick={() => setTab("local")}
           >
             Local
           </button>
           <button
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${
               tab === "remote"
-                ? "text-foreground border-b-2 border-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "text-foreground border-foreground"
+                : "text-muted-foreground border-border-weak hover:text-foreground"
             }`}
             onClick={() => setTab("remote")}
           >
@@ -72,9 +77,9 @@ export function AddWorkspaceModal(props: AddWorkspaceModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-5 max-h-[60vh] overflow-y-auto">
+        <div className="p-5 h-[28rem] overflow-y-auto">
           {tab === "local" ? (
-            <LocalTab onAdd={props.onAdd} onSetup={props.onSetup} existingIds={existingIds} />
+            <LocalTab onAdd={props.onAdd} existingIds={existingIds} />
           ) : (
             <RemoteTab onAdd={props.onAdd} existingWorkspaces={props.existingWorkspaces} />
           )}

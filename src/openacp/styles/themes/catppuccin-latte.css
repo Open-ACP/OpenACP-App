@@ -1,0 +1,67 @@
+/* Catppuccin Latte — https://catppuccin.com/palette/latte */
+[data-theme="catppuccin-latte"] {
+  color-scheme: light;
+
+  --bg-base:    #eff1f5;  /* base */
+  --bg-weak:    #e6e9ef;  /* mantle */
+  --bg-weaker:  #dce0e8;  /* crust */
+  --bg-weakest: #ccd0da;  /* surface0 */
+  --bg-strong:  #ffffff;
+
+  --fg-base:    #4c4f69;  /* text */
+  --fg-weak:    #5c5f77;  /* subtext1 */
+  --fg-weaker:  #6c6f85;  /* subtext0 */
+  --fg-weakest: #8c8fa1;  /* overlay1 */
+
+  --border-base:    rgba(76, 79, 105, 0.14);
+  --border-weak:    rgba(76, 79, 105, 0.08);
+  --border-weaker:  rgba(76, 79, 105, 0.05);
+  --border-weakest: rgba(76, 79, 105, 0.03);
+  --border-strong:  rgba(76, 79, 105, 0.24);
+
+  --color-success:          #40a02b;  /* green */
+  --color-success-weak:     #e8f5e6;
+  --color-warning:          #df8e1d;  /* yellow */
+  --color-warning-weak:     #fbeed3;
+  --color-critical:         #d20f39;  /* red */
+  --color-critical-weak:    #fadde3;
+  --color-info:             #8839ef;  /* mauve */
+  --color-info-weak:        #ece0fb;
+  --color-interactive:      #1e66f5;  /* blue */
+  --color-interactive-weak: #dae6fd;
+
+  --syntax-comment:      #9ca0b0;  /* overlay0 */
+  --syntax-regexp:       #ea76cb;  /* pink */
+  --syntax-string:       #40a02b;  /* green */
+  --syntax-keyword:      #8839ef;  /* mauve */
+  --syntax-primitive:    #fe640b;  /* peach */
+  --syntax-operator:     #179299;  /* teal */
+  --syntax-variable:     #4c4f69;  /* text */
+  --syntax-property:     #ea76cb;  /* pink */
+  --syntax-type:         #df8e1d;  /* yellow */
+  --syntax-constant:     #fe640b;  /* peach */
+  --syntax-punctuation:  #7c7f93;  /* overlay2 */
+  --syntax-object:       #4c4f69;
+  --syntax-success:      #40a02b;
+  --syntax-warning:      #df8e1d;
+  --syntax-critical:     #d20f39;
+  --syntax-info:         #1e66f5;
+  --syntax-diff-add:     #40a02b;
+  --syntax-diff-delete:  #d20f39;
+  --syntax-diff-unknown: #e64553;
+
+  --markdown-heading:          #8839ef;
+  --markdown-text:             #4c4f69;
+  --markdown-link:             #1e66f5;
+  --markdown-link-text:        #209fb5;
+  --markdown-code:             #40a02b;
+  --markdown-block-quote:      #df8e1d;
+  --markdown-emph:             #df8e1d;
+  --markdown-strong:           #8839ef;
+  --markdown-horizontal-rule:  #bcc0cc;
+  --markdown-list-item:        #1e66f5;
+  --markdown-list-enumeration: #209fb5;
+  --markdown-image:            #1e66f5;
+  --markdown-image-text:       #209fb5;
+  --markdown-code-block:       #4c4f69;
+}

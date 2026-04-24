@@ -67,7 +67,8 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "node",
+    environment: "happy-dom",
+    setupFiles: ["./src/test/setup.ts"],
   },
   clearScreen: false,
   server: {

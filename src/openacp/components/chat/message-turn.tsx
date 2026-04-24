@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react"
+import React, { memo, useMemo, useState, useCallback } from "react"
 import { Copy, Check } from "@phosphor-icons/react"
 import { TextShimmer } from "../ui/text-shimmer"
 import { TimelineStep, type StepStatus } from "./timeline-step"
@@ -173,7 +173,7 @@ interface AssistantBlockRowProps {
   messageStreaming: boolean
 }
 
-export function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlock, streaming, messageStreaming }: AssistantBlockRowProps) {
+export const AssistantBlockRow = memo(function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlock, streaming, messageStreaming }: AssistantBlockRowProps) {
   // Only needed for MessageFooter on the last block; computed once per row but cheap.
   const textContent = useMemo(() =>
     message.blocks?.filter((b): b is TextBlock => b.type === "text").map(b => b.content).join("\n").trim() ?? "",
@@ -220,10 +220,10 @@ export function AssistantBlockRow({ message, renderItem, isFirstBlock, isLastBlo
       )}
     </div>
   )
-}
+})
 
 /** Renders the empty/loading state for an assistant message with no blocks yet */
-export function AssistantEmptyRow({ streaming }: { streaming: boolean }) {
+export const AssistantEmptyRow = memo(function AssistantEmptyRow({ streaming }: { streaming: boolean }) {
   if (streaming) {
     return (
       <div data-component="oac-assistant-message" className="px-1">
@@ -237,7 +237,7 @@ export function AssistantEmptyRow({ streaming }: { streaming: boolean }) {
     )
   }
   return <div data-component="oac-assistant-message" className="px-1" />
-}
+})
 
 // ── Legacy full-message renderer ─────────────────────────────────────────────
 // Kept for reference; the main chat view uses AssistantBlockRow instead.

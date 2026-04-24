@@ -1,4 +1,5 @@
-use super::binary::{find_openacp_binary, prepend_path};
+use super::binary::{find_openacp_binary, resolve_openacp_launcher};
+use crate::core::onboarding::setup::build_openacp_path;
 use crate::ServerInfo;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -53,16 +54,45 @@ impl SidecarManager {
             return Ok(());
         }
 
-        let (bin, extra_path) = find_openacp_binary().ok_or("Could not find openacp binary")?;
-        tracing::info!(?bin, "start_server: spawning openacp start");
-
-        let mut cmd = tokio::process::Command::new(&bin);
-        cmd.arg("start")
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        if let Some(ref extra) = extra_path {
-            cmd.env("PATH", prepend_path(extra));
-        }
+        // Prefer explicit-node launcher for determinism across spawns.
+        // Same rationale as setup.rs::openacp_command — avoids the
+        // multi-node hazard where `env node` in the shebang picks a
+        // different node than the one that installed openacp.
+        let mut cmd = if let Some(launcher) = resolve_openacp_launcher() {
+            tracing::info!(
+                shim = %launcher.shim.display(),
+                entry = %launcher.entry.display(),
+                node = %launcher.node.display(),
+                "start_server: spawning via explicit-node launcher"
+            );
+            let node_dir = launcher
+                .node
+                .parent()
+                .map(|p| p.to_string_lossy().to_string());
+            let path_override = build_openacp_path(&launcher.shim, &node_dir);
+            let env = crate::core::shell_env::clean_env(Some(&path_override));
+            let mut cmd = tokio::process::Command::new(&launcher.node);
+            cmd.arg(&launcher.entry)
+                .arg("start")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .env_clear()
+                .envs(env);
+            cmd
+        } else {
+            let (bin, extra_path) =
+                find_openacp_binary().ok_or("Could not find openacp binary")?;
+            tracing::info!(?bin, "start_server: spawning openacp start (shim fallback)");
+            let path_override = build_openacp_path(&bin, &extra_path);
+            let env = crate::core::shell_env::clean_env(Some(&path_override));
+            let mut cmd = tokio::process::Command::new(&bin);
+            cmd.arg("start")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .env_clear()
+                .envs(env);
+            cmd
+        };
         let child = cmd
             .spawn()
             .map_err(|e| format!("Failed to start OpenACP: {e}"))?;
